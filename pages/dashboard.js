@@ -1,3 +1,4 @@
+import Head from 'next/head'
 import { useEffect, useMemo, useState } from 'react'
 import { getToken, logout } from '../utils/auth'
 import { useRouter } from 'next/router'
@@ -19,8 +20,9 @@ import TenantIdCardSettingsView from '../components/dashboard/TenantIdCardSettin
 import RazorpaySettingsView from '../components/dashboard/RazorpaySettingsView'
 import GlobalRazorpaySettingsView from '../components/dashboard/GlobalRazorpaySettingsView'
 import RolesView from '../components/dashboard/RolesView'
+import TenantDomainSettingsView from '../components/dashboard/TenantDomainSettingsView'
 
-export default function Dashboard() {
+export default function Dashboard({ initialTab }) {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [checking, setChecking] = useState(true)
@@ -40,7 +42,7 @@ export default function Dashboard() {
   }, [router])
 
   const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN'
-  const tab = (typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('tab')) : (router.query?.tab)) || 'overview'
+  const tab = (router.query?.tab || initialTab || (typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('tab')) : null) || 'overview')
 
   const userDisplay = useMemo(() => {
     try {
@@ -99,6 +101,10 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <Head>
+        <link rel="canonical" href={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/dashboard`} />
+        <meta name="robots" content="noindex,nofollow" />
+      </Head>
       <div className="mx-auto max-w-[1400px] flex">
         <Sidebar user={user} onLogout={() => { logout(); router.push('/') }} currentTab={tab} />
         <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
@@ -129,6 +135,8 @@ export default function Dashboard() {
             <GlobalRazorpaySettingsView />
           ) : tab === 'roles' ? (
             <RolesView />
+          ) : tab === 'tenant-domain-settings' ? (
+            <TenantDomainSettingsView />
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 mt-2">

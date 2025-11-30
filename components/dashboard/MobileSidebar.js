@@ -4,25 +4,25 @@ import { IconMenu, IconUsers, IconFolder, IconLang, IconGeo, IconTenant, IconSet
 
 export default function MobileSidebar({ open, onClose, onLogout }) {
   const primary = [
-    { key: 'overview', href: '/dashboard?tab=overview', label: 'Overview', icon: IconMenu },
-    { key: 'users', href: '/dashboard?tab=users', label: 'Users', icon: IconUsers },
-    { key: 'categories', href: '/dashboard?tab=categories', label: 'Categories', icon: IconFolder },
-    { key: 'languages', href: '/dashboard?tab=languages', label: 'Languages', icon: IconLang },
+    { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconMenu },
+    { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers },
+    { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder },
+    { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconLang },
   ]
   const location = [
-    { key: 'states', href: '/dashboard?tab=states', label: 'States', icon: IconGeo },
-    { key: 'districts', href: '/dashboard?tab=districts', label: 'Districts', icon: IconGeo },
-    { key: 'assembly', href: '/dashboard?tab=assembly', label: 'Assembly Constituency', icon: IconGeo },
-    { key: 'mandals', href: '/dashboard?tab=mandals', label: 'Mandals', icon: IconGeo },
+    { key: 'states', href: '/dashboard/states', label: 'States', icon: IconGeo },
+    { key: 'districts', href: '/dashboard/districts', label: 'Districts', icon: IconGeo },
+    { key: 'assembly', href: '/dashboard/assembly', label: 'Assembly Constituency', icon: IconGeo },
+    { key: 'mandals', href: '/dashboard/mandals', label: 'Mandals', icon: IconGeo },
   ]
   const tenant = [
-    { key: 'tenants', href: '/dashboard?tab=tenants', label: 'Tenants', icon: IconTenant },
-    { key: 'tenant-idcard-settings', href: '/dashboard?tab=tenant-idcard-settings', label: 'Tenant ID Card Settings', icon: IconKey },
-    { key: 'tenant-razorpay-settings', href: '/dashboard?tab=tenant-razorpay-settings', label: 'Tenant Razorpay Settings', icon: IconKey },
+    { key: 'tenants', href: '/dashboard/tenants', label: 'Tenants', icon: IconTenant },
+    { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'Tenant ID Card Settings', icon: IconKey },
+    { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Tenant Razorpay Settings', icon: IconKey },
   ]
   const settings = [
-    { key: 'roles', href: '/dashboard?tab=roles', label: 'Roles', icon: IconUsers },
-    { key: 'global-razorpay-settings', href: '/dashboard?tab=global-razorpay-settings', label: 'Global Razorpay Settings', icon: IconSettings },
+    { key: 'roles', href: '/dashboard/roles', label: 'Roles', icon: IconUsers },
+    { key: 'global-razorpay-settings', href: '/dashboard/global-razorpay-settings', label: 'Global Razorpay Settings', icon: IconSettings },
   ]
 
   function Group({ title, items }) {

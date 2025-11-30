@@ -180,9 +180,13 @@ export default function TenantsView() {
   const [editBusinessFor, setEditBusinessFor] = useState(null)
   const [verifyDomainFor, setVerifyDomainFor] = useState(null)
   const [linkCategoriesFor, setLinkCategoriesFor] = useState(null)
+  const [domainSettingsFor, setDomainSettingsFor] = useState(null) // { tenant, domain }
   const [tenantCategories, setTenantCategories] = useState([])
   const [categoriesLoading, setCategoriesLoading] = useState(false)
   const [categoriesError, setCategoriesError] = useState('')
+  const [primaryDomainSettings, setPrimaryDomainSettings] = useState(null)
+  const [domainSettingsLoading, setDomainSettingsLoading] = useState(false)
+  const [domainSettingsError, setDomainSettingsError] = useState('')
 
   async function fetchTenants() {
     try {
@@ -255,10 +259,41 @@ export default function TenantsView() {
     }
   }
 
+  async function fetchPrimaryDomainSettings(tenant) {
+    if (!tenant?.id) return
+    try {
+      setDomainSettingsError('')
+      setDomainSettingsLoading(true)
+      const primary = (tenant.domains || []).find(d => d.isPrimary)
+      if (!primary) { setPrimaryDomainSettings(null); return }
+      const domainId = primary.id || primary.domainId || primary.domain
+      const t = getToken()
+      const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+      const res = await fetch(`${base}/api/v1/tenants/${tenant.id}/domains/${domainId}/settings`, {
+        headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+      })
+      if (!res.ok) throw new Error(`Settings request failed: ${res.status}`)
+      const data = await res.json().catch(()=>({}))
+      const pick = (obj) => {
+        if (!obj || typeof obj !== 'object') return {}
+        if (obj.settings && Object.keys(obj.settings || {}).length > 0) return obj.settings
+        return obj
+      }
+      const s = pick(data.settings) || pick(data.effective) || {}
+      setPrimaryDomainSettings(s)
+    } catch (e) {
+      setPrimaryDomainSettings(null)
+      setDomainSettingsError(e.message || 'Failed to load domain settings')
+    } finally {
+      setDomainSettingsLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (selected) {
       fetchEntities(selected)
       fetchTenantCategories(selected)
+      fetchPrimaryDomainSettings(selected)
     } else {
       setEntities([])
       setEntitiesError('')
@@ -266,8 +301,18 @@ export default function TenantsView() {
       setTenantCategories([])
       setCategoriesError('')
       setCategoriesLoading(false)
+      setPrimaryDomainSettings(null)
+      setDomainSettingsError('')
+      setDomainSettingsLoading(false)
     }
   }, [selected])
+
+  useEffect(() => {
+    if (!domainSettingsFor && selected) {
+      fetchPrimaryDomainSettings(selected)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainSettingsFor])
 
   return (
     <div className="space-y-4">
@@ -448,7 +493,10 @@ export default function TenantsView() {
                             <td className="px-3 py-2 text-xs text-gray-600">{d.verifiedAt ? formatIsoDate(d.verifiedAt) : '—'}</td>
                             <td className="px-3 py-2 text-right">
                               {d.isPrimary && (
-                                <button onClick={() => setLinkCategoriesFor({ tenant: selected, domain: d })} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Link Categories</button>
+                                <>
+                                  <button onClick={() => setLinkCategoriesFor({ tenant: selected, domain: d })} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Link Categories</button>
+                                  <button onClick={() => setDomainSettingsFor({ tenant: selected, domain: d })} className="ml-2 px-2 py-1 text-xs rounded border hover:bg-gray-50">Domain Settings</button>
+                                </>
                               )}
                             </td>
                           </tr>
@@ -489,6 +537,89 @@ export default function TenantsView() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                {/* Domain Settings (Primary) */}
+                <div className="mt-8">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="font-semibold">Domain Settings</div>
+                    {(() => {
+                      const primaryObj = (selected.domains || []).find(d => d.isPrimary)
+                      if (!primaryObj) return null
+                      const hasData = primaryDomainSettings && Object.keys(primaryDomainSettings || {}).length > 0
+                      return (
+                        <button onClick={() => setDomainSettingsFor({ tenant: selected, domain: primaryObj })} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">
+                          {hasData ? 'Update Settings' : 'Add Domain Settings'}
+                        </button>
+                      )
+                    })()}
+                  </div>
+                  {(() => {
+                    const primaryObj = (selected.domains || []).find(d => d.isPrimary)
+                    if (!primaryObj) return <div className="text-sm text-gray-500">No primary domain. Add a primary domain to configure settings.</div>
+                    if (domainSettingsLoading) return <Loader size={36} label="Loading domain settings..." />
+                    if (domainSettingsError) return <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2">{domainSettingsError}</div>
+                    const s = primaryDomainSettings || {}
+                    const hasData = Object.keys(s || {}).length > 0
+                    if (!hasData) return <div className="text-sm text-gray-500">No settings found for primary domain.</div>
+                    return (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                          <Field label="Default Title" value={s.seo?.defaultMetaTitle} />
+                          <Field label="Default Description" value={s.seo?.defaultMetaDescription} />
+                          <Field label="Canonical Base" value={s.seo?.canonicalBaseUrl} />
+                          <Field label="Default Language" value={s.content?.defaultLanguage} />
+                          <Field label="Header Layout" value={s.theme?.layout?.header} />
+                          <Field label="Footer Layout" value={s.theme?.layout?.footer} />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Logo</div>
+                            {s.branding?.logoUrl ? (
+                              <img src={s.branding.logoUrl} alt="Logo" className="h-8 rounded border object-contain bg-white p-1" />
+                            ) : (
+                              <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800">—</div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Favicon</div>
+                            {s.branding?.faviconUrl ? (
+                              <img src={s.branding.faviconUrl} alt="Favicon" className="h-6 w-6 rounded border object-contain bg-white p-0.5" />
+                            ) : (
+                              <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800">—</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-0.5">Theme Colors</div>
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: s.theme?.colors?.primary || '#3F51B5' }} />
+                                <span className="text-xs font-mono text-gray-700">{s.theme?.colors?.primary || '-'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: s.theme?.colors?.secondary || '#CDDC39' }} />
+                                <span className="text-xs font-mono text-gray-700">{s.theme?.colors?.secondary || '-'}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="h-4 w-4 rounded-full border" style={{ backgroundColor: s.theme?.colors?.accent || '#FF9800' }} />
+                                <span className="text-xs font-mono text-gray-700">{s.theme?.colors?.accent || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {s.seo?.ogImageUrl && (
+                          <div className="grid grid-cols-1 gap-2 text-sm">
+                            <div>
+                              <div className="text-xs text-gray-500 mb-0.5">OG Image</div>
+                              <img src={s.seo.ogImageUrl} alt="OG image" className="h-20 rounded border object-cover" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
@@ -560,6 +691,13 @@ export default function TenantsView() {
             await fetchTenantCategories(updated || selected)
             setLinkCategoriesFor(null)
           }}
+        />
+      )}
+      {domainSettingsFor && (
+        <DomainSettingsDrawer 
+          tenant={domainSettingsFor.tenant}
+          domain={domainSettingsFor.domain}
+          onClose={() => setDomainSettingsFor(null)}
         />
       )}
     </div>
@@ -729,6 +867,330 @@ function EditEntityBusinessModal({ tenant, entity, onClose, onSaved }) {
         </form>
       </div>
     </div>
+  )
+}
+
+function DomainSettingsDrawer({ tenant, domain, onClose }) {
+  const [settings, setSettings] = useState(null)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [languages, setLanguages] = useState([])
+  const [loadingLangs, setLoadingLangs] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchSettings() {
+      setError('')
+      try {
+        const t = getToken()
+        const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+        const domainId = domain?.id || domain?.domainId || domain?.domain
+        const res = await fetch(`${base}/api/v1/tenants/${tenant.id}/domains/${domainId}/settings`, {
+          headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+        })
+        if (!res.ok) throw new Error(`Settings request failed: ${res.status}`)
+        const data = await res.json()
+        const s = data?.settings || data?.effective || data
+        if (!cancelled) setSettings(s || {})
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'Failed to load settings')
+      }
+    }
+    if (tenant?.id && domain) fetchSettings()
+    return () => { cancelled = true }
+  }, [tenant, domain])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadLangs() {
+      try {
+        setLoadingLangs(true)
+        const t = getToken()
+        const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+        const res = await fetch(`${base}/api/v1/languages`, {
+          headers: { 'accept': '*/*', 'Authorization': `Bearer ${t?.token || ''}` }
+        })
+        const json = await res.json().catch(()=>null)
+        const list = Array.isArray(json) ? json : (json?.data || [])
+        if (!cancelled) setLanguages(list)
+      } catch {
+        if (!cancelled) setLanguages([])
+      } finally {
+        if (!cancelled) setLoadingLangs(false)
+      }
+    }
+    if (tenant) loadLangs()
+    return () => { cancelled = true }
+  }, [tenant])
+
+  // Lock body scroll while this drawer is open
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
+  const DEFAULT_SETTINGS = {
+    branding: { logoUrl: '', faviconUrl: '' },
+    theme: {
+      theme: 'light',
+      colors: { primary: '#3F51B5', secondary: '#CDDC39', accent: '#FF9800' },
+      typography: { fontFamily: 'Inter, Arial, sans-serif', baseSize: 16 },
+      layout: { header: 'classic', footer: 'minimal', showTopBar: true, showTicker: true }
+    },
+    navigation: { menu: [ { label: 'Home', href: '/' }, { label: 'Politics', href: '/category/politics' } ] },
+    content: { defaultLanguage: 'en', supportedLanguages: ['en', 'te'] },
+    seo: {
+      defaultMetaTitle: 'Kaburlu News',
+      defaultMetaDescription: 'Latest breaking news and updates.',
+      ogImageUrl: 'https://cdn.kaburlu.com/seo/default-og.png',
+      canonicalBaseUrl: 'https://news.kaburlu.com'
+    },
+    notifications: { enabled: true, providers: { webpush: { publicKey: '' } } },
+    integrations: { analytics: { provider: 'gtag', measurementId: '' } },
+    flags: { enableComments: true, enableBookmarks: true },
+    customCss: 'body{font-family:Inter;}'
+  }
+
+  async function save() {
+    setError('')
+    setSaving(true)
+    try {
+      const t = getToken()
+      const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+      const domainId = domain?.id || domain?.domainId || domain?.domain
+      // Prefer PATCH with settings object as the payload
+      let res = await fetch(`${base}/api/v1/tenants/${tenant.id}/domains/${domainId}/settings`, {
+        method: 'PATCH',
+        headers: { 'accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+        body: JSON.stringify(settings || {})
+      })
+      // Fallback to PUT if PATCH is not allowed
+      if (!res.ok && (res.status === 405 || res.status === 404 || res.status === 400)) {
+        res = await fetch(`${base}/api/v1/tenants/${tenant.id}/domains/${domainId}/settings`, {
+          method: 'PUT',
+          headers: { 'accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+          body: JSON.stringify(settings || {})
+        })
+      }
+      if (!res.ok) {
+        const txt = await res.text().catch(()=> '')
+        throw new Error(`Save failed: ${res.status}${txt?` - ${txt}`:''}`)
+      }
+      // Close the drawer after a successful save; parent will refresh summary
+      if (onClose) onClose()
+    } catch (e) {
+      setError(e.message || 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function uploadMedia(file) {
+    const t = getToken()
+    const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`${base}/api/v1/media/upload`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${t?.token || ''}` },
+      body: fd
+    })
+    if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+    const json = await res.json()
+    return json.publicUrl || json.url || json.location
+  }
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col">
+        <div className="h-14 px-4 flex items-center justify-between border-b">
+          <div>
+            <div className="font-semibold">Domain Settings</div>
+            <div className="text-[11px] text-gray-600">{tenant?.name} · {domain?.domain}</div>
+          </div>
+          <button className="p-2 rounded hover:bg-gray-100" onClick={onClose}>
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {error && <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded p-2">{error}</div>}
+          {!settings && !error && <div className="text-sm text-gray-500">Loading settings…</div>}
+          {settings && (
+            <>
+              {Object.keys(settings || {}).length === 0 && (
+                <div className="p-3 rounded border bg-amber-50 text-amber-800 text-sm flex items-center justify-between">
+                  <span>No settings found for this domain. You can start with sensible defaults.</span>
+                  <button className="px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700" onClick={() => setSettings(DEFAULT_SETTINGS)}>Use Defaults</button>
+                </div>
+              )}
+              <section>
+                <div className="text-sm font-semibold mb-2">SEO</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <TextInput label="Canonical Base URL" value={settings.seo?.canonicalBaseUrl || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), canonicalBaseUrl: v } }))} />
+                  <div>
+                    <TextInput label="OG Image URL" value={settings.seo?.ogImageUrl || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), ogImageUrl: v } }))} />
+                    <div className="mt-1 flex items-center gap-2">
+                      <FileButton label="Upload" onFile={async (file) => {
+                        try { const url = await uploadMedia(file); setSettings(s => ({ ...s, seo: { ...(s.seo||{}), ogImageUrl: url } })) } catch (e) { setError(e.message) }
+                      }} />
+                      {settings.seo?.ogImageUrl && <a href={settings.seo.ogImageUrl} target="_blank" rel="noreferrer" className="text-xs text-brand">Preview</a>}
+                    </div>
+                    {settings.seo?.ogImageUrl && (
+                      <div className="mt-2">
+                        <img src={settings.seo.ogImageUrl} alt="OG preview" className="h-16 rounded border object-cover" />
+                      </div>
+                    )}
+                  </div>
+                  <TextInput label="Default Meta Title" value={settings.seo?.defaultMetaTitle || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), defaultMetaTitle: v } }))} />
+                  <TextInput label="Default Meta Description" value={settings.seo?.defaultMetaDescription || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), defaultMetaDescription: v } }))} />
+                </div>
+              </section>
+              <section>
+                <div className="text-sm font-semibold mb-2">Theme</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Select label="Theme" value={settings.theme?.theme || 'light'} options={[{value:'light',label:'Light'},{value:'dark',label:'Dark'}]} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), theme: v } }))} />
+                  <ColorInput label="Primary Color" value={settings.theme?.colors?.primary || '#3F51B5'} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), primary: v } } }))} />
+                  <ColorInput label="Secondary Color" value={settings.theme?.colors?.secondary || '#CDDC39'} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), secondary: v } } }))} />
+                  <ColorInput label="Accent Color" value={settings.theme?.colors?.accent || '#FF9800'} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), accent: v } } }))} />
+                  <TextInput label="Header Layout" value={settings.theme?.layout?.header || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), header: v } } }))} />
+                  <TextInput label="Footer Layout" value={settings.theme?.layout?.footer || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), footer: v } } }))} />
+                  <div className="col-span-2 grid grid-cols-2 gap-3">
+                    <Toggle label="Show Top Bar" checked={!!settings.theme?.layout?.showTopBar} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), showTopBar: v } } }))} />
+                    <Toggle label="Show Ticker" checked={!!settings.theme?.layout?.showTicker} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), showTicker: v } } }))} />
+                  </div>
+                </div>
+              </section>
+              <section>
+                <div className="text-sm font-semibold mb-2">Branding</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <TextInput label="Logo URL" value={settings.branding?.logoUrl || ''} onChange={v => setSettings(s => ({ ...s, branding: { ...(s.branding||{}), logoUrl: v } }))} />
+                    <div className="mt-1 flex items-center gap-2">
+                      <FileButton label="Upload" onFile={async (file) => { try { const url = await uploadMedia(file); setSettings(s => ({ ...s, branding: { ...(s.branding||{}), logoUrl: url } })) } catch (e) { setError(e.message) } }} />
+                      {settings.branding?.logoUrl && <a href={settings.branding.logoUrl} target="_blank" rel="noreferrer" className="text-xs text-brand">Preview</a>}
+                    </div>
+                    {settings.branding?.logoUrl && (
+                      <div className="mt-2">
+                        <img src={settings.branding.logoUrl} alt="Logo preview" className="h-10 rounded border object-contain bg-white p-1" />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <TextInput label="Favicon URL" value={settings.branding?.faviconUrl || ''} onChange={v => setSettings(s => ({ ...s, branding: { ...(s.branding||{}), faviconUrl: v } }))} />
+                    <div className="mt-1 flex items-center gap-2">
+                      <FileButton label="Upload" onFile={async (file) => { try { const url = await uploadMedia(file); setSettings(s => ({ ...s, branding: { ...(s.branding||{}), faviconUrl: url } })) } catch (e) { setError(e.message) } }} />
+                      {settings.branding?.faviconUrl && <a href={settings.branding.faviconUrl} target="_blank" rel="noreferrer" className="text-xs text-brand">Preview</a>}
+                    </div>
+                    {settings.branding?.faviconUrl && (
+                      <div className="mt-2">
+                        <img src={settings.branding.faviconUrl} alt="Favicon preview" className="h-8 w-8 rounded border object-contain bg-white p-1" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+              <section>
+                <div className="text-sm font-semibold mb-2">Content</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Select 
+                    label={loadingLangs ? 'Default Language (loading...)' : 'Default Language'} 
+                    value={settings.content?.defaultLanguage || ''} 
+                    options={(languages || []).map(l => ({ value: l.code, label: `${l.name || l.nativeName || l.code} (${l.code})` }))} 
+                    onChange={v => setSettings(s => ({ ...s, content: { ...(s.content||{}), defaultLanguage: v } }))} 
+                  />
+                  <TextInput label="Supported Languages (comma-separated)" value={(settings.content?.supportedLanguages || []).join(', ')} onChange={v => setSettings(s => ({ ...s, content: { ...(s.content||{}), supportedLanguages: v.split(',').map(x=>x.trim()).filter(Boolean) } }))} />
+                </div>
+              </section>
+              <section>
+                <div className="text-sm font-semibold mb-2">Custom CSS</div>
+                <Textarea label="CSS" value={settings.customCss || ''} onChange={v => setSettings(s => ({ ...s, customCss: v }))} rows={6} />
+              </section>
+              <section>
+                <div className="text-sm font-semibold mb-2">Flags</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Toggle label="Enable Comments" checked={!!settings.flags?.enableComments} onChange={v => setSettings(s => ({ ...s, flags: { ...(s.flags||{}), enableComments: v } }))} />
+                  <Toggle label="Enable Bookmarks" checked={!!settings.flags?.enableBookmarks} onChange={v => setSettings(s => ({ ...s, flags: { ...(s.flags||{}), enableBookmarks: v } }))} />
+                </div>
+              </section>
+            </>
+          )}
+        </div>
+        <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+          <button onClick={onClose} className="px-3 py-2 text-sm rounded border">Cancel</button>
+          <button onClick={save} disabled={saving || !settings} className="px-3 py-2 text-sm rounded bg-brand text-white hover:bg-brand-dark disabled:opacity-60">{saving ? 'Saving…' : 'Save Changes'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextInput({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
+      <input className="w-full rounded border px-2 py-1.5 text-sm" value={value} onChange={e => onChange(e.target.value)} />
+    </label>
+  )
+}
+
+function Select({ label, value, options, onChange }) {
+  return (
+    <label className="block">
+      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
+      <select className="w-full rounded border px-2 py-1.5 text-sm" value={value} onChange={e => onChange(e.target.value)}>
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </label>
+  )
+}
+
+function Textarea({ label, value, onChange, rows=4 }) {
+  return (
+    <label className="block">
+      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
+      <textarea className="w-full rounded border px-2 py-1.5 text-sm" rows={rows} value={value} onChange={e => onChange(e.target.value)} />
+    </label>
+  )
+}
+
+function ColorInput({ label, value, onChange }) {
+  return (
+    <label className="block">
+      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <input type="color" className="h-9 w-10 border rounded" value={value} onChange={e=>onChange(e.target.value)} />
+        <input className="flex-1 rounded border px-2 py-1.5 text-sm" value={value} onChange={e=>onChange(e.target.value)} />
+        <span className="h-6 w-6 rounded-full border" style={{ backgroundColor: value }} />
+      </div>
+    </label>
+  )
+}
+
+function Toggle({ label, checked, onChange }) {
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      {label}
+    </label>
+  )
+}
+
+function FileButton({ label='Upload', onFile }) {
+  return (
+    <>
+      <button type="button" className="px-2 py-1.5 text-xs rounded border hover:bg-gray-50" onClick={() => {
+        const input = document.createElement('input')
+        input.type = 'file'
+        input.accept = 'image/*'
+        input.onchange = (e) => {
+          const file = e.target.files && e.target.files[0]
+          if (file && onFile) onFile(file)
+        }
+        input.click()
+      }}>{label}</button>
+    </>
   )
 }
 
