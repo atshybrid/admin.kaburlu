@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { IconMenu, IconUsers, IconFolder, IconLang, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/icons'
+import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/icons'
 
 export default function MobileSidebar({ open, onClose, onLogout }) {
   const primary = [
     { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconMenu },
+    { key: 'articles', href: '/dashboard/articles', label: 'Articles', icon: IconArticles },
     { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers },
     { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder },
     { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconLang },
@@ -19,6 +20,7 @@ export default function MobileSidebar({ open, onClose, onLogout }) {
     { key: 'tenants', href: '/dashboard/tenants', label: 'Tenants', icon: IconTenant },
     { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'Tenant ID Card Settings', icon: IconKey },
     { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Tenant Razorpay Settings', icon: IconKey },
+    { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Tenant Domain Settings', icon: IconSettings },
   ]
   const settings = [
     { key: 'roles', href: '/dashboard/roles', label: 'Roles', icon: IconUsers },

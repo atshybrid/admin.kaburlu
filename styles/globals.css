@@ -79,7 +79,7 @@ body {
 }
 .btn-base:hover { background: var(--ui-bg-alt); color: var(--ui-text); }
 .btn-brand { background: var(--ui-brand); color:#fff; border:1px solid var(--ui-brand); }
-.btn-brand:hover { background: var(--ui-brand-accent; ); }
+.btn-brand:hover { background: var(--ui-brand-accent); }
 .btn-outline-brand { background: var(--ui-brand-soft); color: var(--ui-brand); border:1px solid var(--ui-brand); }
 .btn-outline-brand:hover { background: var(--ui-brand); color:#fff; }
 .btn-danger { background: var(--ui-danger); color:#fff; border:1px solid var(--ui-danger); }

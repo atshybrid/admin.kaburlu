@@ -1,23 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { getToken as getStoredAuth } from '../../utils/auth'
+import { getDomainSettings, putDomainSettings, patchDomainSettings } from '../../lib/domainSettingsApi'
 
-function getToken() {
-  if (typeof window === 'undefined') return ''
-  try { return localStorage.getItem('token') || '' } catch { return '' }
+function getAuthToken() {
+  const stored = getStoredAuth()
+  return stored?.token || ''
 }
 
-async function apiGet(url) {
-  const token = getToken()
-  const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'accept': 'application/json' } })
-  if (!res.ok) throw new Error(`GET ${url} ${res.status}`)
-  return res.json()
+function getApiBase() {
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
 }
 
-async function apiPut(url, body) {
-  const token = getToken()
-  const res = await fetch(url, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`PUT ${url} ${res.status}`)
-  return res.json()
+async function apiGetJson(url, token) {
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, cache: 'no-store' })
+  const text = await res.text()
+  if (!res.ok) throw new Error(text || `GET ${url} ${res.status}`)
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
 }
 
 export default function TenantDomainSettingsView() {
@@ -26,7 +29,10 @@ export default function TenantDomainSettingsView() {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState(null) // { tenantId, domainId }
-  const [settings, setSettings] = useState(null)
+  const [domainOnlySettings, setDomainOnlySettings] = useState(null)
+  const [effectiveSettings, setEffectiveSettings] = useState(null)
+  const [jsonText, setJsonText] = useState('')
+  const [patchText, setPatchText] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -35,7 +41,8 @@ export default function TenantDomainSettingsView() {
       setLoading(true)
       setError('')
       try {
-        const ts = await apiGet(`${process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com'}/api/v1/tenants?full=true`)
+        const token = getAuthToken()
+        const ts = await apiGetJson(`${getApiBase()}/api/v1/tenants?full=true`, token)
         if (!mounted) return
         setTenants((ts.items || ts?.data || ts) || [])
       } catch (e) {
@@ -65,27 +72,62 @@ export default function TenantDomainSettingsView() {
     return out
   }, [tenants])
 
-  async function openSettings(row) {
-    setSelected(row)
-    setOpen(true)
-    setSettings(null)
+  async function reloadSelected(rowOverride) {
+    const row = rowOverride || selected
+    if (!row) return
+    setError('')
+    setDomainOnlySettings(null)
+    setEffectiveSettings(null)
+    setJsonText('')
+    setPatchText('')
+
     try {
-      const data = await apiGet(`${process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com'}/api/v1/tenants/${row.tenantId}/domains/${row.domainId}/settings`)
-      setSettings(data.settings || data.effective || data)
+      const token = getAuthToken()
+      const data = await getDomainSettings({ tenantId: row.tenantId, domainId: row.domainId, token })
+      const settings = data?.settings || {}
+      const effective = data?.effective || {}
+      setDomainOnlySettings(settings)
+      setEffectiveSettings(effective)
+      setJsonText(JSON.stringify(settings, null, 2))
+      setPatchText(JSON.stringify({ branding: settings?.branding || {} }, null, 2))
     } catch (e) {
       setError(e.message || 'Failed to fetch settings')
     }
   }
 
-  async function saveSettings() {
+  async function openSettings(row) {
+    setSelected(row)
+    setOpen(true)
+    await reloadSelected(row)
+  }
+
+  async function savePutReplace() {
     if (!selected) return
     setSaving(true)
     setError('')
     try {
-      await apiPut(`${process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com'}/api/v1/tenants/${selected.tenantId}/domains/${selected.domainId}/settings`, { settings })
-      setOpen(false)
+      const token = getAuthToken()
+      const parsed = JSON.parse(jsonText || '{}')
+      await putDomainSettings({ tenantId: selected.tenantId, domainId: selected.domainId, token, data: parsed })
+      await reloadSelected()
     } catch (e) {
       setError(e.message || 'Failed to save settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function savePatchMerge() {
+    if (!selected) return
+    setSaving(true)
+    setError('')
+    try {
+      const token = getAuthToken()
+      const patch = JSON.parse(patchText || '{}')
+      await patchDomainSettings({ tenantId: selected.tenantId, domainId: selected.domainId, token, data: patch })
+      await reloadSelected()
+    } catch (e) {
+      setError(e.message || 'Failed to patch settings')
     } finally {
       setSaving(false)
     }
@@ -98,6 +140,11 @@ export default function TenantDomainSettingsView() {
         <Link href="/dashboard?tab=tenants"><a className="text-sm text-brand">Back to Tenants</a></Link>
       </div>
       {error && <div className="text-sm text-red-600">{error}</div>}
+      {!getAuthToken() ? (
+        <div className="text-sm text-red-600">
+          Missing auth token. Please login again.
+        </div>
+      ) : null}
       {loading ? (
         <div className="text-sm text-gray-500">Loading…</div>
       ) : (
@@ -139,94 +186,59 @@ export default function TenantDomainSettingsView() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {!settings ? (
+            {!domainOnlySettings ? (
               <div className="text-sm text-gray-500">Fetching settings…</div>
             ) : (
-              <div className="space-y-6">
-                {/* SEO */}
+              <div className="space-y-5">
                 <section>
-                  <div className="text-sm font-semibold mb-2">SEO</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <TextInput label="Canonical Base URL" value={settings.seo?.canonicalBaseUrl || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), canonicalBaseUrl: v } }))} />
-                    <TextInput label="OG Image URL" value={settings.seo?.ogImageUrl || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), ogImageUrl: v } }))} />
-                    <TextInput label="Default Meta Title" value={settings.seo?.defaultMetaTitle || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), defaultMetaTitle: v } }))} />
-                    <TextInput label="Default Meta Description" value={settings.seo?.defaultMetaDescription || ''} onChange={v => setSettings(s => ({ ...s, seo: { ...(s.seo||{}), defaultMetaDescription: v } }))} />
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">Domain Settings (editable JSON)</div>
+                      <div className="text-[11px] text-gray-500">PUT replaces entire JSON. PATCH merges only top-level keys (shallow).</div>
+                    </div>
+                    <button onClick={() => reloadSelected()} className="btn-base px-3 py-1.5" disabled={saving}>Reload</button>
                   </div>
+                  <textarea
+                    className="mt-2 w-full rounded border px-3 py-2 text-sm font-mono"
+                    rows={16}
+                    value={jsonText}
+                    onChange={e => setJsonText(e.target.value)}
+                  />
                 </section>
 
-                {/* Theme */}
                 <section>
-                  <div className="text-sm font-semibold mb-2">Theme</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select label="Theme" value={settings.theme?.theme || 'light'} options={[{value:'light',label:'Light'},{value:'dark',label:'Dark'}]} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), theme: v } }))} />
-                    <TextInput label="Primary Color" value={settings.theme?.colors?.primary || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), primary: v } } }))} />
-                    <TextInput label="Secondary Color" value={settings.theme?.colors?.secondary || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), secondary: v } } }))} />
-                    <TextInput label="Accent Color" value={settings.theme?.colors?.accent || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), colors: { ...(s.theme?.colors||{}), accent: v } } }))} />
-                    <TextInput label="Header Layout" value={settings.theme?.layout?.header || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), header: v } } }))} />
-                    <TextInput label="Footer Layout" value={settings.theme?.layout?.footer || ''} onChange={v => setSettings(s => ({ ...s, theme: { ...(s.theme||{}), layout: { ...(s.theme?.layout||{}), footer: v } } }))} />
-                  </div>
+                  <div className="text-sm font-semibold mb-2">PATCH payload (optional)</div>
+                  <textarea
+                    className="w-full rounded border px-3 py-2 text-sm font-mono"
+                    rows={7}
+                    value={patchText}
+                    onChange={e => setPatchText(e.target.value)}
+                  />
                 </section>
 
-                {/* Branding */}
                 <section>
-                  <div className="text-sm font-semibold mb-2">Branding</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <TextInput label="Logo URL" value={settings.branding?.logoUrl || ''} onChange={v => setSettings(s => ({ ...s, branding: { ...(s.branding||{}), logoUrl: v } }))} />
-                    <TextInput label="Favicon URL" value={settings.branding?.faviconUrl || ''} onChange={v => setSettings(s => ({ ...s, branding: { ...(s.branding||{}), faviconUrl: v } }))} />
-                  </div>
+                  <div className="text-sm font-semibold mb-2">Effective Settings (read-only merged)</div>
+                  <pre className="w-full rounded border bg-gray-50 p-3 text-xs overflow-auto max-h-[18rem]">
+                    {JSON.stringify(effectiveSettings || {}, null, 2)}
+                  </pre>
                 </section>
 
-                {/* Content */}
                 <section>
-                  <div className="text-sm font-semibold mb-2">Content</div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <TextInput label="Default Language" value={settings.content?.defaultLanguage || ''} onChange={v => setSettings(s => ({ ...s, content: { ...(s.content||{}), defaultLanguage: v } }))} />
-                  </div>
-                </section>
-
-                {/* Custom CSS */}
-                <section>
-                  <div className="text-sm font-semibold mb-2">Custom CSS</div>
-                  <Textarea label="CSS" value={settings.customCss || ''} onChange={v => setSettings(s => ({ ...s, customCss: v }))} rows={6} />
+                  <div className="text-sm font-semibold mb-2">Saved for domain (read-only)</div>
+                  <pre className="w-full rounded border bg-gray-50 p-3 text-xs overflow-auto max-h-[12rem]">
+                    {JSON.stringify(domainOnlySettings || {}, null, 2)}
+                  </pre>
                 </section>
               </div>
             )}
           </div>
           <div className="h-14 px-4 border-t flex items-center justify-end gap-2">
             <button className="px-3 py-2 rounded bg-gray-100" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="px-3 py-2 rounded bg-brand text-white disabled:opacity-50" disabled={saving} onClick={saveSettings}>{saving ? 'Saving…' : 'Save Changes'}</button>
+            <button className="px-3 py-2 rounded bg-gray-900 text-white disabled:opacity-50" disabled={saving} onClick={savePatchMerge}>{saving ? 'Saving…' : 'Save PATCH'}</button>
+            <button className="px-3 py-2 rounded bg-brand text-white disabled:opacity-50" disabled={saving} onClick={savePutReplace}>{saving ? 'Saving…' : 'Save PUT'}</button>
           </div>
         </div>
       </div>
     </div>
-  )
-}
-
-function TextInput({ label, value, onChange }) {
-  return (
-    <label className="block">
-      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
-      <input className="w-full rounded border px-2 py-1.5 text-sm" value={value} onChange={e => onChange(e.target.value)} />
-    </label>
-  )
-}
-
-function Select({ label, value, options, onChange }) {
-  return (
-    <label className="block">
-      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
-      <select className="w-full rounded border px-2 py-1.5 text-sm" value={value} onChange={e => onChange(e.target.value)}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  )
-}
-
-function Textarea({ label, value, onChange, rows=4 }) {
-  return (
-    <label className="block">
-      <div className="text-[12px] text-gray-600 mb-1">{label}</div>
-      <textarea className="w-full rounded border px-2 py-1.5 text-sm" rows={rows} value={value} onChange={e => onChange(e.target.value)} />
-    </label>
   )
 }

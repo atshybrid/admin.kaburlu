@@ -1,6 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/router'
 import { getToken } from '../../utils/auth'
 import Loader from '../Loader'
+
+function getApiBase() {
+  const base = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com'
+  return String(base).replace(/\/$/, '')
+}
+
+function pickId(value) {
+  if (!value || typeof value !== 'object') return ''
+  return value.id || value._id || ''
+}
+
+function slugify(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+async function parseApiError(res) {
+  try {
+    const data = await res.json()
+    return (
+      data?.message ||
+      data?.error ||
+      data?.errors?.[0]?.message ||
+      data?.data?.message ||
+      JSON.stringify(data)
+    )
+  } catch {
+    try {
+      const text = await res.text()
+      return text || `Request failed: ${res.status}`
+    } catch {
+      return `Request failed: ${res.status}`
+    }
+  }
+}
 
 function filterIds(value) {
   if (Array.isArray(value)) return value.map(filterIds)
@@ -44,10 +83,17 @@ function categoryDisplayName(c) {
 }
 
 function Field({ label, value, full }) {
+  function fmt(v) {
+    if (v === null || v === undefined || v === '') return '—'
+    if (typeof v === 'object') {
+      try { return JSON.stringify(v) } catch { return String(v) }
+    }
+    return String(v)
+  }
   return (
     <div className={full ? 'sm:col-span-2' : ''}>
       <div className="text-xs text-gray-500 mb-0.5">{label}</div>
-      <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800 min-h-[30px] flex items-center">{value || '—'}</div>
+      <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800 min-h-[30px] flex items-center">{fmt(value)}</div>
     </div>
   )
 }
@@ -69,7 +115,7 @@ function TenantFormModal({ open, onClose, onCreated }) {
     async function loadStates() {
       setStatesError('')
       setStatesLoading(true)
-      const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
+      const base = getApiBase()
       try {
         const t = getToken()
         let res = await fetch(base + '/api/v1/states', {
@@ -104,8 +150,14 @@ function TenantFormModal({ open, onClose, onCreated }) {
     setLoading(true)
     try {
       const t = getToken()
-      const payload = { name: name.trim(), prgiNumber: prgiNumber.trim() || undefined, stateId }
-      const res = await fetch((process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com') + '/api/v1/tenants', {
+      const trimmedName = name.trim()
+      const payload = {
+        name: trimmedName,
+        slug: slugify(trimmedName),
+        prgiNumber: prgiNumber.trim() || undefined,
+        stateId
+      }
+      const res = await fetch(getApiBase() + '/api/v1/tenants', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -113,7 +165,7 @@ function TenantFormModal({ open, onClose, onCreated }) {
         },
         body: JSON.stringify(payload)
       })
-      if (!res.ok) throw new Error(`Create failed: ${res.status}`)
+      if (!res.ok) throw new Error(`Create failed: ${res.status} - ${await parseApiError(res)}`)
       const created = await res.json()
       onCreated(created?.data || created)
       onClose()
@@ -149,7 +201,11 @@ function TenantFormModal({ open, onClose, onCreated }) {
             <label className="block text-xs font-semibold text-gray-700 flex items-center gap-2">State {statesLoading && <Loader size={20} />}</label>
             <select className="mt-1 w-full border rounded p-2 bg-white" value={stateId} onChange={e=>setStateId(e.target.value)} required disabled={statesLoading || (!!statesError && states.length===0)}>
               <option value="">{statesLoading ? 'Loading states...' : (statesError ? 'Failed to load states' : 'Select a state')}</option>
-              {states.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {states.map(s => {
+                const id = pickId(s)
+                if (!id) return null
+                return <option key={id} value={id}>{s.name || s.stateName || id}</option>
+              })}
             </select>
             {statesError && <div className="text-[11px] text-red-600 mt-1">{statesError}</div>}
           </div>
@@ -166,6 +222,7 @@ function TenantFormModal({ open, onClose, onCreated }) {
 }
 
 export default function TenantsView() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [rows, setRows] = useState([])
@@ -187,13 +244,26 @@ export default function TenantsView() {
   const [primaryDomainSettings, setPrimaryDomainSettings] = useState(null)
   const [domainSettingsLoading, setDomainSettingsLoading] = useState(false)
   const [domainSettingsError, setDomainSettingsError] = useState('')
+  const [search, setSearch] = useState('')
+
+  const filteredRows = useMemo(() => {
+    const q = (search || '').trim().toLowerCase()
+    if (!q) return rows
+    return (rows || []).filter(r => {
+      const name = (r.name || '').toLowerCase()
+      const prgi = (r.prgiNumber || '').toLowerCase()
+      const slug = (r.slug || '').toLowerCase()
+      const domains = (r.domains || []).map(d => (d.domain || '')).join(' ').toLowerCase()
+      return name.includes(q) || prgi.includes(q) || slug.includes(q) || domains.includes(q)
+    })
+  }, [rows, search])
 
   async function fetchTenants() {
     try {
       setError('')
       setLoading(true)
       const t = getToken()
-      const res = await fetch((process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com') + '/api/v1/tenants?full=true', {
+      const res = await fetch(getApiBase() + '/api/v1/tenants?full=true', {
         headers: {
           'accept': '*/*',
           'Authorization': `Bearer ${t?.token || ''}`
@@ -317,8 +387,17 @@ export default function TenantsView() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-lg font-semibold">Tenants</h2>
+        <div>
+          <h2 className="text-lg font-semibold">Tenants</h2>
+          <div className="text-xs text-gray-600">Search, open a tenant, and manage all sections in one place.</div>
+        </div>
         <div className="flex items-center gap-2">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search name / domain / PRGI"
+            className="px-3 py-2 text-sm border rounded w-full sm:w-72 bg-white"
+          />
           <button onClick={() => setOpenCreate(true)} className="px-3 py-2 text-sm rounded bg-brand text-white hover:bg-brand-dark">Add Tenant</button>
         </div>
       </div>
@@ -350,7 +429,7 @@ export default function TenantsView() {
               {!loading && !error && rows.length === 0 && (
                 <tr><td className="px-4 py-4 text-gray-500" colSpan={4}>No tenants found.</td></tr>
               )}
-              {!loading && !error && rows.map((r) => {
+              {!loading && !error && filteredRows.map((r) => {
                 const hasEntity = !!r.entity
                 const languageName = r.entity?.language?.name || '-'
                 const anyPending = (r.domains || []).some(d => (d.status || '').toUpperCase() === 'PENDING')
@@ -400,7 +479,7 @@ export default function TenantsView() {
                         {!hasEntity && (
                           <button onClick={() => setEntityFor(r)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">Add Entity</button>
                         )}
-                        <button onClick={() => setSelected(r)} className="px-2 py-1 text-xs rounded border hover:bg-gray-50">View</button>
+                        <button onClick={() => router.push(`/dashboard/tenants/${r.id}`)} className="px-2 py-1 text-xs rounded bg-brand text-white hover:bg-brand-dark">Manage</button>
                       </div>
                     </td>
                   </tr>

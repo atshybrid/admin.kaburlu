@@ -4,6 +4,7 @@ import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconT
 export default function Sidebar({ user, onLogout, currentTab = 'overview' }) {
   const primary = [
     { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconMenu },
+    { key: 'articles', href: '/dashboard/articles', label: 'Articles', icon: IconArticles },
     { key: 'reporters', href: '/dashboard/reporters', label: 'Reporters', icon: IconUsers },
     { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder },
     { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconLang },
@@ -19,6 +20,7 @@ export default function Sidebar({ user, onLogout, currentTab = 'overview' }) {
     { key: 'tenants', href: '/dashboard/tenants', label: 'Tenants', icon: IconTenant },
     { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'Tenant ID Card Settings', icon: IconKey },
     { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Tenant Razorpay Settings', icon: IconKey },
+    { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Tenant Domain Settings', icon: IconSettings },
   ]
   const settings = [
     { key: 'roles', href: '/dashboard/roles', label: 'Roles', icon: IconUsers },

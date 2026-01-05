@@ -11,7 +11,7 @@ export default function LoginCard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com'
+  const apiBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -35,7 +35,11 @@ export default function LoginCard() {
         setError(res.data?.message || 'Login failed')
       }
     } catch (err) {
-      setError(err?.response?.data?.message || err.message || 'Network error')
+      const status = err?.response?.status
+      const data = err?.response?.data
+      const backendMessage = data?.message || data?.error || (typeof data === 'string' ? data : '')
+      const fallback = err?.message || 'Network error'
+      setError(status ? `${status}: ${backendMessage || fallback}` : (backendMessage || fallback))
     } finally {
       setLoading(false)
     }

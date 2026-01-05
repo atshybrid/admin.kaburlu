@@ -20,6 +20,7 @@ export async function getServerSideProps(ctx) {
   const site = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const allowed = [
     'overview',
+    'articles',
     'tenants',
     'reporters',
     'users',

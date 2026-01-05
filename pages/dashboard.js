@@ -21,6 +21,7 @@ import RazorpaySettingsView from '../components/dashboard/RazorpaySettingsView'
 import GlobalRazorpaySettingsView from '../components/dashboard/GlobalRazorpaySettingsView'
 import RolesView from '../components/dashboard/RolesView'
 import TenantDomainSettingsView from '../components/dashboard/TenantDomainSettingsView'
+import ArticlesView from '../components/dashboard/ArticlesView'
 
 export default function Dashboard({ initialTab }) {
   const router = useRouter()
@@ -137,6 +138,8 @@ export default function Dashboard({ initialTab }) {
             <RolesView />
           ) : tab === 'tenant-domain-settings' ? (
             <TenantDomainSettingsView />
+          ) : tab === 'articles' ? (
+            <ArticlesView />
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 mt-2">
