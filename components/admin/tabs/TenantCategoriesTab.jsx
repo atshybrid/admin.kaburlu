@@ -4,8 +4,10 @@
 import { useState, useEffect, useContext } from 'react'
 import { getToken } from '../../../utils/auth'
 
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') return '/api/proxy'
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 export default function TenantCategoriesTab({ tenantContext }) {

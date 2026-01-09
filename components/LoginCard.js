@@ -12,7 +12,8 @@ export default function LoginCard() {
   const [error, setError] = useState('')
   const [showMpin, setShowMpin] = useState(false)
 
-  const apiBase = (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  // Use local API proxy to avoid CORS issues
+  const loginUrl = '/api/auth/login'
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -27,7 +28,7 @@ export default function LoginCard() {
     setLoading(true)
     setError('')
     try {
-      const res = await axios.post(`${apiBase}/api/v1/auth/login`, { mobileNumber, mpin }, { headers: { 'Content-Type': 'application/json' } })
+      const res = await axios.post(loginUrl, { mobileNumber, mpin }, { headers: { 'Content-Type': 'application/json' } })
       if (res.data && res.data.success) {
         const { jwt } = res.data.data
         saveToken(jwt, res.data.data)

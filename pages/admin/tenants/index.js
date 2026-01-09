@@ -8,8 +8,12 @@ import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import { getToken } from '../../../utils/auth'
 
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') {
+    return '/api/proxy'
+  }
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 function StatusBadge({ status }) {
@@ -40,7 +44,7 @@ function CreateTenantModal({ open, onClose, onCreated }) {
     async function loadStates() {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/api/v1/states`, {
+        const res = await fetch(`${getApiBase()}/states`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
         if (res.ok) {
@@ -66,19 +70,31 @@ function CreateTenantModal({ open, onClose, onCreated }) {
       const t = getToken()
       const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
       
-      const res = await fetch(`${getApiBase()}/api/v1/tenants`, {
+      const payload = {
+        name: name.trim(),
+        slug,
+        prgiNumber: prgiNumber.trim() || undefined,
+        stateId
+      }
+      
+      // 🔍 DEBUG: Log full request details
+      console.group('🚀 CREATE TENANT REQUEST')
+      console.log('📍 URL:', `${getApiBase()}/tenants`)
+      console.log('🔑 Token exists:', !!t?.token)
+      console.log('🔑 Token preview:', t?.token ? t.token.substring(0, 50) + '...' : 'NO TOKEN!')
+      console.log('📦 Payload:', payload)
+      console.groupEnd()
+      
+      const res = await fetch(`${getApiBase()}/tenants`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${t?.token || ''}`
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          slug,
-          prgiNumber: prgiNumber.trim() || undefined,
-          stateId
-        })
+        body: JSON.stringify(payload)
       })
+      
+      console.log('📬 Response:', res.status, res.statusText)
       
       if (!res.ok) {
         const text = await res.text()
@@ -187,7 +203,7 @@ function TenantsContent() {
     setError('')
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/tenants?full=true`, {
+      const res = await fetch(`${getApiBase()}/tenants?full=true`, {
         headers: { 'Authorization': `Bearer ${t?.token || ''}` }
       })
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)

@@ -9,8 +9,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getToken } from '../../../utils/auth'
 
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') return '/api/proxy'
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 // Icons
@@ -265,17 +267,21 @@ function Field({ label, value, hint }) {
 }
 
 // Simple/Quick Setup Form
-function QuickSetupForm({ tenantId, onSuccess }) {
+function QuickSetupForm({ tenantId, tenant, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [languages, setLanguages] = useState([])
   
   const [form, setForm] = useState({
-    registrationTitle: '',
+    registrationTitle: tenant?.name || '',
     languageId: '',
     adminMobile: '',
-    prgiNumber: '',
+    prgiNumber: tenant?.prgiNumber || '',
     periodicity: 'DAILY',
+    // Owner/Publisher/Editor fields
+    ownerName: '',
+    publisherName: '',
+    editorName: '',
   })
 
   useEffect(() => {
@@ -320,6 +326,9 @@ function QuickSetupForm({ tenantId, onSuccess }) {
           adminMobile: form.adminMobile || undefined,
           prgiNumber: form.prgiNumber || undefined,
           periodicity: form.periodicity,
+          ownerName: form.ownerName || undefined,
+          publisherName: form.publisherName || undefined,
+          editorName: form.editorName || undefined,
         })
       })
       
@@ -410,6 +419,9 @@ function QuickSetupForm({ tenantId, onSuccess }) {
               className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
               placeholder="PRGI-TS-2025-01987"
             />
+            {tenant?.prgiNumber && (
+              <p className="text-xs text-green-600 mt-1">Auto-filled from tenant registration</p>
+            )}
           </div>
           
           <div>
@@ -423,6 +435,69 @@ function QuickSetupForm({ tenantId, onSuccess }) {
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+          </div>
+        </div>
+        
+        {/* Owner/Publisher/Editor Section */}
+        <div className="border-t pt-5">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-semibold text-slate-900">Owner & Editorial Details</h4>
+            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.ownerName && form.publisherName === form.ownerName && form.editorName === form.ownerName}
+                onChange={e => {
+                  if (e.target.checked && form.ownerName) {
+                    setForm({...form, publisherName: form.ownerName, editorName: form.ownerName})
+                  }
+                }}
+                className="rounded border-slate-300 text-brand focus:ring-brand"
+              />
+              Same owner as Publisher & Editor
+            </label>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Owner Name</label>
+              <input
+                value={form.ownerName}
+                onChange={e => {
+                  const ownerName = e.target.value
+                  // Auto-fill publisher and editor if they're empty or same as old owner
+                  const updates = { ownerName }
+                  if (!form.publisherName || form.publisherName === form.ownerName) {
+                    updates.publisherName = ownerName
+                  }
+                  if (!form.editorName || form.editorName === form.ownerName) {
+                    updates.editorName = ownerName
+                  }
+                  setForm({...form, ...updates})
+                }}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="Owner full name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Publisher Name</label>
+              <input
+                value={form.publisherName}
+                onChange={e => setForm({...form, publisherName: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="Publisher name"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Editor Name</label>
+              <input
+                value={form.editorName}
+                onChange={e => setForm({...form, editorName: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="Editor name"
+              />
+            </div>
           </div>
         </div>
         
@@ -782,7 +857,7 @@ export default function TenantEntityTab({ tenantContext }) {
           </div>
         </div>
         
-        <QuickSetupForm tenantId={tenantId} onSuccess={handleSuccess} />
+        <QuickSetupForm tenantId={tenantId} tenant={tenant} onSuccess={handleSuccess} />
       </div>
     )
   }

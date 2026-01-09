@@ -14,8 +14,10 @@
 import { useState, useEffect } from 'react'
 import { getToken } from '../../../utils/auth'
 
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') return '/api/proxy'
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 // Helper to check if domain is a subdomain of kaburlumedia.com
@@ -150,7 +152,7 @@ function AddDomainModal({ open, onClose, onAdded, tenantId, existingDomains = []
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains`, {
+      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/domains`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,9 +169,13 @@ function AddDomainModal({ open, onClose, onAdded, tenantId, existingDomains = []
       setSubdomain('')
       setCustomDomain('')
       setIsPrimary(false)
-      onAdded()
+      
+      // Refresh domains list and close modal
+      console.log('✅ Domain added successfully, refreshing list...')
+      await onAdded()
       onClose()
     } catch (e) {
+      console.error('❌ Failed to add domain:', e)
       setError(e.message || 'Failed to add domain')
     } finally {
       setLoading(false)
@@ -309,7 +315,7 @@ function VerifyDomainModal({ open, onClose, domain, tenantId, onVerified }) {
       const t = getToken()
       const domainId = domain?.id
       
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domainId}/verify`, {
+      const res = await fetch(`${getApiBase()}/domains/${domainId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -417,7 +423,7 @@ function SetKindModal({ open, onClose, domain, onUpdated }) {
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/kind`, {
+      const res = await fetch(`${getApiBase()}/domains/${domain.id}/kind`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -497,8 +503,8 @@ function ManageCategoriesModal({ open, onClose, domain, allCategories, onUpdated
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/categories`, {
-        method: 'PUT',
+      const res = await fetch(`${getApiBase()}/domains/${domain.id}/categories`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${t?.token || ''}`
@@ -595,7 +601,7 @@ function DomainCard({ domain, tenantId, allCategories, onRefresh }) {
     
     try {
       const t = getToken()
-      await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains/${domain.id}`, {
+      await fetch(`${getApiBase()}/tenants/${tenantId}/domains/${domain.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${t?.token || ''}` }
       })
@@ -646,9 +652,55 @@ function DomainCard({ domain, tenantId, allCategories, onRefresh }) {
           </a>
         </div>
         
-        <div className="p-4">
+        <div className="p-4 space-y-4">
+          {/* Verification & Status Details */}
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="p-2 bg-slate-50 rounded-lg">
+              <div className="text-slate-500 mb-0.5">Verification Method</div>
+              <div className="font-medium text-slate-700">
+                {domain.verificationMethod || 'Not set'}
+              </div>
+            </div>
+            <div className="p-2 bg-slate-50 rounded-lg">
+              <div className="text-slate-500 mb-0.5">Last Check Status</div>
+              <div className="font-medium text-slate-700 flex items-center gap-1">
+                {domain.lastCheckStatus === 'OK' ? (
+                  <><span className="w-2 h-2 rounded-full bg-green-500"></span> OK</>
+                ) : domain.lastCheckStatus ? (
+                  <><span className="w-2 h-2 rounded-full bg-amber-500"></span> {domain.lastCheckStatus}</>
+                ) : (
+                  <span className="text-slate-400">—</span>
+                )}
+              </div>
+            </div>
+            {!isVerified && domain.verificationToken && (
+              <div className="col-span-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="text-amber-600 mb-0.5">Verification Token</div>
+                <div className="font-mono text-amber-800 break-all text-[11px]">
+                  {domain.verificationToken}
+                </div>
+              </div>
+            )}
+            {domain.verifiedAt && (
+              <div className="p-2 bg-green-50 rounded-lg">
+                <div className="text-green-600 mb-0.5">Verified At</div>
+                <div className="font-medium text-green-700">
+                  {new Date(domain.verifiedAt).toLocaleDateString()}
+                </div>
+              </div>
+            )}
+            {domain.lastCheckAt && (
+              <div className="p-2 bg-slate-50 rounded-lg">
+                <div className="text-slate-500 mb-0.5">Last Checked</div>
+                <div className="font-medium text-slate-700">
+                  {new Date(domain.lastCheckAt).toLocaleDateString()}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Categories summary */}
-          <div className="mb-4">
+          <div>
             <div className="text-xs text-slate-500 mb-2">Linked Categories ({categoryCount})</div>
             {categoryCount > 0 ? (
               <div className="flex flex-wrap gap-1">
@@ -746,7 +798,7 @@ export default function TenantDomainsTab({ tenantContext }) {
     const loadCategories = async () => {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/api/v1/categories`, {
+        const res = await fetch(`${getApiBase()}/categories`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
         if (res.ok) {
@@ -772,15 +824,15 @@ export default function TenantDomainsTab({ tenantContext }) {
       let body = {}
       
       if (type === 'tenant') {
-        url = `${getApiBase()}/api/v1/tenants/${tenantId}`
+        url = `${getApiBase()}/tenants/${tenantId}`
         body = { isApproved: action === 'approve' }
       } else if (type === 'entity') {
-        url = `${getApiBase()}/api/v1/tenants/${tenantId}/entity`
+        url = `${getApiBase()}/tenants/${tenantId}/entity`
         method = 'PUT'
         body = { ...entity, isApproved: action === 'approve' }
       } else if (type.startsWith('domain-')) {
         const domainId = type.replace('domain-', '')
-        url = `${getApiBase()}/api/v1/domains/${domainId}/verify`
+        url = `${getApiBase()}/domains/${domainId}/verify`
         method = 'POST'
         body = { method: 'MANUAL', force: true }
       }

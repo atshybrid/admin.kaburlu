@@ -11,9 +11,12 @@ import { getToken } from '../../utils/auth'
 const TenantContext = createContext({})
 export const useTenant = () => useContext(TenantContext)
 
-// API helper
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') {
+    return '/api/proxy'
+  }
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 // Tab configuration - Step-wise setup flow
@@ -182,14 +185,14 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
           'Authorization': `Bearer ${t?.token || ''}`
         }
         
-        // Fetch all tenant data in parallel
+        // Fetch all tenant data in parallel (proxy adds /api/v1 prefix)
         const [tenantRes, entityRes, domainsRes, categoriesRes, razorpayRes, idCardRes] = await Promise.allSettled([
-          fetch(`${base}/api/v1/tenants/${tenantId}`, { headers }),
-          fetch(`${base}/api/v1/tenants/${tenantId}/entity`, { headers }),
-          fetch(`${base}/api/v1/tenants/${tenantId}/domains`, { headers }),
-          fetch(`${base}/api/v1/tenants/${tenantId}/categories`, { headers }),
-          fetch(`${base}/api/v1/tenants/${tenantId}/razorpay-config`, { headers }),
-          fetch(`${base}/api/v1/tenants/${tenantId}/id-card-settings`, { headers }),
+          fetch(`${base}/tenants/${tenantId}`, { headers }),
+          fetch(`${base}/tenants/${tenantId}/entity`, { headers }),
+          fetch(`${base}/domains`, { headers }), // Use global domains endpoint
+          fetch(`${base}/tenants/${tenantId}/categories`, { headers }),
+          fetch(`${base}/tenants/${tenantId}/razorpay-config`, { headers }),
+          fetch(`${base}/tenants/${tenantId}/id-card-settings`, { headers }),
         ])
         
         if (cancelled) return
@@ -210,13 +213,15 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
           setEntity(data?.data || data)
         }
         
-        // Parse domains - try separate endpoint first, fallback to tenant.domains
+        // Parse domains - use global /domains endpoint and filter by tenantId
         if (domainsRes.status === 'fulfilled' && domainsRes.value.ok) {
           const data = await domainsRes.value.json()
-          const domainsArray = Array.isArray(data) ? data : (data?.data || [])
-          // If separate API returns domains, use those; otherwise fallback to tenant.domains
-          if (domainsArray.length > 0) {
-            setDomains(domainsArray)
+          const allDomains = Array.isArray(data) ? data : (data?.data || [])
+          // Filter domains for this tenant
+          const tenantDomains = allDomains.filter(d => d.tenantId === tenantId)
+          console.log('🌐 Domains loaded:', { total: allDomains.length, forTenant: tenantDomains.length, tenantId })
+          if (tenantDomains.length > 0) {
+            setDomains(tenantDomains)
           } else if (tenantData?.domains?.length > 0) {
             setDomains(tenantData.domains)
           } else {
@@ -273,7 +278,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const refreshTenant = async () => {
     const t = getToken()
     const base = getApiBase()
-    const res = await fetch(`${base}/api/v1/tenants/${tenantId}`, {
+    const res = await fetch(`${base}/tenants/${tenantId}`, {
       headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
     })
     if (res.ok) {
@@ -285,7 +290,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const refreshEntity = async () => {
     const t = getToken()
     const base = getApiBase()
-    const res = await fetch(`${base}/api/v1/tenants/${tenantId}/entity`, {
+    const res = await fetch(`${base}/tenants/${tenantId}/entity`, {
       headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
     })
     if (res.ok) {
@@ -298,22 +303,22 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
     const t = getToken()
     const base = getApiBase()
     
-    // Try separate domains endpoint first
-    const res = await fetch(`${base}/api/v1/tenants/${tenantId}/domains`, {
+    // Use global /domains endpoint and filter by tenantId
+    const res = await fetch(`${base}/domains`, {
       headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
     })
     
     if (res.ok) {
       const data = await res.json()
-      const domainsArray = Array.isArray(data) ? data : (data?.data || [])
-      if (domainsArray.length > 0) {
-        setDomains(domainsArray)
-        return
-      }
+      const allDomains = Array.isArray(data) ? data : (data?.data || [])
+      const tenantDomains = allDomains.filter(d => d.tenantId === tenantId)
+      console.log('🌐 Domains refreshed:', { total: allDomains.length, forTenant: tenantDomains.length, tenantId })
+      setDomains(tenantDomains)
+      return
     }
     
     // Fallback: refetch tenant to get domains from there
-    const tenantRes = await fetch(`${base}/api/v1/tenants/${tenantId}`, {
+    const tenantRes = await fetch(`${base}/tenants/${tenantId}`, {
       headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
     })
     if (tenantRes.ok) {
@@ -329,7 +334,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const refreshCategories = async () => {
     const t = getToken()
     const base = getApiBase()
-    const res = await fetch(`${base}/api/v1/tenants/${tenantId}/categories`, {
+    const res = await fetch(`${base}/tenants/${tenantId}/categories`, {
       headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
     })
     if (res.ok) {
