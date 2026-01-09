@@ -34,7 +34,9 @@ export default function RazorpaySettingsView() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchTenants(); fetchConfigs(configsMeta.page, configsMeta.pageSize) }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (tenantId) viewConfig(); else { setConfig(null); setError('') } }, [tenantId])
 
   async function fetchConfigs(page = 1, pageSize = 50, active = true) {

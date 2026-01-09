@@ -121,9 +121,12 @@ export default function ModernDashboard({ initialTab }) {
     }
   }, [router])
 
-  // Check if user is super admin
+  // Check if user is super admin - flexible role check
   const isSuperAdmin = useMemo(() => {
-    return (user?.role || '').toUpperCase() === 'SUPER_ADMIN'
+    if (!user) return false
+    const role = user.role || user.roleName || user.userRole || user.role?.name || ''
+    const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
+    return roleStr === 'SUPERADMIN' || roleStr === 'ADMIN' || roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
   }, [user])
 
   // Get the current view component

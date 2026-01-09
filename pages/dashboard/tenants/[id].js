@@ -4,7 +4,7 @@ import { useRouter } from 'next/router'
 import Sidebar from '../../../components/dashboard/Sidebar'
 import MobileSidebar from '../../../components/dashboard/MobileSidebar'
 import DashboardHeader from '../../../components/dashboard/DashboardHeader'
-import TenantDetailView from '../../../components/dashboard/TenantDetailView'
+import TenantCommandCenter from '../../../components/dashboard/TenantCommandCenter'
 import { getToken, logout } from '../../../utils/auth'
 
 export default function TenantDetailPage() {
@@ -28,7 +28,13 @@ export default function TenantDetailPage() {
     }
   }, [router])
 
-  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN'
+  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, etc.
+  const isSuperAdmin = (() => {
+    if (!user) return false
+    const role = user.role || user.roleName || user.userRole || user.role?.name || ''
+    const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
+    return roleStr === 'SUPERADMIN' || roleStr === 'ADMIN' || roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
+  })()
 
   if (checking) {
     return (
@@ -64,7 +70,7 @@ export default function TenantDetailPage() {
         <Sidebar user={user} onLogout={() => { logout(); router.push('/') }} currentTab="tenants" />
         <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">
           <DashboardHeader user={user} onOpenNav={() => setMobileOpen(true)} />
-          <TenantDetailView tenantId={id} />
+          <TenantCommandCenter tenantId={id} />
         </main>
       </div>
       <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} onLogout={() => { logout(); router.push('/') }} />

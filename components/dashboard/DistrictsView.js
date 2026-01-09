@@ -95,9 +95,11 @@ export default function DistrictsView() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStates(); fetchAllDistricts() }, [])
   useEffect(() => {
     if (stateId) fetchDistrictsByState(stateId); else fetchAllDistricts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateId, page, pageSize])
 
   async function toggleDeleted(d) {

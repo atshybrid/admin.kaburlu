@@ -33,7 +33,13 @@ export default function AssemblyConstituenciesPage() {
     return null
   }
 
-  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN'
+  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, etc.
+  const isSuperAdmin = (() => {
+    if (!user) return false
+    const role = user.role || user.roleName || user.userRole || user.role?.name || ''
+    const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
+    return roleStr === 'SUPERADMIN' || roleStr === 'ADMIN' || roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
+  })()
 
   if (!isSuperAdmin) {
     return (

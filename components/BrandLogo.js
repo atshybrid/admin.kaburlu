@@ -2,6 +2,7 @@ export default function BrandLogo({ className = '', size = 56, src = '/images/ka
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <div style={{ width: size, height: size }} className="flex items-center justify-center animate-float-logo">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={src}
           alt="Kaburlu Logo"

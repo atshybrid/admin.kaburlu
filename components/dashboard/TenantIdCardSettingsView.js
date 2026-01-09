@@ -118,7 +118,9 @@ export default function TenantIdCardSettingsView() {
     } catch (e) { setError(String(e.message || e)) } finally { setLoading(false) }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchTenants(); fetchSettingsList(1, meta.pageSize) }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (showEditor && tenants.length === 0 && !tenantsLoading) fetchTenants() }, [showEditor])
 
   const updateForm = (patch) => setForm(f => ({ ...f, ...patch }))
@@ -305,6 +307,7 @@ function IdCardSettingsEditorDrawer({ tenants, tenantId, form, loading, error, t
                     <input value={form.frontLogoUrl} onChange={e => onChangeForm({ frontLogoUrl: e.target.value })} className="flex-1 border rounded px-3 py-2" placeholder="https://..." />
                     <MediaUploadButton onUploaded={(url)=>onChangeForm({ frontLogoUrl: url })} />
                   </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   {form.frontLogoUrl && <img src={form.frontLogoUrl} alt="logo" className="mt-2 h-12 object-contain border rounded" />}
                 </div>
                 <div>
@@ -313,6 +316,7 @@ function IdCardSettingsEditorDrawer({ tenants, tenantId, form, loading, error, t
                     <input value={form.roundStampUrl} onChange={e => onChangeForm({ roundStampUrl: e.target.value })} className="flex-1 border rounded px-3 py-2" placeholder="https://..." />
                     <MediaUploadButton onUploaded={(url)=>onChangeForm({ roundStampUrl: url })} />
                   </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   {form.roundStampUrl && <img src={form.roundStampUrl} alt="stamp" className="mt-2 h-12 w-12 object-contain border rounded" />}
                 </div>
                 <div>
@@ -321,6 +325,7 @@ function IdCardSettingsEditorDrawer({ tenants, tenantId, form, loading, error, t
                     <input value={form.signUrl} onChange={e => onChangeForm({ signUrl: e.target.value })} className="flex-1 border rounded px-3 py-2" placeholder="https://..." />
                     <MediaUploadButton onUploaded={(url)=>onChangeForm({ signUrl: url })} />
                   </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   {form.signUrl && <img src={form.signUrl} alt="sign" className="mt-2 h-12 object-contain border rounded" />}
                 </div>
                 <div>

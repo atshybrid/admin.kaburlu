@@ -1,8 +1,21 @@
+import { useEffect } from 'react'
+import { useRouter } from 'next/router'
 import LoginCard from '../components/LoginCard'
 import AnimatedHeadline from '../components/AnimatedHeadline'
 import Head from 'next/head'
+import { getToken } from '../utils/auth'
 
 export default function LoginPage() {
+  const router = useRouter()
+
+  // Redirect to admin if already logged in
+  useEffect(() => {
+    const token = getToken()
+    if (token?.token) {
+      router.replace('/admin')
+    }
+  }, [router])
+
   return (
     <div className="min-h-screen relative overflow-hidden bg-slate-50">
       <Head>

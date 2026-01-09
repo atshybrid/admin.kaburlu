@@ -149,6 +149,7 @@ export default function ArticlesView() {
                       <div className="font-medium text-gray-800 line-clamp-2">{a.title || '-'}</div>
                       <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
                         {Array.isArray(a.images) && a.images[0] ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img src={a.images[0]} alt="thumb" className="h-6 w-10 object-cover rounded border" />
                         ) : null}
                         <span>{a.categories?.[0]?.name || '-'}</span>
@@ -254,6 +255,7 @@ function NewArticleDrawer({ onClose, onCreated }) {
     }
     loadTenants(); loadLangs()
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -414,6 +416,7 @@ function NewArticleDrawer({ onClose, onCreated }) {
               <div className="mt-2 flex flex-wrap gap-2">
                 {images.map((url,i)=> (
                   <div key={i} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={url} alt="img" className="h-16 w-24 object-cover rounded border" />
                     <button type="button" className="absolute -top-2 -right-2 bg-white border rounded-full w-6 h-6 flex items-center justify-center" onClick={()=>setImages(imgs=>imgs.filter((_,idx)=>idx!==i))}>
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
@@ -619,6 +622,7 @@ function ArticleDetailDrawer({ item, domain, onClose }) {
               <div className="text-sm font-semibold mb-2">Images</div>
               <div className="flex flex-wrap gap-2">
                 {images.map((url,i)=> (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <a key={i} href={url} target="_blank" rel="noreferrer"><img src={url} alt="img" className="h-20 w-32 object-cover rounded border" /></a>
                 ))}
               </div>

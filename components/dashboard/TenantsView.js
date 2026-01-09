@@ -655,6 +655,7 @@ export default function TenantsView() {
                           <div>
                             <div className="text-xs text-gray-500 mb-0.5">Logo</div>
                             {s.branding?.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
                               <img src={s.branding.logoUrl} alt="Logo" className="h-8 rounded border object-contain bg-white p-1" />
                             ) : (
                               <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800">—</div>
@@ -663,6 +664,7 @@ export default function TenantsView() {
                           <div>
                             <div className="text-xs text-gray-500 mb-0.5">Favicon</div>
                             {s.branding?.faviconUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
                               <img src={s.branding.faviconUrl} alt="Favicon" className="h-6 w-6 rounded border object-contain bg-white p-0.5" />
                             ) : (
                               <div className="px-2 py-1 rounded border bg-gray-50 text-sm text-gray-800">—</div>
@@ -692,6 +694,7 @@ export default function TenantsView() {
                           <div className="grid grid-cols-1 gap-2 text-sm">
                             <div>
                               <div className="text-xs text-gray-500 mb-0.5">OG Image</div>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={s.seo.ogImageUrl} alt="OG image" className="h-20 rounded border object-cover" />
                             </div>
                           </div>
@@ -1118,6 +1121,7 @@ function DomainSettingsDrawer({ tenant, domain, onClose }) {
                     </div>
                     {settings.seo?.ogImageUrl && (
                       <div className="mt-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={settings.seo.ogImageUrl} alt="OG preview" className="h-16 rounded border object-cover" />
                       </div>
                     )}
@@ -1152,6 +1156,7 @@ function DomainSettingsDrawer({ tenant, domain, onClose }) {
                     </div>
                     {settings.branding?.logoUrl && (
                       <div className="mt-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={settings.branding.logoUrl} alt="Logo preview" className="h-10 rounded border object-contain bg-white p-1" />
                       </div>
                     )}
@@ -1164,6 +1169,7 @@ function DomainSettingsDrawer({ tenant, domain, onClose }) {
                     </div>
                     {settings.branding?.faviconUrl && (
                       <div className="mt-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={settings.branding.faviconUrl} alt="Favicon preview" className="h-8 w-8 rounded border object-contain bg-white p-1" />
                       </div>
                     )}

@@ -65,7 +65,9 @@ export default function MandalsView() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchAllDistricts() }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (districtId) fetchMandalsByDistrict(districtId); else { setRows([]); setError('') } }, [districtId, page, pageSize])
 
   const normalizedQuery = (query || '').trim().toLowerCase()

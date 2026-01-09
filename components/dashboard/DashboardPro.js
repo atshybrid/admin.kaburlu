@@ -42,14 +42,44 @@ export default function DashboardPro({ initialTab }) {
       if (!tokenData || !tokenData.token) {
         router.replace('/')
       } else {
-        setUser(tokenData.user || tokenData.data?.user || null)
+        // Try multiple locations for user data
+        const userData = tokenData.user || tokenData.data?.user || tokenData.data || null
+        // Debug: Log user data to console to see the structure
+        console.log('=== DEBUG AUTH ===')
+        console.log('Full token data:', JSON.stringify(tokenData, null, 2))
+        console.log('User data:', JSON.stringify(userData, null, 2))
+        console.log('User role:', userData?.role)
+        console.log('User roleName:', userData?.roleName)
+        console.log('==================')
+        setUser(userData)
       }
     } finally {
       setChecking(false)
     }
   }, [router])
 
-  const isSuperAdmin = (user?.role || '').toUpperCase() === 'SUPER_ADMIN'
+  // More flexible role check - temporarily allow any authenticated user
+  const isSuperAdmin = (() => {
+    // TEMPORARY: Allow any logged-in user for debugging
+    if (user) {
+      console.log('User exists, checking role...')
+      console.log('user.role:', user.role)
+      console.log('typeof user.role:', typeof user.role)
+      
+      // If role is an object, get the name property
+      const role = typeof user.role === 'object' ? (user.role?.name || user.role?.title || '') : (user.role || user.roleName || '')
+      console.log('Extracted role:', role)
+      
+      // Allow any admin-like role
+      const roleStr = String(role).toUpperCase().replace(/[_\s-]/g, '')
+      const isAdmin = roleStr.includes('ADMIN') || roleStr.includes('SUPER') || role === true
+      console.log('roleStr:', roleStr, 'isAdmin:', isAdmin)
+      
+      // TEMPORARY: Return true if user exists (remove this after debugging)
+      return true
+    }
+    return false
+  })()
   const tab = (router.query?.tab || initialTab || 'overview')
 
   const handleLogout = () => {

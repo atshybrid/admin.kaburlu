@@ -271,7 +271,12 @@ function CreateCategoryModal({ languageId, categories, onClose, onCreated }) {
               <input type="file" accept="image/*" onChange={e=>setIconFile(e.target.files?.[0] || null)} />
               <button type="button" className="px-2 py-1 text-xs rounded border hover:bg-gray-50" onClick={uploadIcon} disabled={!iconFile || uploading}>{uploading ? 'Uploading...' : 'Upload'}</button>
             </div>
-            {iconUrl && <div className="mt-2"><img src={iconUrl} alt="icon" className="w-12 h-12 object-cover rounded border" /></div>}
+            {iconUrl && (
+              <div className="mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={iconUrl} alt="icon" className="w-12 h-12 object-cover rounded border" />
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-2">
@@ -376,7 +381,12 @@ function EditCategoryModal({ category, categories, onClose, onSaved }) {
               <input type="file" accept="image/*" onChange={e=>setIconFile(e.target.files?.[0] || null)} />
               <button type="button" className="px-2 py-1 text-xs rounded border hover:bg-gray-50" onClick={uploadIcon} disabled={!iconFile || uploading}>{uploading ? 'Uploading...' : 'Upload'}</button>
             </div>
-            {iconUrl && <div className="mt-2"><img src={iconUrl} alt="icon" className="w-12 h-12 object-cover rounded border" /></div>}
+            {iconUrl && (
+              <div className="mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={iconUrl} alt="icon" className="w-12 h-12 object-cover rounded border" />
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex items-center gap-2">

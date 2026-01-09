@@ -31,7 +31,7 @@ export default function LoginCard() {
       if (res.data && res.data.success) {
         const { jwt } = res.data.data
         saveToken(jwt, res.data.data)
-        router.push('/dashboard')
+        router.push('/admin')
       } else {
         setError(res.data?.message || 'Login failed')
       }

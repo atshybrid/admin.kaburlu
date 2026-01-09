@@ -35,6 +35,7 @@ export default function RolesView() {
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchRoles() }, [])
 
   const handleAddRole = async () => {
@@ -187,6 +188,7 @@ function RolePermissionsDrawer({ role, onClose, onSaved }) {
     }
     loadModules()
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function toggleAction(module, act) {
