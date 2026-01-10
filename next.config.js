@@ -6,32 +6,28 @@ const nextConfig = {
   output: 'standalone',
   async redirects() {
     return [
-      // Canonicalize query-based tabs to path-based tabs
+      // Redirect old dashboard routes to /admin
       {
         source: '/dashboard',
-        has: [{ type: 'query', key: 'tab', value: 'overview' }],
-        destination: '/dashboard',
+        destination: '/admin',
         permanent: true,
       },
       {
-        source: '/dashboard',
-        has: [{ type: 'query', key: 'tab', value: '(?<tab>.+)' }],
-        destination: '/dashboard/:tab',
+        source: '/dashboard/:path*',
+        destination: '/admin/:path*',
         permanent: true,
       },
-      // Avoid duplicate route for overview
       {
-        source: '/dashboard/overview',
-        destination: '/dashboard',
+        source: '/modern-dashboard',
+        destination: '/admin',
+        permanent: true,
+      },
+      {
+        source: '/modern-dashboard/:path*',
+        destination: '/admin/:path*',
         permanent: true,
       },
     ]
-  },
-  async rewrites() {
-    return {
-      // Fallback rewrites - only matched if no page exists
-      fallback: [],
-    }
   },
 }
 module.exports = nextConfig
