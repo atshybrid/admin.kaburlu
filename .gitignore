@@ -28,3 +28,5 @@ coverage/
 # Misc
 *.swp
 *.log
+.vercel
+.env*.local
