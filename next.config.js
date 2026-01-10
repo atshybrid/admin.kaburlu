@@ -2,6 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   trailingSlash: false,
+  // Ensure all pages are included in the build output
+  output: 'standalone',
   async redirects() {
     return [
       // Canonicalize query-based tabs to path-based tabs
@@ -24,6 +26,12 @@ const nextConfig = {
         permanent: true,
       },
     ]
+  },
+  async rewrites() {
+    return {
+      // Fallback rewrites - only matched if no page exists
+      fallback: [],
+    }
   },
 }
 module.exports = nextConfig
