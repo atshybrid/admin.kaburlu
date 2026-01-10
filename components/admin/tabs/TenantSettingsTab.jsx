@@ -65,26 +65,27 @@ function FeatureFlagCard({ flag, value, description, onChange, saving }) {
   )
 }
 
-// Common Feature Flags with descriptions
+// Common Feature Flags with descriptions (camelCase to match API)
 const FEATURE_FLAG_DESCRIPTIONS = {
-  ENABLE_EPAPER: 'Enable E-Paper functionality for this tenant',
-  ENABLE_ADS: 'Show advertisements on tenant websites',
-  ENABLE_COMMENTS: 'Allow users to comment on articles',
-  ENABLE_SOCIAL_SHARE: 'Enable social media sharing buttons',
-  ENABLE_PUSH_NOTIFICATIONS: 'Enable push notifications for subscribers',
-  ENABLE_NEWSLETTER: 'Enable newsletter subscription feature',
-  ENABLE_SEARCH: 'Enable site-wide search functionality',
-  ENABLE_RELATED_ARTICLES: 'Show related articles on article pages',
-  ENABLE_TRENDING: 'Show trending articles section',
-  ENABLE_BREAKING_NEWS: 'Enable breaking news banner',
-  ENABLE_VIDEO: 'Enable video content support',
-  ENABLE_GALLERY: 'Enable photo gallery support',
-  ENABLE_POLLS: 'Enable polls functionality',
-  ENABLE_LIVE_TV: 'Enable live TV streaming',
-  ENABLE_DARK_MODE: 'Allow dark mode toggle for users',
-  ENABLE_MULTI_LANG: 'Enable multiple language support',
-  ENABLE_REPORTER_BYLINES: 'Show reporter names on articles',
-  ENABLE_LOCATION_FILTER: 'Enable location-based filtering',
+  enableEpaper: 'Enable E-Paper functionality for this tenant',
+  enableAds: 'Show advertisements on tenant websites',
+  enableComments: 'Allow users to comment on articles',
+  enableSocialShare: 'Enable social media sharing buttons',
+  enablePushNotifications: 'Enable push notifications for subscribers',
+  enableNewsletter: 'Enable newsletter subscription feature',
+  enableSearch: 'Enable site-wide search functionality',
+  enableRelatedArticles: 'Show related articles on article pages',
+  enableTrending: 'Show trending articles section',
+  enableBreakingNews: 'Enable breaking news banner',
+  enableVideo: 'Enable video content support',
+  enableGallery: 'Enable photo gallery support',
+  enablePolls: 'Enable polls functionality',
+  enableLiveTv: 'Enable live TV streaming',
+  enableDarkMode: 'Allow dark mode toggle for users',
+  enableMultiLang: 'Enable multiple language support',
+  enableReporterBylines: 'Show reporter names on articles',
+  enableLocationFilter: 'Enable location-based filtering',
+  aiArticleRewriteEnabled: 'Enable AI-powered article rewriting',
 }
 
 export default function TenantSettingsTab({ tenantContext }) {
@@ -219,12 +220,12 @@ export default function TenantSettingsTab({ tenantContext }) {
     }
   }
 
-  // Group flags by category
+  // Group flags by category (using camelCase to match API)
   const groupedFlags = {
-    'Content Features': ['ENABLE_VIDEO', 'ENABLE_GALLERY', 'ENABLE_POLLS', 'ENABLE_EPAPER', 'ENABLE_LIVE_TV'],
-    'User Engagement': ['ENABLE_COMMENTS', 'ENABLE_SOCIAL_SHARE', 'ENABLE_PUSH_NOTIFICATIONS', 'ENABLE_NEWSLETTER'],
-    'Display Options': ['ENABLE_ADS', 'ENABLE_TRENDING', 'ENABLE_BREAKING_NEWS', 'ENABLE_RELATED_ARTICLES', 'ENABLE_DARK_MODE'],
-    'Advanced': ['ENABLE_SEARCH', 'ENABLE_MULTI_LANG', 'ENABLE_REPORTER_BYLINES', 'ENABLE_LOCATION_FILTER'],
+    'Content Features': ['enableVideo', 'enableGallery', 'enablePolls', 'enableEpaper', 'enableLiveTv'],
+    'User Engagement': ['enableComments', 'enableSocialShare', 'enablePushNotifications', 'enableNewsletter'],
+    'Display Options': ['enableAds', 'enableTrending', 'enableBreakingNews', 'enableRelatedArticles', 'enableDarkMode'],
+    'Advanced': ['enableSearch', 'enableMultiLang', 'enableReporterBylines', 'enableLocationFilter', 'aiArticleRewriteEnabled'],
   }
 
   // Get all unique flags (from API + known flags)

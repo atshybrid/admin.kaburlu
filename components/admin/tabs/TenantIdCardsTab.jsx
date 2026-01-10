@@ -12,28 +12,23 @@ export default function TenantIdCardsTab({ tenantContext }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   
+  // Form state matching API response
   const [form, setForm] = useState({
-    templateId: 'standard',
+    templateId: 'STYLE_1',
     frontLogoUrl: '',
-    backLogoUrl: '',
     roundStampUrl: '',
     signUrl: '',
-    primaryColor: '#e11d48',
-    secondaryColor: '#1e293b',
-    backgroundColor: '#ffffff',
-    textColor: '#1e293b',
-    validityMonths: 12,
-    autoRenew: false,
-    idPrefix: 'REP',
-    idDigits: 4,
-    showQrCode: true,
-    showPhoto: true,
-    showDesignation: true,
-    showValidity: true,
-    showBloodGroup: false,
-    showEmergencyContact: false,
-    showAddress: false,
-    enabled: true,
+    primaryColor: '#004f9f',
+    secondaryColor: '#ff0000',
+    termsJson: [],
+    officeAddress: '',
+    helpLine1: '',
+    helpLine2: '',
+    validityType: 'PER_USER_DAYS',
+    validityDays: 365,
+    fixedValidUntil: null,
+    idPrefix: 'KM',
+    idDigits: 6,
   })
 
   const fetchSettings = useCallback(async () => {
@@ -44,7 +39,24 @@ export default function TenantIdCardsTab({ tenantContext }) {
     try {
       const data = await idCardApi.get(tenant.id)
       if (data) {
-        setForm(prev => ({ ...prev, ...data }))
+        setForm(prev => ({
+          ...prev,
+          templateId: data.templateId || 'STYLE_1',
+          frontLogoUrl: data.frontLogoUrl || '',
+          roundStampUrl: data.roundStampUrl || '',
+          signUrl: data.signUrl || '',
+          primaryColor: data.primaryColor || '#004f9f',
+          secondaryColor: data.secondaryColor || '#ff0000',
+          termsJson: data.termsJson || [],
+          officeAddress: data.officeAddress || '',
+          helpLine1: data.helpLine1 || '',
+          helpLine2: data.helpLine2 || '',
+          validityType: data.validityType || 'PER_USER_DAYS',
+          validityDays: data.validityDays || 365,
+          fixedValidUntil: data.fixedValidUntil || null,
+          idPrefix: data.idPrefix || 'KM',
+          idDigits: data.idDigits || 6,
+        }))
       }
     } catch (e) {
       // 404 means no settings yet, which is fine
@@ -84,11 +96,14 @@ export default function TenantIdCardsTab({ tenantContext }) {
   }
 
   const templates = [
-    { id: 'standard', name: 'Standard', desc: 'Classic vertical press card' },
-    { id: 'horizontal', name: 'Horizontal', desc: 'Landscape orientation' },
-    { id: 'modern', name: 'Modern', desc: 'Contemporary with gradients' },
-    { id: 'minimal', name: 'Minimal', desc: 'Clean, simple design' },
-    { id: 'premium', name: 'Premium', desc: 'Elegant with gold accents' },
+    { id: 'STYLE_1', name: 'Style 1', desc: 'Classic vertical press card' },
+    { id: 'STYLE_2', name: 'Style 2', desc: 'Modern horizontal layout' },
+    { id: 'STYLE_3', name: 'Style 3', desc: 'Minimal clean design' },
+  ]
+
+  const validityTypes = [
+    { id: 'PER_USER_DAYS', name: 'Per User Days', desc: 'Validity starts from issue date' },
+    { id: 'FIXED_END_DATE', name: 'Fixed End Date', desc: 'All cards expire on same date' },
   ]
 
   if (loading) {
@@ -104,7 +119,7 @@ export default function TenantIdCardsTab({ tenantContext }) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">ID Card Settings</h2>
-          <p className="text-sm text-slate-500">Configure reporter ID card design, branding, and field visibility</p>
+          <p className="text-sm text-slate-500">Configure reporter ID card design, branding, and validity</p>
         </div>
       </div>
 
@@ -123,26 +138,10 @@ export default function TenantIdCardsTab({ tenantContext }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column - Settings */}
           <div className="space-y-6">
-            {/* Enable Toggle */}
-            <div className="bg-white rounded-xl border p-4">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={e => handleChange('enabled', e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
-                />
-                <div>
-                  <div className="font-medium text-slate-900">Enable ID Cards</div>
-                  <div className="text-xs text-slate-500">Allow reporters to generate and download ID cards</div>
-                </div>
-              </label>
-            </div>
-
             {/* Template Selection */}
             <div className="bg-white rounded-xl border p-6">
               <h3 className="font-medium text-slate-900 mb-4">Template Design</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 {templates.map((template) => (
                   <button
                     key={template.id}

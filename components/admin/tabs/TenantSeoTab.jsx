@@ -1,14 +1,9 @@
 /**
  * TenantSeoTab - Manage tenant SEO and meta settings
+ * API: GET/PATCH /tenant-theme/:tenantId/seo
  */
-import { useState, useEffect } from 'react'
-import { getToken } from '../../../utils/auth'
-
-// Use local proxy to avoid CORS
-function getApiBase() {
-  if (typeof window !== 'undefined') return '/api/proxy'
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
-}
+import { useState, useEffect, useCallback } from 'react'
+import { seoApi } from '../../../lib/api/tenantApi'
 
 // Icons
 const SearchIcon = () => (
@@ -109,6 +104,7 @@ function InputField({ label, hint, children }) {
 
 export default function TenantSeoTab({ tenantContext }) {
   const { tenant, refreshTenant } = tenantContext
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -129,25 +125,50 @@ export default function TenantSeoTab({ tenantContext }) {
     sitemapEnabled: true
   })
 
-  useEffect(() => {
-    if (tenant) {
+  // Fetch SEO config from dedicated endpoint
+  const fetchSeoConfig = useCallback(async () => {
+    if (!tenant?.id) return
+    setLoading(true)
+    setError('')
+    
+    try {
+      const data = await seoApi.get(tenant.id)
+      if (data) {
+        setForm(prev => ({
+          ...prev,
+          metaTitle: data.metaTitle || tenant.name || '',
+          metaDescription: data.metaDescription || '',
+          metaKeywords: data.metaKeywords || '',
+          ogTitle: data.ogTitle || tenant.name || '',
+          ogDescription: data.ogDescription || '',
+          ogImage: data.ogImage || '',
+          twitterCard: data.twitterCard || 'summary_large_image',
+          twitterHandle: data.twitterHandle || '',
+          googleAnalyticsId: data.googleAnalyticsId || '',
+          facebookPixelId: data.facebookPixelId || '',
+          robotsTxt: data.robotsTxt || '',
+          sitemapEnabled: data.sitemapEnabled !== false
+        }))
+      }
+    } catch (e) {
+      // 404 means no SEO config yet - use tenant defaults
+      if (!e.message.includes('404')) {
+        setError(e.message)
+      }
+      // Fall back to tenant name
       setForm(prev => ({
         ...prev,
-        metaTitle: tenant.metaTitle || tenant.name || '',
-        metaDescription: tenant.metaDescription || '',
-        metaKeywords: tenant.metaKeywords || '',
-        ogTitle: tenant.ogTitle || tenant.name || '',
-        ogDescription: tenant.ogDescription || tenant.metaDescription || '',
-        ogImage: tenant.ogImage || '',
-        twitterCard: tenant.twitterCard || 'summary_large_image',
-        twitterHandle: tenant.twitterHandle || '',
-        googleAnalyticsId: tenant.googleAnalyticsId || '',
-        facebookPixelId: tenant.facebookPixelId || '',
-        robotsTxt: tenant.robotsTxt || '',
-        sitemapEnabled: tenant.sitemapEnabled !== false
+        metaTitle: tenant.name || '',
+        ogTitle: tenant.name || ''
       }))
+    } finally {
+      setLoading(false)
     }
-  }, [tenant])
+  }, [tenant?.id, tenant?.name])
+
+  useEffect(() => {
+    fetchSeoConfig()
+  }, [fetchSeoConfig])
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -156,18 +177,9 @@ export default function TenantSeoTab({ tenantContext }) {
     setSuccess('')
     
     try {
-      const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenant.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${t?.token || ''}`
-        },
-        body: JSON.stringify(form)
-      })
-      if (!res.ok) throw new Error(`Failed: ${res.status}`)
+      await seoApi.patch(tenant.id, form)
       setSuccess('SEO settings saved successfully')
-      refreshTenant()
+      refreshTenant?.()
       setTimeout(() => setSuccess(''), 3000)
     } catch (e) {
       setError(e.message)

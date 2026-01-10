@@ -1,6 +1,6 @@
 /**
  * TenantPaymentsTab - Manage tenant-specific payment settings
- * API: GET/POST/PUT /tenants/:tenantId/razorpay-config
+ * API: GET/PUT /tenants/:tenantId/razorpay-config
  */
 import { useState, useEffect, useCallback } from 'react'
 import { razorpayApi } from '../../../lib/api/tenantApi'
@@ -14,13 +14,11 @@ export default function TenantPaymentsTab({ tenantContext }) {
   const [editing, setEditing] = useState(false)
   const [config, setConfig] = useState(null)
   
+  // Form state matching API structure
   const [form, setForm] = useState({
     keyId: '',
     keySecret: '',
-    webhookSecret: '',
-    isLive: false,
-    enabled: true,
-    useGlobalSettings: true
+    active: true,
   })
 
   const fetchConfig = useCallback(async () => {
@@ -34,11 +32,8 @@ export default function TenantPaymentsTab({ tenantContext }) {
       if (data) {
         setForm({
           keyId: data.keyId || '',
-          keySecret: '', // Never show secret
-          webhookSecret: '', // Never show secret
-          isLive: data.isLive || false,
-          enabled: data.enabled !== false,
-          useGlobalSettings: data.useGlobalSettings !== false
+          keySecret: '', // Never pre-fill secret
+          active: data.active !== false,
         })
       }
     } catch (e) {
@@ -46,6 +41,7 @@ export default function TenantPaymentsTab({ tenantContext }) {
       if (!e.message.includes('404')) {
         setError(e.message)
       }
+      setConfig(null)
     } finally {
       setLoading(false)
     }
@@ -57,14 +53,33 @@ export default function TenantPaymentsTab({ tenantContext }) {
 
   const handleSave = async (e) => {
     e.preventDefault()
+    
+    if (!form.keyId) {
+      setError('Razorpay Key ID is required')
+      return
+    }
+    if (!config && !form.keySecret) {
+      setError('Razorpay Key Secret is required for new configuration')
+      return
+    }
+    
     setSaving(true)
     setError('')
     setSuccess('')
     
     try {
       // Use upsert (PUT) which handles both create and update
-      await razorpayApi.upsert(tenant.id, form)
-      setSuccess('Payment settings saved')
+      const payload = {
+        keyId: form.keyId,
+        active: form.active,
+      }
+      // Only include secret if provided (for update, it's optional)
+      if (form.keySecret) {
+        payload.keySecret = form.keySecret
+      }
+      
+      await razorpayApi.upsert(tenant.id, payload)
+      setSuccess('Payment settings saved successfully')
       setEditing(false)
       await fetchConfig()
       refreshTenant?.()
@@ -115,87 +130,56 @@ export default function TenantPaymentsTab({ tenantContext }) {
       <div className="bg-white rounded-xl border overflow-hidden">
         {editing || !config ? (
           <form onSubmit={handleSave} className="p-6 space-y-6">
-            {/* Use Global Settings Toggle */}
+            {/* Active Toggle */}
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={form.useGlobalSettings}
-                  onChange={e => setForm({...form, useGlobalSettings: e.target.checked})}
+                  checked={form.active}
+                  onChange={e => setForm({...form, active: e.target.checked})}
                   className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
                 />
                 <div>
-                  <div className="font-medium text-blue-900">Use Global Settings</div>
+                  <div className="font-medium text-blue-900">Active</div>
                   <div className="text-xs text-blue-700">
-                    Use the platform-wide Razorpay configuration instead of tenant-specific keys
+                    Enable Razorpay payments for this tenant
                   </div>
                 </div>
               </label>
             </div>
 
-            {!form.useGlobalSettings && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Razorpay Key ID
-                  </label>
-                  <input
-                    type="text"
-                    value={form.keyId}
-                    onChange={e => setForm({...form, keyId: e.target.value})}
-                    placeholder="rzp_live_xxxxx or rzp_test_xxxxx"
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Razorpay Key Secret
-                  </label>
-                  <input
-                    type="password"
-                    value={form.keySecret}
-                    onChange={e => setForm({...form, keySecret: e.target.value})}
-                    placeholder={config?.keyId ? '••••••••••••' : 'Enter secret key'}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">Leave blank to keep existing secret</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Webhook Secret (Optional)
-                  </label>
-                  <input
-                    type="password"
-                    value={form.webhookSecret}
-                    onChange={e => setForm({...form, webhookSecret: e.target.value})}
-                    placeholder={config?.webhookSecret ? '••••••••••••' : 'Enter webhook secret'}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
-                  />
-                </div>
-                <div className="flex items-center gap-6">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.isLive}
-                      onChange={e => setForm({...form, isLive: e.target.checked})}
-                      className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
-                    />
-                    <span className="text-sm text-slate-700">Live Mode</span>
-                  </label>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Razorpay Key ID <span className="text-red-500">*</span>
+                </label>
                 <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={e => setForm({...form, enabled: e.target.checked})}
-                  className="w-4 h-4 rounded border-slate-300 text-brand focus:ring-brand"
+                  type="text"
+                  value={form.keyId}
+                  onChange={e => setForm({...form, keyId: e.target.value})}
+                  placeholder="rzp_live_xxxxx or rzp_test_xxxxx"
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                  required
                 />
-                <span className="text-sm text-slate-700">Enable Payments</span>
-              </label>
+                <p className="text-xs text-slate-500 mt-1">
+                  {form.keyId?.startsWith('rzp_live_') ? '🟢 Live mode' : form.keyId?.startsWith('rzp_test_') ? '🟡 Test mode' : ''}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Razorpay Key Secret {!config && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  type="password"
+                  value={form.keySecret}
+                  onChange={e => setForm({...form, keySecret: e.target.value})}
+                  placeholder={config?.keySecretMasked || 'Enter secret key'}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  {config ? 'Leave blank to keep existing secret' : 'Required for new configuration'}
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center gap-3 pt-4 border-t">
@@ -224,46 +208,36 @@ export default function TenantPaymentsTab({ tenantContext }) {
           </form>
         ) : (
           <div className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Configuration</div>
-                <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                  config.useGlobalSettings
-                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                    : 'bg-purple-50 text-purple-700 border border-purple-200'
-                }`}>
-                  {config.useGlobalSettings ? 'Using Global Settings' : 'Custom Settings'}
-                </span>
-              </div>
-              {!config.useGlobalSettings && (
-                <div>
-                  <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Key ID</div>
-                  <div className="text-sm font-medium text-slate-900 font-mono">
-                    {config.keyId?.substring(0, 12)}...
-                  </div>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Key ID</div>
+                <div className="text-sm font-medium text-slate-900 font-mono">
+                  {config.keyId || 'Not configured'}
                 </div>
-              )}
+              </div>
               <div>
-                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Mode</div>
-                <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                  config.isLive
-                    ? 'bg-green-50 text-green-700 border border-green-200'
-                    : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
-                }`}>
-                  {config.isLive ? 'Live' : 'Test'}
-                </span>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Secret</div>
+                <div className="text-sm font-medium text-slate-500 font-mono">
+                  {config.keySecretMasked || '••••••••'}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Status</div>
                 <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                  config.enabled
+                  config.active
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
-                  {config.enabled ? 'Enabled' : 'Disabled'}
+                  {config.active ? 'Active' : 'Inactive'}
                 </span>
               </div>
             </div>
+            {config.createdAt && (
+              <div className="mt-4 pt-4 border-t text-xs text-slate-500">
+                Created: {new Date(config.createdAt).toLocaleDateString()}
+                {config.updatedAt && ` • Updated: ${new Date(config.updatedAt).toLocaleDateString()}`}
+              </div>
+            )}
           </div>
         )}
       </div>

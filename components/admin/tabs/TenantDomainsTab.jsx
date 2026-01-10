@@ -152,7 +152,7 @@ function AddDomainModal({ open, onClose, onAdded, tenantId, existingDomains = []
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/domains`, {
+      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -315,7 +315,7 @@ function VerifyDomainModal({ open, onClose, domain, tenantId, onVerified }) {
       const t = getToken()
       const domainId = domain?.id
       
-      const res = await fetch(`${getApiBase()}/domains/${domainId}/verify`, {
+      const res = await fetch(`${getApiBase()}/api/v1/domains/${domainId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,7 +423,7 @@ function SetKindModal({ open, onClose, domain, onUpdated }) {
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/domains/${domain.id}/kind`, {
+      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/kind`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +503,7 @@ function ManageCategoriesModal({ open, onClose, domain, allCategories, onUpdated
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/domains/${domain.id}/categories`, {
+      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/categories`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -601,7 +601,7 @@ function DomainCard({ domain, tenantId, allCategories, onRefresh }) {
     
     try {
       const t = getToken()
-      await fetch(`${getApiBase()}/tenants/${tenantId}/domains/${domain.id}`, {
+      await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains/${domain.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${t?.token || ''}` }
       })
@@ -798,7 +798,7 @@ export default function TenantDomainsTab({ tenantContext }) {
     const loadCategories = async () => {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/categories`, {
+        const res = await fetch(`${getApiBase()}/api/v1/categories`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
         if (res.ok) {
@@ -824,15 +824,15 @@ export default function TenantDomainsTab({ tenantContext }) {
       let body = {}
       
       if (type === 'tenant') {
-        url = `${getApiBase()}/tenants/${tenantId}`
+        url = `${getApiBase()}/api/v1/tenants/${tenantId}`
         body = { isApproved: action === 'approve' }
       } else if (type === 'entity') {
-        url = `${getApiBase()}/tenants/${tenantId}/entity`
+        url = `${getApiBase()}/api/v1/tenants/${tenantId}/entity`
         method = 'PUT'
         body = { ...entity, isApproved: action === 'approve' }
       } else if (type.startsWith('domain-')) {
         const domainId = type.replace('domain-', '')
-        url = `${getApiBase()}/domains/${domainId}/verify`
+        url = `${getApiBase()}/api/v1/domains/${domainId}/verify`
         method = 'POST'
         body = { method: 'MANUAL', force: true }
       }

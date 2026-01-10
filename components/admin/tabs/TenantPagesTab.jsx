@@ -1,14 +1,14 @@
 /**
  * TenantPagesTab - Manage tenant legal pages (Privacy, Terms, etc.)
+ * API: 
+ *   GET /tenants/:tenantId/pages
+ *   GET /tenants/:tenantId/pages/:slug
+ *   PUT /tenants/:tenantId/pages/:slug (upsert)
+ *   PATCH /tenants/:tenantId/pages/:slug
+ *   DELETE /tenants/:tenantId/pages/:slug
  */
-import { useState, useEffect } from 'react'
-import { getToken } from '../../../utils/auth'
-
-// Use local proxy to avoid CORS
-function getApiBase() {
-  if (typeof window !== 'undefined') return '/api/proxy'
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
-}
+import { useState, useEffect, useCallback } from 'react'
+import { pagesApi } from '../../../lib/api/tenantApi'
 
 export default function TenantPagesTab({ tenantContext }) {
   const { tenant, refreshTenant } = tenantContext
@@ -17,12 +17,13 @@ export default function TenantPagesTab({ tenantContext }) {
   const [error, setError] = useState('')
   const [selectedPage, setSelectedPage] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [success, setSuccess] = useState('')
   
   const [form, setForm] = useState({
     title: '',
-    slug: '',
-    content: '',
-    isPublished: true
+    contentHtml: '',
+    meta: { keywords: '' },
+    published: true
   })
 
   const defaultPages = [
@@ -33,49 +34,55 @@ export default function TenantPagesTab({ tenantContext }) {
     { slug: 'refund-policy', title: 'Refund Policy', icon: '💰' }
   ]
 
-  const loadPages = async () => {
+  const loadPages = useCallback(async () => {
+    if (!tenant?.id) return
     setLoading(true)
     try {
-      const t = getToken()
-      // Try tenant-specific pages first
-      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenant.id}/pages`, {
-        headers: { 'Authorization': `Bearer ${t?.token || ''}` }
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setPages(Array.isArray(data) ? data : (data?.data || []))
-      } else {
-        setPages([])
-      }
+      const data = await pagesApi.list(tenant.id)
+      setPages(Array.isArray(data) ? data : (data?.data || []))
     } catch (e) {
       console.error('Failed to load pages', e)
       setPages([])
     } finally {
       setLoading(false)
     }
-  }
-
-  useEffect(() => {
-    if (tenant?.id) loadPages()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id])
 
-  const handleSelectPage = (page) => {
+  useEffect(() => {
+    loadPages()
+  }, [loadPages])
+
+  const handleSelectPage = async (page) => {
     setSelectedPage(page)
+    setError('')
+    
+    // Try to load existing page content
     const existing = pages.find(p => p.slug === page.slug)
     if (existing) {
-      setForm({
-        title: existing.title || page.title,
-        slug: existing.slug || page.slug,
-        content: existing.content || '',
-        isPublished: existing.isPublished !== false
-      })
+      // Fetch full content if we have the page
+      try {
+        const fullPage = await pagesApi.get(tenant.id, page.slug)
+        setForm({
+          title: fullPage.title || page.title,
+          contentHtml: fullPage.contentHtml || '',
+          meta: fullPage.meta || { keywords: '' },
+          published: fullPage.published !== false
+        })
+      } catch (e) {
+        // Fall back to basic info
+        setForm({
+          title: existing.title || page.title,
+          contentHtml: existing.contentHtml || '',
+          meta: existing.meta || { keywords: '' },
+          published: existing.published !== false
+        })
+      }
     } else {
       setForm({
         title: page.title,
-        slug: page.slug,
-        content: '',
-        isPublished: true
+        contentHtml: '',
+        meta: { keywords: '' },
+        published: true
       })
     }
   }
@@ -86,26 +93,31 @@ export default function TenantPagesTab({ tenantContext }) {
     
     setSaving(true)
     setError('')
+    setSuccess('')
     
     try {
-      const t = getToken()
-      const existing = pages.find(p => p.slug === selectedPage.slug)
-      const method = existing?.id ? 'PUT' : 'POST'
-      const url = existing?.id
-        ? `${getApiBase()}/api/v1/tenants/${tenant.id}/pages/${existing.id}`
-        : `${getApiBase()}/api/v1/tenants/${tenant.id}/pages`
-      
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${t?.token || ''}`
-        },
-        body: JSON.stringify(form)
-      })
-      if (!res.ok) throw new Error(`Failed: ${res.status}`)
-      loadPages()
+      await pagesApi.upsert(tenant.id, selectedPage.slug, form)
+      setSuccess('Page saved successfully')
+      await loadPages()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!selectedPage) return
+    if (!confirm(`Are you sure you want to delete "${selectedPage.title}"?`)) return
+    
+    setSaving(true)
+    setError('')
+    
+    try {
+      await pagesApi.delete(tenant.id, selectedPage.slug)
       setSelectedPage(null)
+      await loadPages()
     } catch (e) {
       setError(e.message)
     } finally {
@@ -116,8 +128,8 @@ export default function TenantPagesTab({ tenantContext }) {
   const getPageStatus = (slug) => {
     const page = pages.find(p => p.slug === slug)
     if (!page) return 'missing'
-    if (!page.content || page.content.trim().length < 50) return 'draft'
-    return page.isPublished ? 'published' : 'unpublished'
+    if (!page.contentHtml || page.contentHtml.trim().length < 50) return 'draft'
+    return page.published ? 'published' : 'unpublished'
   }
 
   return (
@@ -130,6 +142,11 @@ export default function TenantPagesTab({ tenantContext }) {
       {error && (
         <div className="p-3 bg-red-50 text-red-700 text-sm rounded-lg border border-red-200">
           {error}
+        </div>
+      )}
+      {success && (
+        <div className="p-3 bg-green-50 text-green-700 text-sm rounded-lg border border-green-200">
+          {success}
         </div>
       )}
 
@@ -212,8 +229,7 @@ export default function TenantPagesTab({ tenantContext }) {
                     <label className="block text-sm font-medium text-slate-700 mb-1">Slug</label>
                     <input
                       type="text"
-                      value={form.slug}
-                      onChange={e => setForm({...form, slug: e.target.value})}
+                      value={selectedPage?.slug || ''}
                       className="w-full px-3 py-2 border rounded-lg text-sm bg-slate-50"
                       readOnly
                     />
@@ -221,12 +237,23 @@ export default function TenantPagesTab({ tenantContext }) {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Content (Markdown/HTML)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Meta Keywords</label>
+                  <input
+                    type="text"
+                    value={form.meta?.keywords || ''}
+                    onChange={e => setForm({...form, meta: { ...form.meta, keywords: e.target.value }})}
+                    placeholder="privacy, data protection, terms"
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Content (HTML)</label>
                   <textarea
-                    value={form.content}
-                    onChange={e => setForm({...form, content: e.target.value})}
+                    value={form.contentHtml}
+                    onChange={e => setForm({...form, contentHtml: e.target.value})}
                     rows={15}
-                    placeholder="Enter page content here. You can use Markdown or HTML..."
+                    placeholder="<h1>Page Title</h1><p>Your content here...</p>"
                     className="w-full px-3 py-2 border rounded-lg text-sm font-mono resize-none"
                   />
                 </div>
@@ -235,8 +262,8 @@ export default function TenantPagesTab({ tenantContext }) {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={form.isPublished}
-                      onChange={e => setForm({...form, isPublished: e.target.checked})}
+                      checked={form.published}
+                      onChange={e => setForm({...form, published: e.target.checked})}
                       className="w-4 h-4 rounded border-slate-300"
                     />
                     <span className="text-sm text-slate-700">Published</span>
@@ -244,21 +271,31 @@ export default function TenantPagesTab({ tenantContext }) {
                 </div>
               </div>
               
-              <div className="p-4 border-t bg-slate-50 flex justify-end gap-3">
+              <div className="p-4 border-t bg-slate-50 flex justify-between">
                 <button
                   type="button"
-                  onClick={() => setSelectedPage(null)}
-                  className="px-4 py-2 border rounded-lg text-sm"
+                  onClick={handleDelete}
+                  disabled={saving || !pages.find(p => p.slug === selectedPage?.slug)}
+                  className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Cancel
+                  Delete
                 </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 bg-brand text-white rounded-lg text-sm disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : 'Save Page'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPage(null)}
+                    className="px-4 py-2 border rounded-lg text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-2 bg-brand text-white rounded-lg text-sm disabled:opacity-50"
+                  >
+                    {saving ? 'Saving...' : 'Save Page'}
+                  </button>
+                </div>
               </div>
             </form>
           ) : (

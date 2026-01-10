@@ -18,7 +18,7 @@ export default function TenantCategoriesTab({ tenantContext }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [selectedSlugs, setSelectedSlugs] = useState(new Set())
 
   useEffect(() => {
     loadLanguages()
@@ -27,7 +27,8 @@ export default function TenantCategoriesTab({ tenantContext }) {
 
   useEffect(() => {
     if (categories && categories.length > 0) {
-      setSelectedIds(new Set(categories.map(c => c.categoryId || c.id)))
+      // Map categories to slugs
+      setSelectedSlugs(new Set(categories.map(c => c.slug || c.categorySlug)))
     }
   }, [categories])
 
@@ -74,14 +75,14 @@ export default function TenantCategoriesTab({ tenantContext }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedLang])
 
-  const toggleCategory = (catId) => {
-    const newSet = new Set(selectedIds)
-    if (newSet.has(catId)) {
-      newSet.delete(catId)
+  const toggleCategory = (slug) => {
+    const newSet = new Set(selectedSlugs)
+    if (newSet.has(slug)) {
+      newSet.delete(slug)
     } else {
-      newSet.add(catId)
+      newSet.add(slug)
     }
-    setSelectedIds(newSet)
+    setSelectedSlugs(newSet)
   }
 
   const handleSave = async () => {
@@ -95,7 +96,7 @@ export default function TenantCategoriesTab({ tenantContext }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${t?.token || ''}`
         },
-        body: JSON.stringify({ categoryIds: Array.from(selectedIds) })
+        body: JSON.stringify({ categorySlugs: Array.from(selectedSlugs) })
       })
       if (!res.ok) throw new Error(`Failed: ${res.status}`)
       refreshCategories()
@@ -142,7 +143,7 @@ export default function TenantCategoriesTab({ tenantContext }) {
       {/* Current selections summary */}
       <div className="p-4 bg-slate-50 rounded-lg border">
         <div className="text-sm text-slate-600">
-          <strong>{selectedIds.size}</strong> categories selected
+          <strong>{selectedSlugs.size}</strong> categories selected
         </div>
       </div>
 
@@ -157,11 +158,11 @@ export default function TenantCategoriesTab({ tenantContext }) {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 p-4">
             {allCategories.map((cat) => {
-              const isSelected = selectedIds.has(cat.id)
+              const isSelected = selectedSlugs.has(cat.slug)
               return (
                 <button
                   key={cat.id}
-                  onClick={() => toggleCategory(cat.id)}
+                  onClick={() => toggleCategory(cat.slug)}
                   className={`p-3 rounded-lg border text-left transition-all ${
                     isSelected
                       ? 'bg-brand/10 border-brand ring-1 ring-brand'
