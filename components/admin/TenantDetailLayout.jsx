@@ -279,7 +279,8 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
     const t = getToken()
     const base = getApiBase()
     const res = await fetch(`${base}/tenants/${tenantId}`, {
-      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+      cache: 'no-store'
     })
     if (res.ok) {
       const data = await res.json()
@@ -291,7 +292,8 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
     const t = getToken()
     const base = getApiBase()
     const res = await fetch(`${base}/tenants/${tenantId}/entity`, {
-      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+      cache: 'no-store'
     })
     if (res.ok) {
       const data = await res.json()
@@ -305,7 +307,8 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
     
     // Use global /domains endpoint and filter by tenantId
     const res = await fetch(`${base}/domains`, {
-      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+      cache: 'no-store'
     })
     
     if (res.ok) {
@@ -319,7 +322,8 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
     
     // Fallback: refetch tenant to get domains from there
     const tenantRes = await fetch(`${base}/tenants/${tenantId}`, {
-      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` }
+      headers: { 'accept': 'application/json', 'Authorization': `Bearer ${t?.token || ''}` },
+      cache: 'no-store'
     })
     if (tenantRes.ok) {
       const tenantData = await tenantRes.json()

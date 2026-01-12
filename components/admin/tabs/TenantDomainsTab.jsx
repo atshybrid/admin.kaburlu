@@ -32,6 +32,24 @@ function getDomainType(domain) {
   return 'CUSTOM'
 }
 
+function isVerifiedDomain(domain) {
+  return domain?.status === 'ACTIVE' || domain?.status === 'VERIFIED'
+}
+
+function getEpaperDomain(baseDomain) {
+  const d = (baseDomain || '').trim().toLowerCase()
+  if (!d) return ''
+  if (d.startsWith('epaper.')) return d
+  return `epaper.${d}`
+}
+
+function isApprovedLike(record) {
+  if (!record) return false
+  if (record.isApproved === true) return true
+  const status = String(record.status || record.prgiStatus || '').toUpperCase()
+  return status === 'VERIFIED' || status === 'ACTIVE'
+}
+
 // Icons
 const GlobeIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -152,7 +170,7 @@ function AddDomainModal({ open, onClose, onAdded, tenantId, existingDomains = []
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains`, {
+      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/domains`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -315,7 +333,7 @@ function VerifyDomainModal({ open, onClose, domain, tenantId, onVerified }) {
       const t = getToken()
       const domainId = domain?.id
       
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domainId}/verify`, {
+      const res = await fetch(`${getApiBase()}/domains/${domainId}/verify`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,7 +441,7 @@ function SetKindModal({ open, onClose, domain, onUpdated }) {
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/kind`, {
+      const res = await fetch(`${getApiBase()}/domains/${domain.id}/kind`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -503,7 +521,7 @@ function ManageCategoriesModal({ open, onClose, domain, allCategories, onUpdated
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/domains/${domain.id}/categories`, {
+      const res = await fetch(`${getApiBase()}/domains/${domain.id}/categories`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -601,7 +619,7 @@ function DomainCard({ domain, tenantId, allCategories, onRefresh }) {
     
     try {
       const t = getToken()
-      await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/domains/${domain.id}`, {
+      await fetch(`${getApiBase()}/tenants/${tenantId}/domains/${domain.id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${t?.token || ''}` }
       })
@@ -787,18 +805,28 @@ export default function TenantDomainsTab({ tenantContext }) {
   const [showAdd, setShowAdd] = useState(false)
   const [allCategories, setAllCategories] = useState([])
   const [approving, setApproving] = useState({})
+  const [epaperActivating, setEpaperActivating] = useState(false)
+
+  const tenantApproved = isApprovedLike(tenant)
+  const entityApproved = isApprovedLike(entity)
   
   // Check if we can add more domains
   const hasSubdomain = domains.some(d => isKaburluSubdomain(d.domain))
   const hasCustomDomain = domains.some(d => !isKaburluSubdomain(d.domain))
   const canAddMore = !hasSubdomain || !hasCustomDomain
+
+  const hasAnyVerifiedDomain = domains.some(isVerifiedDomain)
+  const verifiedCustomDomain = domains.find(d => !isKaburluSubdomain(d.domain) && isVerifiedDomain(d))
+  const epaperDomainName = getEpaperDomain(verifiedCustomDomain?.domain)
+  const epaperDomain = domains.find(d => d?.kind === 'EPAPER' || d?.domain?.toLowerCase() === epaperDomainName)
+  const canActivateEpaper = Boolean(verifiedCustomDomain && !epaperDomain && epaperDomainName)
   
   // Load all system categories for linking
   useEffect(() => {
     const loadCategories = async () => {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/api/v1/categories`, {
+        const res = await fetch(`${getApiBase()}/categories`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
         if (res.ok) {
@@ -824,15 +852,15 @@ export default function TenantDomainsTab({ tenantContext }) {
       let body = {}
       
       if (type === 'tenant') {
-        url = `${getApiBase()}/api/v1/tenants/${tenantId}`
-        body = { isApproved: action === 'approve' }
+        url = `${getApiBase()}/tenants/${tenantId}/verify`
+        body = { prgiStatus: action === 'approve' ? 'VERIFIED' : 'PENDING', remark: '' }
       } else if (type === 'entity') {
-        url = `${getApiBase()}/api/v1/tenants/${tenantId}/entity`
+        url = `${getApiBase()}/tenants/${tenantId}/entity`
         method = 'PUT'
         body = { ...entity, isApproved: action === 'approve' }
       } else if (type.startsWith('domain-')) {
         const domainId = type.replace('domain-', '')
-        url = `${getApiBase()}/api/v1/domains/${domainId}/verify`
+        url = `${getApiBase()}/domains/${domainId}/verify`
         method = 'POST'
         body = { method: 'MANUAL', force: true }
       }
@@ -863,6 +891,58 @@ export default function TenantDomainsTab({ tenantContext }) {
     }
   }
 
+  const handleActivateEpaper = async () => {
+    if (!tenantId) return
+    if (!verifiedCustomDomain?.domain) return
+    const epaperHost = getEpaperDomain(verifiedCustomDomain.domain)
+    if (!epaperHost) return
+
+    setEpaperActivating(true)
+    try {
+      const t = getToken()
+      // 1) Add epaper.<domain> using the SAME tenant domains API
+      const addRes = await fetch(`${getApiBase()}/tenants/${tenantId}/domains`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${t?.token || ''}`,
+        },
+        body: JSON.stringify({ domain: epaperHost, isPrimary: false }),
+      })
+
+      if (!addRes.ok) {
+        const data = await addRes.json().catch(() => ({}))
+        throw new Error(data.error || data.message || `Failed: ${addRes.status}`)
+      }
+
+      const created = await addRes.json().catch(() => null)
+      const createdId = created?.id || created?.data?.id
+
+      // 2) Mark as EPAPER (best-effort if backend returns id)
+      if (createdId) {
+        const kindRes = await fetch(`${getApiBase()}/domains/${createdId}/kind`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${t?.token || ''}`,
+          },
+          body: JSON.stringify({ kind: 'EPAPER' }),
+        })
+        if (!kindRes.ok) {
+          // Don't fail activation if kind patch fails; user can still set it manually.
+          console.warn('Failed to set EPAPER kind', kindRes.status)
+        }
+      }
+
+      // 3) Refresh list
+      await refreshDomains?.()
+    } catch (e) {
+      alert(e?.message || 'Failed to activate epaper domain')
+    } finally {
+      setEpaperActivating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Approval Section */}
@@ -879,9 +959,9 @@ export default function TenantDomainsTab({ tenantContext }) {
           <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                tenant?.isApproved ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                tenantApproved ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
               }`}>
-                {tenant?.isApproved ? <CheckIcon /> : '!'}
+                {tenantApproved ? <CheckIcon /> : '!'}
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-900">Tenant</div>
@@ -890,13 +970,13 @@ export default function TenantDomainsTab({ tenantContext }) {
             </div>
             <div className="flex items-center gap-2">
               <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                tenant?.isApproved 
+                tenantApproved 
                   ? 'bg-green-50 text-green-700 border border-green-200' 
                   : 'bg-amber-50 text-amber-700 border border-amber-200'
               }`}>
-                {tenant?.isApproved ? 'Approved' : 'Pending'}
+                {tenantApproved ? 'Approved' : 'Pending'}
               </span>
-              {!tenant?.isApproved && (
+              {!tenantApproved && (
                 <button
                   onClick={() => handleApprove('tenant', 'approve')}
                   disabled={approving.tenant}
@@ -913,9 +993,9 @@ export default function TenantDomainsTab({ tenantContext }) {
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
                 !entity ? 'bg-slate-100 text-slate-400' :
-                entity?.isApproved ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                entityApproved ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
               }`}>
-                {!entity ? '—' : entity?.isApproved ? <CheckIcon /> : '!'}
+                {!entity ? '—' : entityApproved ? <CheckIcon /> : '!'}
               </div>
               <div>
                 <div className="text-sm font-medium text-slate-900">Entity</div>
@@ -930,13 +1010,13 @@ export default function TenantDomainsTab({ tenantContext }) {
               ) : (
                 <>
                   <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    entity?.isApproved 
+                    entityApproved 
                       ? 'bg-green-50 text-green-700 border border-green-200' 
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
-                    {entity?.isApproved ? 'Approved' : 'Pending'}
+                    {entityApproved ? 'Approved' : 'Pending'}
                   </span>
-                  {!entity?.isApproved && (
+                  {!entityApproved && (
                     <button
                       onClick={() => handleApprove('entity', 'approve')}
                       disabled={approving.entity}
@@ -1011,14 +1091,29 @@ export default function TenantDomainsTab({ tenantContext }) {
           </p>
         </div>
         
-        <button
-          onClick={() => setShowAdd(true)}
-          disabled={!canAddMore}
-          className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <PlusIcon />
-          Add Domain
-        </button>
+        <div className="flex items-center gap-2">
+          {canActivateEpaper && (
+            <button
+              onClick={handleActivateEpaper}
+              disabled={epaperActivating}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={`Create ${epaperDomainName} for EPAPER`}
+            >
+              {epaperActivating ? 'Activating...' : 'Activate Epaper'}
+            </button>
+          )}
+
+          {!hasAnyVerifiedDomain && (
+            <button
+              onClick={() => setShowAdd(true)}
+              disabled={!canAddMore}
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <PlusIcon />
+              Add Domain
+            </button>
+          )}
+        </div>
       </div>
       
       {/* Domain Slots Info */}
@@ -1053,6 +1148,12 @@ export default function TenantDomainsTab({ tenantContext }) {
                 </div>
               ) : (
                 <div className="text-sm text-slate-500">Your own domain</div>
+              )}
+
+              {verifiedCustomDomain?.domain && (
+                <div className="text-xs text-slate-500 mt-1">
+                  Epaper: <span className="font-medium text-slate-700">{getEpaperDomain(verifiedCustomDomain.domain)}</span>
+                </div>
               )}
             </div>
           </div>

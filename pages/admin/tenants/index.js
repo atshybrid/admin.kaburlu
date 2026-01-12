@@ -204,7 +204,8 @@ function TenantsContent() {
     try {
       const t = getToken()
       const res = await fetch(`${getApiBase()}/tenants?full=true`, {
-        headers: { 'Authorization': `Bearer ${t?.token || ''}` }
+        headers: { 'Authorization': `Bearer ${t?.token || ''}` },
+        cache: 'no-store'
       })
       if (!res.ok) throw new Error(`Request failed: ${res.status}`)
       const data = await res.json()

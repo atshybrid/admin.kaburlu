@@ -2,6 +2,15 @@
  * Tenant Overview Tab - Status overview and quick info
  */
 
+import { useState } from 'react'
+import { getToken } from '../../../utils/auth'
+
+// Use local proxy to avoid CORS
+function getApiBase() {
+  if (typeof window !== 'undefined') return '/api/proxy'
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
+}
+
 function StatusBadge({ status }) {
   const styles = {
     'VERIFIED': 'bg-green-50 text-green-700 border-green-200',
@@ -37,11 +46,97 @@ function Field({ label, value }) {
   )
 }
 
+function isApprovedLike(record) {
+  if (!record) return false
+  if (record.isApproved === true) return true
+  const status = String(record.status || record.prgiStatus || '').toUpperCase()
+  return status === 'VERIFIED' || status === 'ACTIVE'
+}
+
 export default function TenantOverviewTab({ tenantContext }) {
-  const { tenant, entity, domains = [], categories = [], razorpay } = tenantContext || {}
+  const { tenant, entity, domains = [], categories = [], razorpay, refreshTenant, refreshEntity } = tenantContext || {}
+
+  const tenantId = tenant?.id
+  const [approving, setApproving] = useState({ tenant: false, entity: false })
   
   const primaryDomain = domains.find(d => d.isPrimary)
   const activeDomains = domains.filter(d => d.status === 'ACTIVE')
+
+  const tenantApproved = isApprovedLike(tenant)
+  const entityApproved = isApprovedLike(entity)
+
+  const handleApproveTenant = async () => {
+    if (!tenantId) return
+    if (tenantApproved) return
+    setApproving(prev => ({ ...prev, tenant: true }))
+    try {
+      const t = getToken()
+      const url = `${getApiBase()}/tenants/${tenantId}/verify`
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${t?.token || ''}`,
+      }
+      const payload = { prgiStatus: 'VERIFIED', remark: '' }
+
+      // Keep consistent with Tenants list verification flow (PRGI status)
+      let res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(payload) })
+
+      // Some deployments may only allow POST for /verify
+      if (!res.ok && (res.status === 404 || res.status === 405)) {
+        res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) })
+      }
+
+      // Fallback: some backends accept direct update on tenant
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`${getApiBase()}/tenants/${tenantId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ prgiStatus: 'VERIFIED' }),
+        })
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || data.message || `Failed: ${res.status}`)
+      }
+
+      await refreshTenant?.()
+      // Best-effort second refresh to avoid eventual-consistency lag
+      setTimeout(() => refreshTenant?.(), 800)
+    } catch (e) {
+      alert(e?.message || 'Failed to approve tenant')
+    } finally {
+      setApproving(prev => ({ ...prev, tenant: false }))
+    }
+  }
+
+  const handleApproveEntity = async () => {
+    if (!tenantId || !entity) return
+    if (entityApproved) return
+    setApproving(prev => ({ ...prev, entity: true }))
+    try {
+      const t = getToken()
+      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/entity`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${t?.token || ''}`,
+        },
+        body: JSON.stringify({ ...entity, isApproved: true }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || data.message || `Failed: ${res.status}`)
+      }
+
+      await refreshEntity?.()
+    } catch (e) {
+      alert(e?.message || 'Failed to approve entity')
+    } finally {
+      setApproving(prev => ({ ...prev, entity: false }))
+    }
+  }
   
   return (
     <div className="space-y-6">
@@ -64,6 +159,69 @@ export default function TenantOverviewTab({ tenantContext }) {
           <div className="text-sm text-slate-500">Payments</div>
         </div>
       </div>
+
+      {/* Verification / Approval */}
+      <InfoCard title="Verification & Approvals">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+            <div>
+              <div className="text-sm font-medium text-slate-900">Tenant Approval</div>
+              <div className="text-xs text-slate-500">Controls tenant activation in the platform</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                tenantApproved
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                {tenantApproved ? 'Approved' : 'Pending'}
+              </span>
+              {!tenantApproved && (
+                <button
+                  onClick={handleApproveTenant}
+                  disabled={approving.tenant}
+                  className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {approving.tenant ? 'Approving...' : 'Approve'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+            <div>
+              <div className="text-sm font-medium text-slate-900">Entity Approval</div>
+              <div className="text-xs text-slate-500">Approves the registration entity details</div>
+            </div>
+            <div className="flex items-center gap-2">
+              {!entity ? (
+                <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
+                  Not Created
+                </span>
+              ) : (
+                <>
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    entityApproved
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {entityApproved ? 'Approved' : 'Pending'}
+                  </span>
+                  {!entityApproved && (
+                    <button
+                      onClick={handleApproveEntity}
+                      disabled={approving.entity}
+                      className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {approving.entity ? 'Approving...' : 'Approve'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </InfoCard>
 
       {/* Basic Info */}
       <InfoCard title="Basic Information">
