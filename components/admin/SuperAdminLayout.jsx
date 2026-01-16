@@ -55,6 +55,16 @@ const NAV_SECTIONS = [
       { id: 'razorpay', label: 'Payment Gateway', href: '/admin/settings/razorpay', icon: 'credit-card' },
     ]
   },
+  {
+    id: 'epaper',
+    label: 'ePaper (PDF)',
+    items: [
+      { id: 'epaper-upload', label: 'Upload Issue', href: '/admin/epaper/upload', icon: 'file-text' },
+      { id: 'epaper-issues', label: 'Find Issues', href: '/admin/epaper/issues', icon: 'search' },
+      { id: 'epaper-editions', label: 'Manage Editions', href: '/admin/epaper/editions-manage', icon: 'layers' },
+      { id: 'epaper-config', label: 'Public Config', href: '/admin/epaper/config', icon: 'settings' },
+    ]
+  },
 ]
 
 // Icons component
@@ -79,6 +89,9 @@ function Icon({ name, className = 'w-5 h-5' }) {
     'bell': <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />,
     'search': <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />,
     'plus': <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />,
+    'file-text': <><path strokeLinecap="round" strokeLinejoin="round" d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z" /><path strokeLinecap="round" strokeLinejoin="round" d="M14 3v5h5" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 13h6" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 17h6" /></>,
+    'settings': <><path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a7.97 7.97 0 00.1-1 7.97 7.97 0 00-.1-1l2.1-1.6-2-3.4-2.5 1a7.9 7.9 0 00-1.7-1l-.4-2.7H9l-.4 2.7a7.9 7.9 0 00-1.7 1l-2.5-1-2 3.4L4.6 13a7.97 7.97 0 00-.1 1c0 .34.03.67.1 1L2.5 16.6l2 3.4 2.5-1a7.9 7.9 0 001.7 1l.4 2.7h6l.4-2.7a7.9 7.9 0 001.7-1l2.5 1 2-3.4L19.4 15z" /></>,
+    'layers': <><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l9 5-9 5-9-5 9-5z" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 12l9 5 9-5" /><path strokeLinecap="round" strokeLinejoin="round" d="M3 16l9 5 9-5" /></>,
   }
   
   return (
@@ -318,6 +331,19 @@ export default function SuperAdminLayout({ children, title }) {
         router.replace('/')
       } else {
         setUser(tokenData.user || tokenData.data?.user || null)
+
+        // Migration helper: ensure server has httpOnly cookie for BFF routes
+        if (typeof window !== 'undefined') {
+          const key = 'kab_admin_cookie_synced'
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            fetch('/api/auth/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jwt: tokenData.token }),
+            }).catch(() => {})
+          }
+        }
       }
     } finally {
       setChecking(false)
@@ -329,7 +355,13 @@ export default function SuperAdminLayout({ children, title }) {
     if (!user) return false
     const role = user.role || user.roleName || user.userRole || user.role?.name || ''
     const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
-    return roleStr === 'SUPERADMIN' || roleStr === 'ADMIN' || roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
+    return (
+      roleStr === 'SUPERADMIN' ||
+      roleStr === 'ADMIN' ||
+      roleStr.includes('SUPERADMIN') ||
+      roleStr.includes('ADMIN') ||
+      roleStr.includes('DESKEDITOR')
+    )
   })()
 
   const handleLogout = () => {

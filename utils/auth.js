@@ -22,5 +22,9 @@ export function getToken() {
 }
 
 export function logout() {
-  if (typeof window !== 'undefined') localStorage.removeItem('kab_admin_auth')
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('kab_admin_auth')
+    // Best-effort: clear server-side httpOnly cookie
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+  }
 }

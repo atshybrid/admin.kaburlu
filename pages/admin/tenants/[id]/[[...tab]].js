@@ -18,7 +18,10 @@ import {
   TenantIdCardsTab,
   TenantPagesTab,
   TenantReportersTab,
-  TenantAdsTab
+  TenantAdsTab,
+  TenantEpaperTab,
+  TenantDomainSettingsTab,
+  TenantEditionsTab
 } from '../../../../components/admin/tabs'
 
 function TenantDetailContent() {
@@ -57,6 +60,12 @@ function TenantDetailContent() {
         return <TenantPagesTab tenantContext={tenantContext} />
       case 'reporters':
         return <TenantReportersTab tenantContext={tenantContext} />
+      case 'epaper':
+        return <TenantEpaperTab tenantContext={tenantContext} />
+      case 'editions':
+        return <TenantEditionsTab tenantContext={tenantContext} />
+      case 'domain-settings':
+        return <TenantDomainSettingsTab tenantContext={tenantContext} />
       default:
         return <TenantOverviewTab tenantContext={tenantContext} />
     }
