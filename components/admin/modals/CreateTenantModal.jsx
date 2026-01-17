@@ -3,9 +3,9 @@
  * Clean UI with auto-slug generation and state dropdown
  */
 import { useState, useEffect } from 'react'
-import { Modal } from '../../ui/Modal'
-import { Button } from '../../ui/Button'
-import { Spinner } from '../../ui/Spinner'
+import Modal from '../../ui/Modal'
+import Button from '../../ui/Button'
+import Spinner from '../../ui/Spinner'
 import { statesApi } from '../../../lib/api/services/statesApi'
 import { tenantsApi } from '../../../lib/api/tenantApi'
 
@@ -18,7 +18,7 @@ function generateSlug(name) {
     .replace(/^-+|-+$/g, '')
 }
 
-export function CreateTenantModal({ isOpen, onClose, onSuccess }) {
+export default function CreateTenantModal({ isOpen, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
     prgiNumber: '',

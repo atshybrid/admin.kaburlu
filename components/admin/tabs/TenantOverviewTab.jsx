@@ -109,34 +109,6 @@ export default function TenantOverviewTab({ tenantContext }) {
       setApproving(prev => ({ ...prev, tenant: false }))
     }
   }
-
-  const handleApproveEntity = async () => {
-    if (!tenantId || !entity) return
-    if (entityApproved) return
-    setApproving(prev => ({ ...prev, entity: true }))
-    try {
-      const t = getToken()
-      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/entity`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${t?.token || ''}`,
-        },
-        body: JSON.stringify({ ...entity, isApproved: true }),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || data.message || `Failed: ${res.status}`)
-      }
-
-      await refreshEntity?.()
-    } catch (e) {
-      alert(e?.message || 'Failed to approve entity')
-    } finally {
-      setApproving(prev => ({ ...prev, entity: false }))
-    }
-  }
   
   return (
     <div className="space-y-6">
@@ -184,39 +156,6 @@ export default function TenantOverviewTab({ tenantContext }) {
                 >
                   {approving.tenant ? 'Approving...' : 'Approve'}
                 </button>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-            <div>
-              <div className="text-sm font-medium text-slate-900">Entity Approval</div>
-              <div className="text-xs text-slate-500">Approves the registration entity details</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!entity ? (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
-                  Not Created
-                </span>
-              ) : (
-                <>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    entityApproved
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}>
-                    {entityApproved ? 'Approved' : 'Pending'}
-                  </span>
-                  {!entityApproved && (
-                    <button
-                      onClick={handleApproveEntity}
-                      disabled={approving.entity}
-                      className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {approving.entity ? 'Approving...' : 'Approve'}
-                    </button>
-                  )}
-                </>
               )}
             </div>
           </div>

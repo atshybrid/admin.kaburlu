@@ -988,48 +988,6 @@ export default function TenantDomainsTab({ tenantContext }) {
             </div>
           </div>
 
-          {/* Entity Approval */}
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                !entity ? 'bg-slate-100 text-slate-400' :
-                entityApproved ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
-              }`}>
-                {!entity ? '—' : entityApproved ? <CheckIcon /> : '!'}
-              </div>
-              <div>
-                <div className="text-sm font-medium text-slate-900">Entity</div>
-                <div className="text-xs text-slate-500">{entity?.registrationTitle || 'Business registration'}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!entity ? (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-500">
-                  Not Created
-                </span>
-              ) : (
-                <>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    entityApproved 
-                      ? 'bg-green-50 text-green-700 border border-green-200' 
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}>
-                    {entityApproved ? 'Approved' : 'Pending'}
-                  </span>
-                  {!entityApproved && (
-                    <button
-                      onClick={() => handleApprove('entity', 'approve')}
-                      disabled={approving.entity}
-                      className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {approving.entity ? 'Approving...' : 'Approve'}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Domain Approvals */}
           {domains.map(domain => {
             const isVerified = domain.status === 'ACTIVE' || domain.status === 'VERIFIED'

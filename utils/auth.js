@@ -28,3 +28,18 @@ export function logout() {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
   }
 }
+
+export function handleUnauthorized() {
+  if (typeof window !== 'undefined') {
+    // Try to import and trigger session expiry modal
+    import('../hooks/useSessionExpiry').then(module => {
+      if (module.triggerSessionExpired) {
+        module.triggerSessionExpired()
+      }
+    }).catch(() => {
+      // Fallback to logout if modal not available
+      logout()
+      window.location.href = '/'
+    })
+  }
+}

@@ -1,6 +1,6 @@
 /**
  * Tenant Entity Tab - Business registration management
- * API: POST /api/v1/tenants/:tenantId/entity/simple
+ * API: POST /api/v1/tenants/:tenantId/entity
  * Includes:
  *  - languageId (required)
  *  - adminMobile (optional) - creates TENANT_ADMIN user if provided
@@ -98,7 +98,7 @@ function LocationSearchDropdown({ value, onChange, placeholder = "Search city/di
     try {
       const t = getToken()
       const res = await fetch(
-        `${getApiBase()}/api/v1/locations/search-combined?q=${encodeURIComponent(searchQuery)}&limit=20`,
+        `${getApiBase()}/locations/search-combined?q=${encodeURIComponent(searchQuery)}&limit=20`,
         {
           headers: {
             'Accept': 'application/json',
@@ -274,26 +274,45 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
   
   const [form, setForm] = useState({
     registrationTitle: tenant?.name || '',
+    nativeName: '',
     languageId: '',
     adminMobile: '',
     prgiNumber: tenant?.prgiNumber || '',
     periodicity: 'DAILY',
+    registrationDate: '',
     // Owner/Publisher/Editor fields
     ownerName: '',
     publisherName: '',
     editorName: '',
+    // Location fields
+    publicationCountryId: '',
+    publicationStateId: '',
+    publicationDistrictId: '',
+    publicationMandalId: '',
+    printingPressName: '',
+    printingDistrictId: '',
+    printingMandalId: '',
+    printingCityName: '',
+    address: '',
   })
 
   useEffect(() => {
     async function loadLanguages() {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/api/v1/languages`, {
+        console.log('Fetching languages... token:', t)
+        const res = await fetch(`${getApiBase()}/languages`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
+        console.log('Languages response status:', res.status)
         if (res.ok) {
           const data = await res.json()
-          setLanguages(Array.isArray(data) ? data : (data?.data || []))
+          console.log('Languages API response:', data)
+          const languagesList = Array.isArray(data) ? data : (data?.data || [])
+          console.log('Extracted languages list:', languagesList)
+          setLanguages(languagesList)
+        } else {
+          console.error('Failed to fetch languages, status:', res.status)
         }
       } catch (e) {
         console.error('Failed to load languages', e)
@@ -314,7 +333,7 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
     
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/tenants/${tenantId}/entity/simple`, {
+      const res = await fetch(`${getApiBase()}/tenants/${tenantId}/entity`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -322,13 +341,24 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
         },
         body: JSON.stringify({
           registrationTitle: form.registrationTitle,
+          nativeName: form.nativeName || undefined,
           languageId: form.languageId,
           adminMobile: form.adminMobile || undefined,
           prgiNumber: form.prgiNumber || undefined,
           periodicity: form.periodicity,
+          registrationDate: form.registrationDate || undefined,
           ownerName: form.ownerName || undefined,
           publisherName: form.publisherName || undefined,
           editorName: form.editorName || undefined,
+          publicationCountryId: form.publicationCountryId || undefined,
+          publicationStateId: form.publicationStateId || undefined,
+          publicationDistrictId: form.publicationDistrictId || undefined,
+          publicationMandalId: form.publicationMandalId || undefined,
+          printingPressName: form.printingPressName || undefined,
+          printingDistrictId: form.printingDistrictId || undefined,
+          printingMandalId: form.printingMandalId || undefined,
+          printingCityName: form.printingCityName || undefined,
+          address: form.address || undefined,
         })
       })
       
@@ -368,9 +398,10 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
             </label>
             <input
               required
+              disabled
               value={form.registrationTitle}
               onChange={e => setForm({...form, registrationTitle: e.target.value})}
-              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none bg-gray-50 cursor-not-allowed"
               placeholder="Daily Kaburlu News"
             />
           </div>
@@ -391,6 +422,32 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
               ))}
             </select>
             <p className="text-xs text-slate-500 mt-1">Primary language for content</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Native Name <span className="text-gray-400 text-xs">(Optional)</span>
+            </label>
+            <input
+              value={form.nativeName}
+              onChange={e => setForm({...form, nativeName: e.target.value})}
+              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+              placeholder="e.g., ప్రశ్నాయుధం"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Registration Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              required
+              value={form.registrationDate}
+              onChange={e => setForm({...form, registrationDate: e.target.value})}
+              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+            />
+            <p className="text-xs text-slate-500 mt-1">DD/MM/YYYY format</p>
           </div>
         </div>
         
@@ -414,9 +471,10 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">PRGI Number</label>
             <input
+              disabled
               value={form.prgiNumber}
               onChange={e => setForm({...form, prgiNumber: e.target.value})}
-              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+              className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none bg-gray-50 cursor-not-allowed"
               placeholder="PRGI-TS-2025-01987"
             />
             {tenant?.prgiNumber && (
@@ -500,6 +558,43 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
             </div>
           </div>
         </div>
+
+        {/* Printing Press & Location Section */}
+        <div className="border-t pt-5">
+          <h4 className="text-sm font-semibold text-slate-900 mb-4">Printing Press & Location</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Printing Press Name</label>
+              <input
+                value={form.printingPressName}
+                onChange={e => setForm({...form, printingPressName: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="SHASHI PRINTING PRESS"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Printing City Name</label>
+              <input
+                value={form.printingCityName}
+                onChange={e => setForm({...form, printingCityName: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="KAMAREDDY"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Address</label>
+              <textarea
+                value={form.address}
+                onChange={e => setForm({...form, address: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none resize-none"
+                placeholder="123 Main Street, City"
+                rows={2}
+              />
+            </div>
+          </div>
+        </div>
         
         {error && (
           <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
@@ -548,7 +643,7 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
     async function loadLanguages() {
       try {
         const t = getToken()
-        const res = await fetch(`${getApiBase()}/api/v1/languages`, {
+        const res = await fetch(`${getApiBase()}/languages`, {
           headers: { 'Authorization': `Bearer ${t?.token || ''}` }
         })
         if (res.ok) {
@@ -570,7 +665,7 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
     try {
       const t = getToken()
       // API: PUT /tenants/:tenantId/entity (full update)
-      const url = `${getApiBase()}/api/v1/tenants/${tenantId}/entity`
+      const url = `${getApiBase()}/tenants/${tenantId}/entity`
       
       // Build payload - exclude prgiNumber as it's immutable
       const payload = {

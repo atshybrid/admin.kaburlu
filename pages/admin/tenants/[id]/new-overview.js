@@ -5,14 +5,15 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import SuperAdminLayout from '../../../../../components/admin/SuperAdminLayout'
-import { Button } from '../../../../../components/ui/Button'
-import { Spinner } from '../../../../../components/ui/Spinner'
-import { Badge } from '../../../../../components/ui/Badge'
-import { Card } from '../../../../../components/ui/Card'
-import { ConfirmDialog } from '../../../../../components/ui/ConfirmDialog2'
-import { tenantsApi } from '../../../../../lib/api/tenantApi'
-import { prgiApi } from '../../../../../lib/api/services/prgiApi'
+import SuperAdminLayout from '../../../../components/admin/SuperAdminLayout'
+import Button from '../../../../components/ui/Button'
+import Spinner from '../../../../components/ui/Spinner'
+import Badge from '../../../../components/ui/Badge'
+import Card from '../../../../components/ui/Card'
+import ConfirmDialog from '../../../../components/ui/ConfirmDialog2'
+import EntityFormModal from '../../../../components/admin/modals/EntityFormModal'
+import { tenantsApi, entityApi } from '../../../../lib/api/tenantApi'
+import { prgiApi } from '../../../../lib/api/services/prgiApi'
 
 // Status Badge Component
 function StatusBadge({ status }) {
@@ -68,6 +69,9 @@ export default function TenantOverviewPage() {
   const [showVerifyDialog, setShowVerifyDialog] = useState(false)
   const [showRejectDialog, setShowRejectDialog] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  
+  // Entity form state
+  const [showEntityForm, setShowEntityForm] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -88,6 +92,11 @@ export default function TenantOverviewPage() {
 
     fetchTenant()
   }, [id])
+  
+  // Handle entity create/update success
+  const handleEntitySuccess = (updatedEntity) => {
+    setTenant(prev => ({ ...prev, entity: updatedEntity }))
+  }
 
   // PRGI Actions
   const handleSubmit = async () => {
@@ -352,11 +361,16 @@ export default function TenantOverviewPage() {
                     </svg>
                     Settings
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" size="sm">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start" 
+                    size="sm"
+                    onClick={() => setShowEntityForm(true)}
+                  >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    View Entity
+                    {tenant?.entity ? 'Edit Entity' : 'Create Entity'}
                   </Button>
                 </div>
               </div>
@@ -442,6 +456,15 @@ export default function TenantOverviewPage() {
             rows={4}
           />
         </ConfirmDialog>
+
+        {/* Entity Form Modal */}
+        <EntityFormModal
+          isOpen={showEntityForm}
+          onClose={() => setShowEntityForm(false)}
+          onSuccess={handleEntitySuccess}
+          tenantId={id}
+          existingEntity={tenant?.entity}
+        />
       </div>
     </SuperAdminLayout>
   )

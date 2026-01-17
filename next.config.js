@@ -4,6 +4,27 @@ const nextConfig = {
   trailingSlash: false,
   // Ensure all pages are included in the build output
   output: 'standalone',
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.b-cdn.net',
+      },
+      {
+        protocol: 'https',
+        hostname: 'kaburlu-news.b-cdn.net',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.kaburlumedia.com',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      },
+    ],
+    unoptimized: false,
+  },
   async redirects() {
     return [
       // Redirect old dashboard routes to /admin

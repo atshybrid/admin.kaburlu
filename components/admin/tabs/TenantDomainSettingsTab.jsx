@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
-import { logout } from '../../../utils/auth'
+import { handleUnauthorized } from '../../../utils/auth'
 
 const GOOGLE_FONTS = [
   'Inter',
@@ -142,9 +142,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   async function fetchTextOrRedirect(url, options) {
     const res = await fetch(url, options)
     if (res.status === 401) {
-      logout()
-      router.push('/')
-      throw new Error('Unauthorized. Redirecting to login...')
+      handleUnauthorized()
+      throw new Error('Session expired. Please re-login.')
     }
     if (!res.ok) {
       const txt = await res.text()
@@ -157,7 +156,9 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     const fd = new FormData()
     fd.append('file', file)
     if (params.folder) fd.append('folder', params.folder)
-    if (params.purpose) fd.append('purpose', params.purpose)
+    if (params.kind) fd.append('kind', params.kind)
+    if (params.key) fd.append('key', params.key)
+    if (params.filename) fd.append('filename', params.filename)
 
     const res = await fetch('/api/admin/media/upload', { method: 'POST', body: fd })
     if (!res.ok) {
@@ -165,7 +166,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       throw new Error(txt || `Upload failed: ${res.status}`)
     }
     const data = await res.json()
-    return data.url
+    // Backend returns publicUrl, not url
+    return data.publicUrl || data.url
   }
 
   async function loadMetaLists() {
@@ -289,13 +291,15 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       const body = JSON.stringify(cleaned)
       const res = await fetch(`/api/admin/proxy/api/v1/tenants/${tenantId}/domains/${domainId}/settings`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body,
       })
       
       if (res.status === 401) {
-        logout()
-        router.push('/')
+        handleUnauthorized()
         return
       }
       
@@ -519,6 +523,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                       setError('')
                       const url = await uploadMedia(f, { folder: `${domainFolder}/branding` })
                       setBrandingLogoUrl(url)
+                      // Clear the file input to prevent resubmission
+                      e.target.value = ''
                     } catch (err) {
                       setError(err?.message || String(err))
                     } finally {
@@ -551,6 +557,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                       setError('')
                       const url = await uploadMedia(f, { folder: `${domainFolder}/branding` })
                       setBrandingFaviconUrl(url)
+                      // Clear the file input to prevent resubmission
+                      e.target.value = ''
                     } catch (err) {
                       setError(err?.message || String(err))
                     } finally {
@@ -714,6 +722,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                   setError('')
                   const url = await uploadMedia(f, { folder: `${domainFolder}/seo` })
                   setOgImageUrl(url)
+                  // Clear the file input to prevent resubmission
+                  e.target.value = ''
                 } catch (err) {
                   setError(err?.message || String(err))
                 } finally {

@@ -2,10 +2,10 @@
  * Confirm Dialog Component
  * Reusable confirmation dialog for destructive actions
  */
-import { Modal } from './Modal'
-import { Button } from './Button'
+import Modal from './Modal'
+import Button from './Button'
 
-export function ConfirmDialog({ 
+export default function ConfirmDialog({ 
   isOpen, 
   onClose, 
   onConfirm, 

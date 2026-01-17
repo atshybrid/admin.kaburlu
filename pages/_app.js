@@ -1,5 +1,7 @@
 import '../styles/globals.css'
 import { Component as ReactComponent } from 'react'
+import MpinReLoginModal from '../components/auth/MpinReLoginModal'
+import useSessionExpiry from '../hooks/useSessionExpiry'
 
 class ErrorBoundary extends ReactComponent {
   constructor(props){
@@ -30,10 +32,25 @@ class ErrorBoundary extends ReactComponent {
   }
 }
 
-export default function App({ Component, pageProps }) {
+function AppContent({ Component, pageProps }) {
+  const { showMpinModal, handleMpinSuccess, handleModalClose } = useSessionExpiry()
+
+  return (
+    <>
+      <Component {...pageProps} />
+      <MpinReLoginModal 
+        isOpen={showMpinModal} 
+        onClose={handleModalClose}
+        onSuccess={handleMpinSuccess}
+      />
+    </>
+  )
+}
+
+export default function App(props) {
   return (
     <ErrorBoundary>
-      <Component {...pageProps} />
+      <AppContent {...props} />
     </ErrorBoundary>
   )
 }

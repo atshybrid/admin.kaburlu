@@ -8,7 +8,7 @@ import TenantDetailLayout from '../../../../components/admin/TenantDetailLayout'
 import { 
   TenantOverviewTab, 
   TenantEntityTab, 
-  TenantDomainsTab,
+  ModernDomainsTab,
   TenantCategoriesTab,
   TenantBrandingTab,
   TenantHomepageTab,
@@ -39,7 +39,7 @@ function TenantDetailContent() {
       case 'entity':
         return <TenantEntityTab tenantContext={tenantContext} />
       case 'domains':
-        return <TenantDomainsTab tenantContext={tenantContext} />
+        return <ModernDomainsTab tenantId={id} />
       case 'categories':
         return <TenantCategoriesTab tenantContext={tenantContext} />
       case 'branding':
