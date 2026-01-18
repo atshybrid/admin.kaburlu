@@ -53,17 +53,14 @@ const NAV_SECTIONS = [
     label: 'Settings',
     items: [
       { id: 'razorpay', label: 'Payment Gateway', href: '/admin/settings/razorpay', icon: 'credit-card' },
+      { id: 'epaper-config', label: 'ePaper Config', href: '/admin/epaper/config', icon: 'settings' },
     ]
   },
   {
     id: 'epaper',
-    label: 'ePaper (PDF)',
-    items: [
-      { id: 'epaper-upload', label: 'Upload Issue', href: '/admin/epaper/upload', icon: 'file-text' },
-      { id: 'epaper-issues', label: 'Find Issues', href: '/admin/epaper/issues', icon: 'search' },
-      { id: 'epaper-editions', label: 'Manage Editions', href: '/admin/epaper/editions-manage', icon: 'layers' },
-      { id: 'epaper-config', label: 'Public Config', href: '/admin/epaper/config', icon: 'settings' },
-    ]
+    label: 'Epaper',
+    href: '/admin/epaper',
+    icon: 'file-text'
   },
 ]
 
