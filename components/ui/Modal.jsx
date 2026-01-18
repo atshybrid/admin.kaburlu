@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useCallback } from 'react'
-import { IconX } from './Icons'
+import { IconX } from './icons'
 
 export default function Modal({
   isOpen = false,
