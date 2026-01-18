@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import FullScreenLoader from '../../../components/FullScreenLoader'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/SuperAdminLayout'
 
@@ -177,7 +178,9 @@ function EPaperUploadContent() {
   }
 
   return (
-    <div className="p-6">
+    <>
+      <FullScreenLoader show={busy} message="Publishing PDF..." />
+      <div className="p-6">
         <div className="mb-6">
           <h1 className="text-xl font-bold text-slate-900">ePaper (PDF) — Upload Issue</h1>
           <p className="text-sm text-slate-500">Uploads PDF to Media, then creates/replaces the daily issue by URL.</p>
@@ -282,6 +285,7 @@ function EPaperUploadContent() {
           </div>
         )}
       </div>
+    </>
   )
 }
 
