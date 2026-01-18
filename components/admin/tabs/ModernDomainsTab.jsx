@@ -430,6 +430,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
   const isEpaper = domain?.kind === 'EPAPER'
   
   const [settings, setSettings] = useState({
+    themeStyle: 'style1',
     epaper: {
       type: 'PDF',
       multiEditionEnabled: true
@@ -511,6 +512,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
         setSettings(prevSettings => ({
           ...prevSettings,
           ...data.settings,
+          themeStyle: data.settings.themeStyle || prevSettings.themeStyle || 'style1',
           branding: { ...prevSettings.branding, ...data.settings.branding },
           theme: { 
             ...prevSettings.theme, 
@@ -595,7 +597,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
       ) : (
         <>
           {/* Tab Navigation */}
-          <div className="border-b border-gray-200 mb-6">
+          <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
             <div className="flex gap-1 overflow-x-auto">
               {['branding', 'theme', 'seo', 'social', isEpaper && 'layout', isEpaper && 'integrations', 'advanced'].filter(Boolean).map((tab) => (
                 <button
@@ -603,8 +605,8 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                   onClick={() => setActiveTab(tab)}
                   className={`px-4 py-2.5 text-sm font-medium capitalize transition-colors border-b-2 whitespace-nowrap ${
                     activeTab === tab
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                      ? 'border-blue-600 dark:border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:border-gray-300 dark:hover:border-gray-600'
                   }`}
                 >
                   {tab === 'seo' ? 'SEO' : tab}
@@ -619,18 +621,18 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
             {activeTab === 'branding' && (
               <div className="space-y-6">
                 {isEpaper && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="text-sm font-semibold text-gray-900 mb-3">ePaper Configuration</h3>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">ePaper Configuration</h3>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
                         <select
                           value={settings.epaper.type}
                           onChange={(e) => setSettings({
                             ...settings,
                             epaper: { ...settings.epaper, type: e.target.value }
                           })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none"
                         >
                           <option value="PDF">PDF</option>
                           <option value="BLOCK">BLOCK</option>
@@ -646,9 +648,9 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                               ...settings,
                               epaper: { ...settings.epaper, multiEditionEnabled: e.target.checked }
                             })}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                           />
-                          <span className="ml-2 text-sm text-gray-700">Multi-Edition Enabled</span>
+                          <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Multi-Edition Enabled</span>
                         </label>
                       </div>
                     </div>
@@ -656,7 +658,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                 )}
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-2">Site Name</label>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Site Name</label>
                   <input
                     type="text"
                     value={settings.branding.siteName}
@@ -664,14 +666,14 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                       ...settings,
                       branding: { ...settings.branding, siteName: e.target.value }
                     })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none"
                     placeholder={`${domain?.kind === 'EPAPER' ? 'Kaburlu ePaper' : 'Kaburlu News'}`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">The public-facing name of your website</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">The public-facing name of your website</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-3">Logo</label>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Logo</label>
                   <ImageUpload
                     value={settings.branding.logoUrl}
                     onChange={(url) => setSettings({
@@ -682,11 +684,11 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                     label="Upload Logo"
                     maxSizeMB={2}
                   />
-                  <p className="text-xs text-gray-500 mt-2">Recommended: PNG with transparent background, 300x80px</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Recommended: PNG with transparent background, 300x80px</p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-3">Favicon</label>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Favicon</label>
                   <ImageUpload
                     value={settings.branding.faviconUrl}
                     onChange={(url) => setSettings({
@@ -698,7 +700,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                     maxSizeMB={1}
                     accept="image/x-icon,image/png"
                   />
-                  <p className="text-xs text-gray-500 mt-2">Recommended: ICO or PNG, 32x32px or 64x64px</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Recommended: ICO or PNG, 32x32px or 64x64px</p>
                 </div>
               </div>
             )}
@@ -706,11 +708,25 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
             {/* Theme Tab */}
             {activeTab === 'theme' && (
               <div className="space-y-6">
+                {/* Theme Style Selector */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4">Brand Colors</h3>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Theme Style</label>
+                  <select
+                    value={settings.themeStyle || 'style1'}
+                    onChange={(e) => setSettings({ ...settings, themeStyle: e.target.value })}
+                    className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none"
+                  >
+                    <option value="style1">Style 1</option>
+                    <option value="style2">Style 2</option>
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Choose the overall design theme for your website</p>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">Brand Colors</h3>
                   <div className="grid grid-cols-3 gap-6">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Primary Color</label>
                       <div className="flex items-center gap-3">
                         <input
                           type="color"
@@ -719,7 +735,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                             ...settings,
                             theme: { ...settings.theme, colors: { ...settings.theme.colors, primary: e.target.value } }
                           })}
-                          className="w-14 h-14 border-2 border-gray-300 rounded-lg cursor-pointer"
+                          className="w-14 h-14 border-2 border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
                         />
                         <div className="flex-1">
                           <input
@@ -729,16 +745,16 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                               ...settings,
                               theme: { ...settings.theme, colors: { ...settings.theme.colors, primary: e.target.value } }
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none font-mono text-sm"
                             placeholder="#3F51B5"
                           />
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">Main brand color</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Main brand color</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Secondary Color</label>
                       <div className="flex items-center gap-3">
                         <input
                           type="color"
@@ -747,7 +763,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                             ...settings,
                             theme: { ...settings.theme, colors: { ...settings.theme.colors, secondary: e.target.value } }
                           })}
-                          className="w-14 h-14 border-2 border-gray-300 rounded-lg cursor-pointer"
+                          className="w-14 h-14 border-2 border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
                         />
                         <div className="flex-1">
                           <input
@@ -757,16 +773,16 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                               ...settings,
                               theme: { ...settings.theme, colors: { ...settings.theme.colors, secondary: e.target.value } }
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none font-mono text-sm"
                             placeholder="#CDDC39"
                           />
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">Accent/highlight color</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Accent/highlight color</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Accent Color</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Accent Color</label>
                       <div className="flex items-center gap-3">
                         <input
                           type="color"
@@ -775,7 +791,7 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                             ...settings,
                             theme: { ...settings.theme, colors: { ...settings.theme.colors, accent: e.target.value } }
                           })}
-                          className="w-14 h-14 border-2 border-gray-300 rounded-lg cursor-pointer"
+                          className="w-14 h-14 border-2 border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer"
                         />
                         <div className="flex-1">
                           <input
@@ -785,12 +801,12 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
                               ...settings,
                               theme: { ...settings.theme, colors: { ...settings.theme.colors, accent: e.target.value } }
                             })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none font-mono text-sm"
                             placeholder="#4CAF50"
                           />
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">CTA/button color</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">CTA/button color</p>
                     </div>
                   </div>
                 </div>

@@ -151,7 +151,7 @@ export default function TenantDomainSettingsView() {
         <div className="card-surface">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-gray-500">
+              <tr className="text-gray-500 dark:text-gray-400">
                 <th className="text-left px-3 py-2">Domain</th>
                 <th className="text-left px-3 py-2">Tenant</th>
                 <th className="px-3 py-2 text-right">Actions</th>
@@ -159,9 +159,9 @@ export default function TenantDomainSettingsView() {
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.domainId} className="border-t hover:bg-gray-50">
-                  <td className="px-3 py-2">{r.domain}</td>
-                  <td className="px-3 py-2">{r.tenantName}</td>
+                <tr key={r.domainId} className="border-t border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{r.domain}</td>
+                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{r.tenantName}</td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => openSettings(r)} className="btn-base px-3 py-1.5">View & Edit</button>
                   </td>
@@ -174,32 +174,32 @@ export default function TenantDomainSettingsView() {
 
       {/* side drawer */}
       <div className={`fixed inset-0 z-30 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
-        <div className={`absolute inset-0 bg-black/40 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`} onClick={() => setOpen(false)} />
-        <div className={`absolute right-0 top-0 h-full w-[32rem] max-w-[90vw] bg-white border-l shadow-xl transform transition-transform ${open ? 'translate-x-0' : 'translate-x-full'} flex flex-col`} role="dialog" aria-modal="true">
-          <div className="h-14 px-4 border-b flex items-center justify-between">
+        <div className={`absolute inset-0 bg-black/40 dark:bg-black/60 transition-opacity ${open ? 'opacity-100' : 'opacity-0'}`} onClick={() => setOpen(false)} />
+        <div className={`absolute right-0 top-0 h-full w-[32rem] max-w-[90vw] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl transform transition-transform ${open ? 'translate-x-0' : 'translate-x-full'} flex flex-col`} role="dialog" aria-modal="true">
+          <div className="h-14 px-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div>
-              <div className="text-sm font-semibold">Edit Domain Settings</div>
-              {selected && <div className="text-[11px] text-gray-500">{selected.domain} · Tenant {selected.tenantId}</div>}
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">Edit Domain Settings</div>
+              {selected && <div className="text-[11px] text-gray-500 dark:text-gray-400">{selected.domain} · Tenant {selected.tenantId}</div>}
             </div>
-            <button className="p-2 rounded hover:bg-gray-100" onClick={() => setOpen(false)}>
+            <button className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300" onClick={() => setOpen(false)}>
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
             {!domainOnlySettings ? (
-              <div className="text-sm text-gray-500">Fetching settings…</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">Fetching settings…</div>
             ) : (
               <div className="space-y-5">
                 <section>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold">Domain Settings (editable JSON)</div>
-                      <div className="text-[11px] text-gray-500">PUT replaces entire JSON. PATCH merges only top-level keys (shallow).</div>
+                      <div className="text-sm font-semibold text-gray-900 dark:text-white">Domain Settings (editable JSON)</div>
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400">PUT replaces entire JSON. PATCH merges only top-level keys (shallow).</div>
                     </div>
                     <button onClick={() => reloadSelected()} className="btn-base px-3 py-1.5" disabled={saving}>Reload</button>
                   </div>
                   <textarea
-                    className="mt-2 w-full rounded border px-3 py-2 text-sm font-mono"
+                    className="mt-2 w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     rows={16}
                     value={jsonText}
                     onChange={e => setJsonText(e.target.value)}
@@ -207,9 +207,9 @@ export default function TenantDomainSettingsView() {
                 </section>
 
                 <section>
-                  <div className="text-sm font-semibold mb-2">PATCH payload (optional)</div>
+                  <div className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">PATCH payload (optional)</div>
                   <textarea
-                    className="w-full rounded border px-3 py-2 text-sm font-mono"
+                    className="w-full rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                     rows={7}
                     value={patchText}
                     onChange={e => setPatchText(e.target.value)}
@@ -217,25 +217,25 @@ export default function TenantDomainSettingsView() {
                 </section>
 
                 <section>
-                  <div className="text-sm font-semibold mb-2">Effective Settings (read-only merged)</div>
-                  <pre className="w-full rounded border bg-gray-50 p-3 text-xs overflow-auto max-h-[18rem]">
+                  <div className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">Effective Settings (read-only merged)</div>
+                  <pre className="w-full rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-3 text-xs overflow-auto max-h-[18rem]">
                     {JSON.stringify(effectiveSettings || {}, null, 2)}
                   </pre>
                 </section>
 
                 <section>
-                  <div className="text-sm font-semibold mb-2">Saved for domain (read-only)</div>
-                  <pre className="w-full rounded border bg-gray-50 p-3 text-xs overflow-auto max-h-[12rem]">
+                  <div className="text-sm font-semibold mb-2 text-gray-900 dark:text-white">Saved for domain (read-only)</div>
+                  <pre className="w-full rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 p-3 text-xs overflow-auto max-h-[12rem]">
                     {JSON.stringify(domainOnlySettings || {}, null, 2)}
                   </pre>
                 </section>
               </div>
             )}
           </div>
-          <div className="h-14 px-4 border-t flex items-center justify-end gap-2">
-            <button className="px-3 py-2 rounded bg-gray-100" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="px-3 py-2 rounded bg-gray-900 text-white disabled:opacity-50" disabled={saving} onClick={savePatchMerge}>{saving ? 'Saving…' : 'Save PATCH'}</button>
-            <button className="px-3 py-2 rounded bg-brand text-white disabled:opacity-50" disabled={saving} onClick={savePutReplace}>{saving ? 'Saving…' : 'Save PUT'}</button>
+          <div className="h-14 px-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2">
+            <button className="px-3 py-2 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="px-3 py-2 rounded bg-gray-900 dark:bg-gray-700 text-white disabled:opacity-50 hover:bg-gray-800 dark:hover:bg-gray-600" disabled={saving} onClick={savePatchMerge}>{saving ? 'Saving…' : 'Save PATCH'}</button>
+            <button className="px-3 py-2 rounded bg-brand text-white disabled:opacity-50 hover:opacity-90" disabled={saving} onClick={savePutReplace}>{saving ? 'Saving…' : 'Save PUT'}</button>
           </div>
         </div>
       </div>

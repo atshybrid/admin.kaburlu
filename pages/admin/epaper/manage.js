@@ -5,7 +5,6 @@ import DatePicker from '../../../components/epaper/DatePicker'
 import EditionCard from '../../../components/epaper/EditionCard'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/SuperAdminLayout'
-import { Calendar, RefreshCw, AlertCircle, CheckCircle, Newspaper } from 'lucide-react'
 
 function todayYmd() {
   const d = new Date()
@@ -241,7 +240,9 @@ function EPaperManageContent() {
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
               Refresh
             </button>
           </div>
@@ -285,7 +286,9 @@ function EPaperManageContent() {
         {/* Alerts */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+            <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-red-900">Error</h3>
               <p className="text-sm text-red-700 mt-1">{error}</p>
@@ -298,7 +301,9 @@ function EPaperManageContent() {
 
         {success && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+            <svg className="w-5 h-5 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <div className="flex-1">
               <h3 className="text-sm font-semibold text-green-900">Success</h3>
               <p className="text-sm text-green-700 mt-1">{success}</p>
@@ -322,7 +327,9 @@ function EPaperManageContent() {
         {/* Empty State */}
         {!loading && issues.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <Newspaper className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+            </svg>
             <h3 className="text-lg font-semibold text-gray-900 mb-2">No editions found</h3>
             <p className="text-gray-600 mb-6">
               No editions uploaded for {new Date(issueDate).toLocaleDateString('en-US', { 

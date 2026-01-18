@@ -404,10 +404,10 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   function ColorField({ label, value, onChange }) {
     return (
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1.5">{label}</label>
+        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">{label}</label>
         <div className="flex items-center gap-2">
-          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-10 h-10 rounded cursor-pointer border" />
-          <input value={value} onChange={(e) => onChange(e.target.value)} className="flex-1 px-2 py-1.5 border rounded text-sm font-mono" />
+          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="w-10 h-10 rounded cursor-pointer border border-gray-300 dark:border-gray-600" />
+          <input value={value} onChange={(e) => onChange(e.target.value)} className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded text-sm font-mono focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
         </div>
       </div>
     )
@@ -431,10 +431,10 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     return (
       <div className="space-y-2">
         {menuItems.map((it, idx) => (
-          <div key={idx} className="grid grid-cols-12 gap-2 border rounded-lg p-3 bg-slate-50">
+          <div key={idx} className="grid grid-cols-12 gap-2 border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-slate-50 dark:bg-slate-800">
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-              <select value={it.type || 'link'} onChange={(e) => updateItem(idx, { type: e.target.value })} className="w-full px-2 py-1.5 border rounded text-sm bg-white">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Type</label>
+              <select value={it.type || 'link'} onChange={(e) => updateItem(idx, { type: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
                 <option value="link">Link</option>
                 <option value="category">Category</option>
               </select>
@@ -443,7 +443,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             {it.type === 'category' ? (
               <>
                 <div className="col-span-6">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Category</label>
                   <select
                     value={it.categoryId || ''}
                     onChange={(e) => {
@@ -454,7 +454,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                         href: buildCategoryHref(selected),
                       })
                     }}
-                    className="w-full px-2 py-1.5 border rounded text-sm bg-white"
+                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                   >
                     <option value="">Select category…</option>
                     {categories.map((c) => (
@@ -463,30 +463,30 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                   </select>
                 </div>
                 <div className="col-span-3">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Label</label>
-                  <input value={it.label || ''} onChange={(e) => updateItem(idx, { label: e.target.value })} className="w-full px-2 py-1.5 border rounded text-sm" />
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Label</label>
+                  <input value={it.label || ''} onChange={(e) => updateItem(idx, { label: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
                 </div>
               </>
             ) : (
               <>
                 <div className="col-span-4">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Label</label>
-                  <input value={it.label || ''} onChange={(e) => updateItem(idx, { label: e.target.value })} className="w-full px-2 py-1.5 border rounded text-sm" />
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Label</label>
+                  <input value={it.label || ''} onChange={(e) => updateItem(idx, { label: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
                 </div>
                 <div className="col-span-5">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Href</label>
-                  <input value={it.href || ''} onChange={(e) => updateItem(idx, { href: e.target.value })} className="w-full px-2 py-1.5 border rounded text-sm" placeholder="/category/politics" />
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Href</label>
+                  <input value={it.href || ''} onChange={(e) => updateItem(idx, { href: e.target.value })} className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="/category/politics" />
                 </div>
               </>
             )}
 
             <div className="col-span-1 flex items-end">
-              <button type="button" onClick={() => removeItem(idx)} className="px-2 py-1.5 rounded border text-xs hover:bg-red-50">✕</button>
+              <button type="button" onClick={() => removeItem(idx)} className="px-2 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-xs hover:bg-red-50 dark:hover:bg-red-900/30 text-gray-700 dark:text-gray-300">✕</button>
             </div>
           </div>
         ))}
 
-        <button type="button" onClick={addItem} className="px-3 py-1.5 rounded border text-sm hover:bg-slate-50">+ Add menu item</button>
+        <button type="button" onClick={addItem} className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-gray-700 dark:text-gray-300">+ Add menu item</button>
       </div>
     )
   }
@@ -497,8 +497,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       <div className="space-y-6">
         {/* Theme style */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-2">Theme Style</label>
-          <select value={themeStyle} onChange={(e) => setThemeStyle(e.target.value)} className="max-w-xs px-3 py-2 border rounded-lg text-sm bg-white">
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">Theme Style</label>
+          <select value={themeStyle} onChange={(e) => setThemeStyle(e.target.value)} className="max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
             <option value="style1">Style 1</option>
             <option value="style2">Style 2</option>
           </select>
@@ -506,11 +506,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
 
         {/* Branding */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Branding</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Branding</label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Logo URL</label>
-              <input value={brandingLogoUrl} onChange={(e) => setBrandingLogoUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://cdn.../logo.png" />
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Logo URL</label>
+              <input value={brandingLogoUrl} onChange={(e) => setBrandingLogoUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="https://cdn.../logo.png" />
               <div className="mt-2">
                 <input
                   type="file"
@@ -531,11 +531,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                       setBusy(false)
                     }
                   }}
-                  className="block w-full text-xs"
+                  className="block w-full text-xs text-gray-700 dark:text-gray-300"
                 />
               </div>
               {brandingLogoUrl && (
-                <div className="mt-2 p-2 bg-slate-50 rounded">
+                <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={brandingLogoUrl} alt="Logo preview" className="h-10 object-contain" />
                 </div>
@@ -543,8 +543,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Favicon URL</label>
-              <input value={brandingFaviconUrl} onChange={(e) => setBrandingFaviconUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://cdn.../favicon.ico" />
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Favicon URL</label>
+              <input value={brandingFaviconUrl} onChange={(e) => setBrandingFaviconUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="https://cdn.../favicon.ico" />
               <div className="mt-2">
                 <input
                   type="file"
@@ -565,11 +565,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                       setBusy(false)
                     }
                   }}
-                  className="block w-full text-xs"
+                  className="block w-full text-xs text-gray-700 dark:text-gray-300"
                 />
               </div>
               {brandingFaviconUrl && (
-                <div className="mt-2 p-2 bg-slate-50 rounded inline-block">
+                <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-800 rounded inline-block">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={brandingFaviconUrl} alt="Favicon preview" className="h-8 w-8 object-contain" />
                 </div>
@@ -580,7 +580,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
 
         {/* Theme colors & typography */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Theme</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Theme</label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
@@ -592,11 +592,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Font family</label>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Font family</label>
                 <select
                   value={fontFamily}
                   onChange={(e) => setFontFamily(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                 >
                   {GOOGLE_FONTS.map((f) => (
                     <option key={f} value={`${f}, Arial, sans-serif`}>{f}</option>
@@ -605,13 +605,13 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Base size (px)</label>
-                <input type="number" min={10} max={24} value={baseSize} onChange={(e) => setBaseSize(e.target.value)} className="max-w-xs px-3 py-2 border rounded-lg text-sm" />
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Base size (px)</label>
+                <input type="number" min={10} max={24} value={baseSize} onChange={(e) => setBaseSize(e.target.value)} className="max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-lg border" style={{ fontFamily }}>
-                <div className="text-base font-semibold">Preview: The quick brown fox</div>
-                <div className="text-sm text-slate-600">jumps over the lazy dog. 1234567890</div>
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-gray-600" style={{ fontFamily }}>
+                <div className="text-base font-semibold text-gray-900 dark:text-gray-100">Preview: The quick brown fox</div>
+                <div className="text-sm text-slate-600 dark:text-slate-400">jumps over the lazy dog. 1234567890</div>
               </div>
             </div>
           </div>
@@ -619,30 +619,30 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
 
         {/* Layout */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Layout</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Layout</label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Header</label>
-              <select value={layoutHeader} onChange={(e) => setLayoutHeader(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Header</label>
+              <select value={layoutHeader} onChange={(e) => setLayoutHeader(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
                 <option value="classic">Classic</option>
                 <option value="minimal">Minimal</option>
                 <option value="modern">Modern</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Footer</label>
-              <select value={layoutFooter} onChange={(e) => setLayoutFooter(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Footer</label>
+              <select value={layoutFooter} onChange={(e) => setLayoutFooter(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
                 <option value="minimal">Minimal</option>
                 <option value="classic">Classic</option>
                 <option value="rich">Rich</option>
               </select>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!showTopBar} onChange={(e) => setShowTopBar(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={!!showTopBar} onChange={(e) => setShowTopBar(e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               Show top bar
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!showTicker} onChange={(e) => setShowTicker(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={!!showTicker} onChange={(e) => setShowTicker(e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               Show ticker
             </label>
           </div>
@@ -654,7 +654,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   function NavigationTab() {
     return (
       <div>
-        <label className="block text-sm font-semibold text-slate-900 mb-3">Menu Items</label>
+        <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Menu Items</label>
         <MenuEditor />
       </div>
     )
@@ -669,16 +669,16 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Default language</label>
-            <select value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Default language</label>
+            <select value={defaultLanguage} onChange={(e) => setDefaultLanguage(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
               {(languagesOptions.length ? languagesOptions : [{ code: 'en', name: 'English' }]).map((l) => (
                 <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Supported language</label>
-            <select value={supportedLanguage} onChange={(e) => setSupportedLanguage(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Supported language</label>
+            <select value={supportedLanguage} onChange={(e) => setSupportedLanguage(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
               {(languagesOptions.length ? languagesOptions : [{ code: 'en', name: 'English' }]).map((l) => (
                 <option key={l.code} value={l.code}>{l.name} ({l.code})</option>
               ))}
@@ -695,21 +695,21 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       <div className="space-y-4 max-w-3xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Default meta title</label>
-            <input value={defaultMetaTitle} onChange={(e) => setDefaultMetaTitle(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Default meta title</label>
+            <input value={defaultMetaTitle} onChange={(e) => setDefaultMetaTitle(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Canonical base URL</label>
-            <input value={canonicalBaseUrl} onChange={(e) => setCanonicalBaseUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://news.kaburlu.com" />
+            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Canonical base URL</label>
+            <input value={canonicalBaseUrl} onChange={(e) => setCanonicalBaseUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="https://news.kaburlu.com" />
           </div>
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">Default meta description</label>
-          <textarea value={defaultMetaDescription} onChange={(e) => setDefaultMetaDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border rounded-lg text-sm" />
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Default meta description</label>
+          <textarea value={defaultMetaDescription} onChange={(e) => setDefaultMetaDescription(e.target.value)} rows={3} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">OG image URL</label>
-          <input value={ogImageUrl} onChange={(e) => setOgImageUrl(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="https://cdn.../og.png" />
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">OG image URL</label>
+          <input value={ogImageUrl} onChange={(e) => setOgImageUrl(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="https://cdn.../og.png" />
           <div className="mt-2">
             <input
               type="file"
@@ -730,7 +730,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                   setBusy(false)
                 }
               }}
-              className="block w-full text-xs"
+              className="block w-full text-xs text-gray-700 dark:text-gray-300"
             />
           </div>
         </div>
@@ -743,47 +743,47 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       <div className="space-y-6 max-w-2xl">
         {/* Notifications */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Notifications</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Notifications</label>
           <div className="space-y-3">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!notificationsEnabled} onChange={(e) => setNotificationsEnabled(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={!!notificationsEnabled} onChange={(e) => setNotificationsEnabled(e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               Enabled
             </label>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Webpush public key</label>
-              <input value={webpushPublicKey} onChange={(e) => setWebpushPublicKey(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm font-mono" />
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Webpush public key</label>
+              <input value={webpushPublicKey} onChange={(e) => setWebpushPublicKey(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" />
             </div>
           </div>
         </div>
 
         {/* Integrations */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Analytics</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Analytics</label>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Provider</label>
-              <select value={analyticsProvider} onChange={(e) => setAnalyticsProvider(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Provider</label>
+              <select value={analyticsProvider} onChange={(e) => setAnalyticsProvider(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
                 <option value="gtag">Google Analytics (gtag)</option>
                 <option value="none">None</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1.5">Measurement ID</label>
-              <input value={analyticsMeasurementId} onChange={(e) => setAnalyticsMeasurementId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="G-XXXXXXX" />
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Measurement ID</label>
+              <input value={analyticsMeasurementId} onChange={(e) => setAnalyticsMeasurementId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="G-XXXXXXX" />
             </div>
           </div>
         </div>
 
         {/* Flags */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Features</label>
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Features</label>
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!enableComments} onChange={(e) => setEnableComments(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={!!enableComments} onChange={(e) => setEnableComments(e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               Enable comments
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={!!enableBookmarks} onChange={(e) => setEnableBookmarks(e.target.checked)} className="rounded" />
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+              <input type="checkbox" checked={!!enableBookmarks} onChange={(e) => setEnableBookmarks(e.target.checked)} className="rounded border-gray-300 dark:border-gray-600" />
               Enable bookmarks
             </label>
           </div>
@@ -791,8 +791,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
 
         {/* Custom CSS */}
         <div>
-          <label className="block text-sm font-semibold text-slate-900 mb-3">Custom CSS</label>
-          <textarea value={customCss} onChange={(e) => setCustomCss(e.target.value)} rows={8} className="w-full px-3 py-2 border rounded-lg text-sm font-mono" placeholder="body { font-family: Inter; }" />
+          <label className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Custom CSS</label>
+          <textarea value={customCss} onChange={(e) => setCustomCss(e.target.value)} rows={8} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-mono bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400" placeholder="body { font-family: Inter; }" />
         </div>
       </div>
     )
@@ -818,45 +818,45 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   return (
     <div className="space-y-4">
       {/* Header with domain selector and single save button */}
-      <div className="bg-white rounded-lg border shadow-sm">
-        <div className="p-5 border-b">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-4 flex-1">
               <div className="flex-1 max-w-md">
-                <select value={domainId} onChange={(e) => setDomainId(e.target.value)} className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white font-medium">
+                <select value={domainId} onChange={(e) => setDomainId(e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-medium focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400">
                   {domains.length ? domains.map((d) => (
                     <option key={d.id} value={d.id}>{d.domain}{d.isPrimary ? ' ⭐' : ''}</option>
                   )) : <option value="">No domains</option>}
                 </select>
               </div>
               {selectedDomain && (
-                <div className="text-xs text-slate-500">
-                  <span className="px-2 py-1 bg-slate-100 rounded font-medium">{selectedDomain.status || 'PENDING'}</span>
-                  {selectedDomain.kind && <span className="ml-2 px-2 py-1 bg-blue-50 text-blue-700 rounded font-medium">{selectedDomain.kind}</span>}
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded font-medium">{selectedDomain.status || 'PENDING'}</span>
+                  {selectedDomain.kind && <span className="ml-2 px-2 py-1 bg-blue-50 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded font-medium">{selectedDomain.kind}</span>}
                 </div>
               )}
             </div>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={loadConfig} disabled={busy || !tenantId || !domainId} className="px-4 py-2.5 rounded-lg border text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition">
+              <button type="button" onClick={loadConfig} disabled={busy || !tenantId || !domainId} className="px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
                 {busy ? '⏳ Loading…' : '🔄 Refresh'}
               </button>
-              <button type="button" onClick={saveAll} disabled={busy || !tenantId || !domainId || !rawConfig} className="px-6 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition">
+              <button type="button" onClick={saveAll} disabled={busy || !tenantId || !domainId || !rawConfig} className="px-6 py-2.5 rounded-lg bg-blue-600 dark:bg-blue-500 text-white text-sm font-semibold hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition">
                 💾 Save Changes
               </button>
             </div>
           </div>
         </div>
         {(success || error) && (
-          <div className="px-5 py-3 border-b bg-slate-50">
-            {success && <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{success}</div>}
-            {error && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 whitespace-pre-wrap">{error}</div>}
+          <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-800">
+            {success && <div className="text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg px-3 py-2">{success}</div>}
+            {error && <div className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 whitespace-pre-wrap">{error}</div>}
           </div>
         )}
       </div>
 
       {/* Tab navigation */}
-      <div className="bg-white rounded-lg border shadow-sm">
-        <div className="border-b bg-slate-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-slate-900">
           <nav className="flex gap-1 p-2">
             {TABS.map((tab) => (
               <button
@@ -864,8 +864,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
                   activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-white dark:hover:bg-gray-700 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 {tab.label}
