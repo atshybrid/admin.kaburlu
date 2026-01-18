@@ -27,33 +27,45 @@ import { useState } from 'react'
 
 const navigation = {
   main: [
-    { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconHome },
-    { key: 'articles', href: '/dashboard/articles', label: 'Articles', icon: IconFileText },
-    { key: 'reporters', href: '/dashboard/reporters', label: 'Reporters', icon: IconUser },
-    { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder },
-    { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconGlobe },
-    { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers },
+    { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconHome, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'articles', href: '/dashboard/articles', label: 'Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'reporters', href: '/dashboard/reporters', label: 'Reporters', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
   ],
   epaper: [
-    { key: 'epaper-manage', href: '/admin/epaper/manage', label: 'Manage ePaper', icon: IconNewspaper },
-    { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload ePaper', icon: IconFileText },
+    { key: 'epaper-editions', href: '/admin/epaper/editions', label: 'Epaper Editions', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
+    { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload Issues', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
   ],
   location: [
-    { key: 'states', href: '/dashboard/states', label: 'States', icon: IconMapPin },
-    { key: 'districts', href: '/dashboard/districts', label: 'Districts', icon: IconMapPin },
-    { key: 'assembly', href: '/dashboard/assembly', label: 'Assembly Constituencies', icon: IconMapPin },
-    { key: 'mandals', href: '/dashboard/mandals', label: 'Mandals', icon: IconMapPin },
+    { key: 'states', href: '/dashboard/states', label: 'States', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'districts', href: '/dashboard/districts', label: 'Districts', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'assembly', href: '/dashboard/assembly', label: 'Assembly Constituencies', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'mandals', href: '/dashboard/mandals', label: 'Mandals', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
   ],
   tenants: [
-    { key: 'tenants', href: '/dashboard/tenants', label: 'All Tenants', icon: IconBuilding },
-    { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'ID Card Settings', icon: IconKey },
-    { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Razorpay Settings', icon: IconCreditCard },
-    { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Domain Settings', icon: IconGlobe },
+    { key: 'tenants', href: '/dashboard/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'ID Card Settings', icon: IconKey, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Razorpay Settings', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Domain Settings', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ],
   settings: [
-    { key: 'roles', href: '/dashboard/roles', label: 'Roles & Permissions', icon: IconShield },
-    { key: 'global-razorpay-settings', href: '/dashboard/global-razorpay-settings', label: 'Global Razorpay', icon: IconSettings },
+    { key: 'roles', href: '/dashboard/roles', label: 'Roles & Permissions', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'global-razorpay-settings', href: '/dashboard/global-razorpay-settings', label: 'Global Razorpay', icon: IconSettings, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ]
+}
+
+function normalizeRole(user) {
+  const role = user?.role || user?.roleName || user?.userRole || user?.role?.name || ''
+  const roleName = typeof role === 'string' ? role : (role?.name || '')
+  return String(roleName).toUpperCase().replace(/[_\s-]/g, '')
+}
+
+function hasAccess(item, userRole) {
+  if (!item.roles || item.roles.length === 0) return true
+  const normalizedRole = normalizeRole({ role: userRole })
+  return item.roles.some(role => role.replace(/[_\s-]/g, '').toUpperCase() === normalizedRole)
 }
 
 function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
@@ -110,6 +122,16 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
     setCollapsed(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
+  // Filter navigation based on user role
+  const userRole = normalizeRole(user)
+  const filteredNavigation = {
+    main: navigation.main.filter(item => hasAccess(item, userRole)),
+    epaper: navigation.epaper.filter(item => hasAccess(item, userRole)),
+    location: navigation.location.filter(item => hasAccess(item, userRole)),
+    tenants: navigation.tenants.filter(item => hasAccess(item, userRole)),
+    settings: navigation.settings.filter(item => hasAccess(item, userRole))
+  }
+
   return (
     <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 h-screen bg-white border-r border-gray-200">
       {/* Logo & Brand */}
@@ -125,41 +147,51 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 scrollbar-thin">
-        <NavGroup
-          title="Main Menu"
-          items={navigation.main}
-          currentTab={currentTab}
-          collapsed={collapsed.main}
-          onToggle={() => toggleSection('main')}
-        />
-        <NavGroup
-          title="ePaper (PDF)"
-          items={navigation.epaper}
-          currentTab={currentTab}
-          collapsed={collapsed.epaper}
-          onToggle={() => toggleSection('epaper')}
-        />
-        <NavGroup
-          title="Locations"
-          items={navigation.location}
-          currentTab={currentTab}
-          collapsed={collapsed.location}
-          onToggle={() => toggleSection('location')}
-        />
-        <NavGroup
-          title="Tenant Management"
-          items={navigation.tenants}
-          currentTab={currentTab}
-          collapsed={collapsed.tenants}
-          onToggle={() => toggleSection('tenants')}
-        />
-        <NavGroup
-          title="Settings"
-          items={navigation.settings}
-          currentTab={currentTab}
-          collapsed={collapsed.settings}
-          onToggle={() => toggleSection('settings')}
-        />
+        {filteredNavigation.main.length > 0 && (
+          <NavGroup
+            title="Main Menu"
+            items={filteredNavigation.main}
+            currentTab={currentTab}
+            collapsed={collapsed.main}
+            onToggle={() => toggleSection('main')}
+          />
+        )}
+        {filteredNavigation.epaper.length > 0 && (
+          <NavGroup
+            title="ePaper (PDF)"
+            items={filteredNavigation.epaper}
+            currentTab={currentTab}
+            collapsed={collapsed.epaper}
+            onToggle={() => toggleSection('epaper')}
+          />
+        )}
+        {filteredNavigation.location.length > 0 && (
+          <NavGroup
+            title="Locations"
+            items={filteredNavigation.location}
+            currentTab={currentTab}
+            collapsed={collapsed.location}
+            onToggle={() => toggleSection('location')}
+          />
+        )}
+        {filteredNavigation.tenants.length > 0 && (
+          <NavGroup
+            title="Tenant Management"
+            items={filteredNavigation.tenants}
+            currentTab={currentTab}
+            collapsed={collapsed.tenants}
+            onToggle={() => toggleSection('tenants')}
+          />
+        )}
+        {filteredNavigation.settings.length > 0 && (
+          <NavGroup
+            title="Settings"
+            items={filteredNavigation.settings}
+            currentTab={currentTab}
+            collapsed={collapsed.settings}
+            onToggle={() => toggleSection('settings')}
+          />
+        )}
       </nav>
 
       {/* User & Logout */}

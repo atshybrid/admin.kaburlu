@@ -4,6 +4,7 @@ import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import FullScreenLoader from '../../../components/FullScreenLoader'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle } from 'lucide-react'
 
 function todayYmd() {
   const d = new Date()
@@ -20,7 +21,7 @@ function normalizeRole(user) {
 }
 
 function parseOverrideRoles() {
-  const raw = process.env.NEXT_PUBLIC_TENANT_OVERRIDE_ROLES || 'SUPER_ADMIN,SUPERADMIN'
+  const raw = process.env.NEXT_PUBLIC_TENANT_OVERRIDE_ROLES || 'SUPER_ADMIN,SUPERADMIN,DESK_EDITOR,DESKEDITOR'
   return raw
     .split(',')
     .map((s) => String(s || '').trim().toUpperCase().replace(/[_\s-]/g, ''))
@@ -180,110 +181,240 @@ function EPaperUploadContent() {
   return (
     <>
       <FullScreenLoader show={busy} message="Publishing PDF..." />
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-slate-900">ePaper (PDF) — Upload Issue</h1>
-          <p className="text-sm text-slate-500">Uploads PDF to Media, then creates/replaces the daily issue by URL.</p>
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
+        <div className="max-w-5xl mx-auto p-6 space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg">
+                <Upload className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">Upload ePaper Issue</h1>
+                <p className="text-slate-600 mt-1">Upload PDF to publish a new ePaper issue</p>
+              </div>
+            </div>
+          </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-wrap">{error}</div>
-        )}
+          {/* Error Display */}
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-red-900">Error</h3>
+                  <p className="text-sm text-red-700 mt-1 whitespace-pre-wrap">{error}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
-        <form onSubmit={onSubmit} className="bg-white rounded-xl border p-5 space-y-4">
-          {canOverrideTenant && (
+          {/* Upload Form */}
+          <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-6">
+            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              Issue Details
+            </h2>
+
+            {/* Tenant Selector */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Tenant (override)</label>
-              <select value={tenantId} onChange={(e) => setTenantId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Select Newspaper
+              </label>
+              <select
+                value={tenantId}
+                onChange={(e) => setTenantId(e.target.value)}
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+              >
                 {tenants.map((t) => (
                   <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
                 ))}
               </select>
-              <div className="mt-1 text-xs text-slate-500">Only allowed for roles: {process.env.NEXT_PUBLIC_TENANT_OVERRIDE_ROLES || 'SUPER_ADMIN'}.</div>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Issue date</label>
-              <input value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="YYYY-MM-DD" />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Target</label>
-              <select value={targetKind} onChange={(e) => setTargetKind(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                <option value="edition">Edition</option>
-                <option value="subEdition">Sub-edition</option>
-              </select>
+            {/* Date and Target Type */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Issue Date
+                </label>
+                <input
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <Newspaper className="w-4 h-4 inline mr-1" />
+                  Target Type
+                </label>
+                <select
+                  value={targetKind}
+                  onChange={(e) => setTargetKind(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                >
+                  <option value="edition">Edition</option>
+                  <option value="subEdition">Sub-edition</option>
+                </select>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Edition</label>
-              <select value={editionId} onChange={(e) => setEditionId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                {editions.map((ed) => (
-                  <option key={ed.id} value={ed.id}>{ed.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+            {/* Edition and Sub-Edition */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Edition
+                </label>
+                <select
+                  value={editionId}
+                  onChange={(e) => setEditionId(e.target.value)}
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                >
+                  {editions.map((ed) => (
+                    <option key={ed.id} value={ed.id}>{ed.name}</option>
+                  ))}
+                </select>
+              </div>
 
-          {targetKind === 'subEdition' && (
+              {targetKind === 'subEdition' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Sub-edition
+                  </label>
+                  <select
+                    value={subEditionId}
+                    onChange={(e) => setSubEditionId(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                  >
+                    {(selectedEdition?.subEditions || []).map((se) => (
+                      <option key={se.id} value={se.id}>{se.name}</option>
+                    ))}
+                  </select>
+                  {!selectedEdition?.subEditions?.length && (
+                    <div className="mt-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                      No sub-editions available for this edition
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* File Upload */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Sub-edition</label>
-              <select value={subEditionId} onChange={(e) => setSubEditionId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                {(selectedEdition?.subEditions || []).map((se) => (
-                  <option key={se.id} value={se.id}>{se.name}</option>
-                ))}
-              </select>
-              {!selectedEdition?.subEditions?.length && (
-                <div className="mt-2 text-xs text-slate-500">No sub-editions for this edition.</div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                PDF File
+              </label>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full px-4 py-3 border-2 border-dashed border-slate-300 rounded-xl text-sm bg-slate-50 hover:border-purple-400 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-500 file:text-white hover:file:bg-purple-600 file:cursor-pointer"
+                />
+                {file && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-green-700 bg-green-50 p-2 rounded-lg border border-green-200">
+                    <Check className="w-4 h-4" />
+                    Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={busy}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:from-purple-600 hover:to-pink-700 transition-all shadow-lg shadow-purple-200 hover:shadow-xl"
+              >
+                <Upload className="w-4 h-4" />
+                {busy ? 'Uploading…' : 'Upload & Publish Issue'}
+              </button>
+              <button
+                type="button"
+                onClick={() => loadEditions().catch((e) => setError(e?.message || String(e)))}
+                className="px-5 py-3 rounded-xl border-2 border-slate-300 text-slate-700 text-sm font-medium hover:bg-slate-50 transition-all"
+              >
+                Refresh Editions
+              </button>
+            </div>
+          </form>
+
+          {/* Success Result */}
+          {result?.issue && (
+            <div className="bg-white rounded-2xl shadow-lg border border-green-200 p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
+                  <Check className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">Issue Published Successfully!</h3>
+                  <p className="text-sm text-slate-600">Your ePaper issue has been uploaded and published</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600 font-medium">Issue ID:</span>
+                  <span className="font-mono text-slate-900">{result.issue.id}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-600 font-medium">Pages:</span>
+                  <span className="font-semibold text-slate-900">{result.issue.pageCount ?? '—'}</span>
+                </div>
+              </div>
+              {result.issue.coverImageUrl && (
+                <div className="mt-4">
+                  <p className="text-sm font-medium text-slate-700 mb-2">Cover Preview:</p>
+                  <img
+                    src={result.issue.coverImageUrl}
+                    alt="cover"
+                    className="max-w-xs rounded-xl border-2 border-slate-200 shadow-md"
+                  />
+                </div>
               )}
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">PDF file</label>
-            <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button disabled={busy} className="px-4 py-2 rounded-lg bg-brand text-white text-sm font-medium disabled:opacity-60">
-              {busy ? 'Uploading…' : 'Upload & Create Issue'}
-            </button>
-            <button type="button" onClick={() => loadEditions().catch((e) => setError(e?.message || String(e)))} className="px-4 py-2 rounded-lg border text-sm">
-              Refresh editions
-            </button>
-          </div>
-        </form>
-
-        {result?.issue && (
-          <div className="mt-6 bg-white rounded-xl border p-5">
-            <div className="font-semibold text-slate-900 mb-2">Created issue</div>
-            <div className="text-sm text-slate-700">ID: <span className="font-mono">{result.issue.id}</span></div>
-            <div className="text-sm text-slate-700">Pages: {result.issue.pageCount ?? '—'}</div>
-            {result.issue.coverImageUrl && (
-              <div className="mt-3">
-                <img src={result.issue.coverImageUrl} alt="cover" className="max-w-xs rounded-lg border" />
+          {/* Page Preview */}
+          {issuePreview?.issue && (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-purple-600" />
+                Page Previews
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {(issuePreview.issue.pages || []).slice(0, 12).map((p) => (
+                  <a
+                    key={p.pageNumber}
+                    href={p.imageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group block"
+                  >
+                    <div className="relative overflow-hidden rounded-lg border-2 border-slate-200 hover:border-purple-400 transition-all shadow-sm hover:shadow-md">
+                      <img
+                        src={p.imageUrl}
+                        alt={`p${p.pageNumber}`}
+                        className="w-full group-hover:scale-105 transition-transform"
+                      />
+                    </div>
+                    <div className="mt-2 text-xs text-center text-slate-600 font-medium">
+                      Page {p.pageNumber}
+                    </div>
+                  </a>
+                ))}
               </div>
-            )}
-          </div>
-        )}
-
-        {issuePreview?.issue && (
-          <div className="mt-6 bg-white rounded-xl border p-5">
-            <div className="font-semibold text-slate-900 mb-2">Preview pages</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {(issuePreview.issue.pages || []).slice(0, 12).map((p) => (
-                <a key={p.pageNumber} href={p.imageUrl} target="_blank" rel="noreferrer" className="block">
-                  <img src={p.imageUrl} alt={`p${p.pageNumber}`} className="w-full rounded-lg border" />
-                  <div className="mt-1 text-xs text-slate-500">Page {p.pageNumber}</div>
-                </a>
-              ))}
+              {!issuePreview.issue.pages?.length && (
+                <div className="text-sm text-slate-500 text-center py-8">No pages returned.</div>
+              )}
             </div>
-            {!issuePreview.issue.pages?.length && (
-              <div className="text-sm text-slate-500">No pages returned.</div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </>
   )
