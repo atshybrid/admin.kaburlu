@@ -96,11 +96,11 @@ function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
     </div>
   )
 }
-epaper: false,
-    
+
 export default function ModernSidebar({ user, onLogout, currentTab = 'overview' }) {
   const [collapsed, setCollapsed] = useState({
     main: false,
+    epaper: false,
     location: false,
     tenants: false,
     settings: false
@@ -132,14 +132,14 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           collapsed={collapsed.main}
           onToggle={() => toggleSection('main')}
         />
-        <NavGroupePaper (PDF)"
+        <NavGroup
+          title="ePaper (PDF)"
           items={navigation.epaper}
           currentTab={currentTab}
           collapsed={collapsed.epaper}
           onToggle={() => toggleSection('epaper')}
         />
         <NavGroup
-          title="
           title="Locations"
           items={navigation.location}
           currentTab={currentTab}

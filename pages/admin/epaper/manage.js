@@ -44,7 +44,7 @@ function EPaperManageContent() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  async function fetchTextOrRedirect(url, init) {
+  const fetchTextOrRedirect = useCallback(async (url, init) => {
     const res = await fetch(url, init)
     if (res.status === 401) {
       logout()
@@ -54,7 +54,7 @@ function EPaperManageContent() {
     const text = await res.text()
     if (!res.ok) throw new Error(text || `Request failed: ${res.status}`)
     return text
-  }
+  }, [router])
 
   const loadTenants = useCallback(async () => {
     if (!canOverrideTenant) return
@@ -68,7 +68,7 @@ function EPaperManageContent() {
     } catch (err) {
       console.error('Failed to load tenants:', err)
     }
-  }, [canOverrideTenant])
+  }, [canOverrideTenant, tenantId, fetchTextOrRedirect])
 
   const loadIssues = useCallback(async () => {
     if (!issueDate) return
@@ -93,7 +93,7 @@ function EPaperManageContent() {
     } finally {
       setLoading(false)
     }
-  }, [issueDate, tenantId, canOverrideTenant])
+  }, [issueDate, tenantId, canOverrideTenant, fetchTextOrRedirect])
 
   useEffect(() => {
     loadTenants()

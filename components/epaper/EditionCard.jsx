@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Image from 'next/image'
 import { FileText, Image as ImageIcon, Upload, Check, AlertCircle, Eye, Trash2 } from 'lucide-react'
 
 export default function EditionCard({ 
@@ -46,14 +47,16 @@ export default function EditionCard({
       <div className="relative aspect-[3/4] bg-gray-100">
         {!imageError && issue.coverImageUrl ? (
           <>
-            <img
+            <Image
               src={issue.coverImageUrl}
               alt={`${issue.edition?.name || 'Edition'} cover`}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
+              fill
+              className={`object-cover transition-opacity duration-300 ${
                 imageLoaded ? 'opacity-100' : 'opacity-0'
               }`}
               onLoad={() => setImageLoaded(true)}
               onError={() => setImageError(true)}
+              unoptimized
             />
             {!imageLoaded && (
               <div className="absolute inset-0 flex items-center justify-center">
