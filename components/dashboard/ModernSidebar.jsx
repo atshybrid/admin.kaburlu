@@ -20,7 +20,8 @@ import {
   IconShield,
   IconLogout,
   IconLayers,
-  IconChevronDown
+  IconChevronDown,
+  IconNewspaper
 } from '../ui/Icons'
 import { useState } from 'react'
 
@@ -32,6 +33,10 @@ const navigation = {
     { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder },
     { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconGlobe },
     { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers },
+  ],
+  epaper: [
+    { key: 'epaper-manage', href: '/admin/epaper/manage', label: 'Manage ePaper', icon: IconNewspaper },
+    { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload ePaper', icon: IconFileText },
   ],
   location: [
     { key: 'states', href: '/dashboard/states', label: 'States', icon: IconMapPin },
@@ -91,7 +96,8 @@ function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
     </div>
   )
 }
-
+epaper: false,
+    
 export default function ModernSidebar({ user, onLogout, currentTab = 'overview' }) {
   const [collapsed, setCollapsed] = useState({
     main: false,
@@ -126,7 +132,14 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           collapsed={collapsed.main}
           onToggle={() => toggleSection('main')}
         />
+        <NavGroupePaper (PDF)"
+          items={navigation.epaper}
+          currentTab={currentTab}
+          collapsed={collapsed.epaper}
+          onToggle={() => toggleSection('epaper')}
+        />
         <NavGroup
+          title="
           title="Locations"
           items={navigation.location}
           currentTab={currentTab}
