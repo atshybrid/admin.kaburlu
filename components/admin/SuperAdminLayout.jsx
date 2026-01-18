@@ -7,6 +7,8 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { getToken, logout } from '../../utils/auth'
+import useSessionExpiry from '../../hooks/useSessionExpiry'
+import MpinReLoginModal from '../auth/MpinReLoginModal'
 
 // Context for layout state
 const LayoutContext = createContext({})
@@ -135,43 +137,66 @@ function Sidebar({ collapsed, onToggle }) {
       
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.id} className="mb-2">
-            {!collapsed && (
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-300"
-              >
-                {section.label}
-                <Icon 
-                  name={expandedSections.includes(section.id) ? 'chevron-down' : 'chevron-right'} 
-                  className="w-4 h-4" 
-                />
-              </button>
-            )}
-            
-            {(collapsed || expandedSections.includes(section.id)) && (
-              <ul className="space-y-1">
-                {section.items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                        isActive(item.href)
-                          ? 'bg-brand text-white'
-                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                      } ${collapsed ? 'justify-center' : ''}`}
-                      title={collapsed ? item.label : undefined}
-                    >
-                      <Icon name={item.icon} className="w-5 h-5 shrink-0" />
-                      {!collapsed && <span>{item.label}</span>}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
+        {NAV_SECTIONS.map((section) => {
+          // Handle direct navigation items (no sub-items)
+          if (section.href) {
+            return (
+              <div key={section.id} className="mb-2">
+                <Link
+                  href={section.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive(section.href)
+                      ? 'bg-brand text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  } ${collapsed ? 'justify-center' : ''}`}
+                  title={collapsed ? section.label : undefined}
+                >
+                  <Icon name={section.icon} className="w-5 h-5 shrink-0" />
+                  {!collapsed && <span>{section.label}</span>}
+                </Link>
+              </div>
+            )
+          }
+          
+          // Handle sections with sub-items
+          return (
+            <div key={section.id} className="mb-2">
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(section.id)}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-400 hover:text-slate-300"
+                >
+                  {section.label}
+                  <Icon 
+                    name={expandedSections.includes(section.id) ? 'chevron-down' : 'chevron-right'} 
+                    className="w-4 h-4" 
+                  />
+                </button>
+              )}
+              
+              {(collapsed || expandedSections.includes(section.id)) && (
+                <ul className="space-y-1">
+                  {section.items?.map((item) => (
+                    <li key={item.id}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                          isActive(item.href)
+                            ? 'bg-brand text-white'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        } ${collapsed ? 'justify-center' : ''}`}
+                        title={collapsed ? item.label : undefined}
+                      >
+                        <Icon name={item.icon} className="w-5 h-5 shrink-0" />
+                        {!collapsed && <span>{item.label}</span>}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )
+        })}
       </nav>
       
       {/* Collapse toggle */}
@@ -320,6 +345,9 @@ export default function SuperAdminLayout({ children, title }) {
   const [checking, setChecking] = useState(true)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  
+  // Session expiry handling
+  const { showMpinModal, handleMpinSuccess, handleModalClose } = useSessionExpiry()
 
   useEffect(() => {
     try {
@@ -427,6 +455,13 @@ export default function SuperAdminLayout({ children, title }) {
         </div>
 
         <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
+        
+        {/* Session Expiry MPIN Modal */}
+        <MpinReLoginModal
+          isOpen={showMpinModal}
+          onClose={handleModalClose}
+          onSuccess={handleMpinSuccess}
+        />
       </div>
     </LayoutContext.Provider>
   )

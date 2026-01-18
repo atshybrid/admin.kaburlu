@@ -59,10 +59,18 @@ export default function MpinReLoginModal({ isOpen, onClose, onSuccess }) {
         throw new Error(errorData.message || 'Invalid MPIN')
       }
 
-      const data = await response.json()
+      const result = await response.json()
       
-      if (data.jwt || data.token) {
-        saveToken(data.jwt || data.token, data)
+      // Handle API response structure: { success: true, data: { jwt, refreshToken, user } }
+      if (result.success && result.data?.jwt) {
+        saveToken(result.data.jwt, result.data)
+        setError('')
+        setMpin('')
+        if (onSuccess) onSuccess()
+        if (onClose) onClose()
+      } else if (result.jwt || result.token) {
+        // Fallback for different response structure
+        saveToken(result.jwt || result.token, result)
         setError('')
         setMpin('')
         if (onSuccess) onSuccess()

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import DatePicker from '../../../components/epaper/DatePicker'
-import { logout } from '../../../utils/auth'
+import { getToken, logout } from '../../../utils/auth'
 
 function todayYmd() {
   const d = new Date()
@@ -26,7 +26,7 @@ export default function EPaperIndex() {
     setLoading(true)
     setError('')
     try {
-      const token = localStorage.getItem('adminToken')
+      const token = getToken()
       if (!token) {
         logout()
         router.push('/')
