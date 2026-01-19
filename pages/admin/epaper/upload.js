@@ -71,19 +71,30 @@ function EPaperUploadContent() {
   }
 
   async function loadTenants() {
-    if (!canOverrideTenant) {
-      // If user has a tenantId assigned, use it
-      if (userTenantId) {
-        setTenantId(userTenantId)
-      }
+    // If user has a tenantId assigned directly, use it
+    if (userTenantId && !canOverrideTenant) {
+      setTenantId(userTenantId)
       return
     }
+    
     setTenantsLoading(true)
+    setError('')
     try {
-      const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
-      const data = JSON.parse(text)
-      const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
-      const list = Array.isArray(items) ? items : []
+      // Try user-accessible tenants first, then fall back to full list
+      let list = []
+      try {
+        const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/users/me/tenants')
+        const data = JSON.parse(text)
+        const items = Array.isArray(data) ? data : (data?.data || data?.items || data?.tenants || [])
+        list = Array.isArray(items) ? items : []
+      } catch {
+        // Fallback to full tenants list for admins
+        const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
+        const data = JSON.parse(text)
+        const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
+        list = Array.isArray(items) ? items : []
+      }
+      
       setTenants(list)
       // If user has a tenantId, use it as default, otherwise use first tenant
       if (!tenantId) {
@@ -92,6 +103,13 @@ function EPaperUploadContent() {
         } else if (list[0]?.id) {
           setTenantId(list[0].id)
         }
+      }
+    } catch (e) {
+      console.error('Failed to load tenants:', e)
+      // If user has tenantId in their profile, use that
+      if (userTenantId) {
+        setTenantId(userTenantId)
+        setTenants([{ id: userTenantId, name: user?.tenantName || 'Your Newspaper' }])
       }
     } finally {
       setTenantsLoading(false)
@@ -115,17 +133,22 @@ function EPaperUploadContent() {
   }
 
   useEffect(() => {
-    // Wait for user to be loaded before fetching tenants
+    // Load tenants when user is available
     if (user) {
-      loadTenants().catch((e) => setError(e?.message || String(e)))
+      loadTenants().catch((e) => {
+        console.error('Tenant load error:', e)
+        setError(e?.message || String(e))
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, canOverrideTenant])
+  }, [user])
 
   useEffect(() => {
-    loadEditions().catch((e) => setError(e?.message || String(e)))
+    if (tenantId) {
+      loadEditions().catch((e) => setError(e?.message || String(e)))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId])
+  }, [tenantId, issueDate])
 
   useEffect(() => {
     // keep target consistent
@@ -271,35 +294,37 @@ function EPaperUploadContent() {
               Issue Details
             </h2>
 
-            {/* Tenant Selector */}
-            {canOverrideTenant && (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Select Newspaper <span className="text-red-500">*</span>
-                </label>
-                {tenantsLoading ? (
-                  <div className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-500">
-                    Loading newspapers...
-                  </div>
-                ) : tenants.length > 0 ? (
-                  <select
-                    value={tenantId}
-                    onChange={(e) => setTenantId(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
-                  >
-                    <option value="">-- Select a newspaper --</option>
-                    {tenants.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="w-full px-4 py-3 border-2 border-amber-200 bg-amber-50 rounded-xl text-sm text-amber-700">
-                    No newspapers available. Please contact administrator.
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Tenant Selector - Always show for all users */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                Select Newspaper <span className="text-red-500">*</span>
+              </label>
+              {tenantsLoading ? (
+                <div className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-500 flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading newspapers...
+                </div>
+              ) : tenants.length > 0 ? (
+                <select
+                  value={tenantId}
+                  onChange={(e) => setTenantId(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                >
+                  <option value="">-- Select a newspaper --</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
+                  ))}
+                </select>
+              ) : (
+                <div className="w-full px-4 py-3 border-2 border-amber-200 bg-amber-50 rounded-xl text-sm text-amber-700">
+                  No newspapers available. Please contact administrator.
+                </div>
+              )}
+            </div>
 
             {/* Date and Target Type */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
