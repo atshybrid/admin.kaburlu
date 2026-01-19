@@ -1,8 +1,22 @@
 /**
  * Admin Dashboard - Main entry point
  * /admin route
+ * DESK_EDITOR users are redirected to ePaper section
  */
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import { getToken } from '../../utils/auth'
+
+// Check if user is DESK_EDITOR only
+function isDeskEditorOnly(user) {
+  if (!user) return false
+  const role = user.role || user.roleName || user.userRole || user.role?.name || ''
+  const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
+  const isAdmin = roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
+  const isDeskEditor = roleStr.includes('DESKEDITOR')
+  return isDeskEditor && !isAdmin
+}
 
 // Overview Dashboard Content
 function OverviewContent() {
@@ -110,6 +124,29 @@ function ActivityItem({ title, description, time }) {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
+  const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    const tokenData = getToken()
+    const user = tokenData?.user || tokenData?.data?.user || null
+    
+    // Redirect DESK_EDITOR to ePaper section
+    if (isDeskEditorOnly(user)) {
+      router.replace('/admin/epaper/editions')
+      return
+    }
+    setChecking(false)
+  }, [router])
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-10 h-10 border-3 border-slate-200 border-t-brand rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <SuperAdminLayout title="Overview">
       <OverviewContent />

@@ -1,6 +1,7 @@
 /**
  * Super Admin Layout - Main dashboard layout for Super Admins
  * Clean separation: Global settings vs Tenant management
+ * For DESK_EDITOR role, use DeskEditorLayout instead
  */
 import { useState, useEffect, createContext, useContext } from 'react'
 import Head from 'next/head'
@@ -9,6 +10,7 @@ import { useRouter } from 'next/router'
 import { getToken, logout } from '../../utils/auth'
 import useSessionExpiry from '../../hooks/useSessionExpiry'
 import MpinReLoginModal from '../auth/MpinReLoginModal'
+import DeskEditorLayout from './DeskEditorLayout'
 
 // Context for layout state
 const LayoutContext = createContext({})
@@ -338,6 +340,17 @@ function MobileSidebar({ open, onClose }) {
   )
 }
 
+// Helper to check if user is DESK_EDITOR only (not admin)
+function isDeskEditorOnly(user) {
+  if (!user) return false
+  const role = user.role || user.roleName || user.userRole || user.role?.name || ''
+  const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
+  // If user is DESK_EDITOR but NOT admin/superadmin, use DeskEditorLayout
+  const isAdmin = roleStr.includes('SUPERADMIN') || roleStr.includes('ADMIN')
+  const isDeskEditor = roleStr.includes('DESKEDITOR')
+  return isDeskEditor && !isAdmin
+}
+
 // Main Layout Export
 export default function SuperAdminLayout({ children, title }) {
   const router = useRouter()
@@ -420,6 +433,11 @@ export default function SuperAdminLayout({ children, title }) {
         </div>
       </div>
     )
+  }
+
+  // If user is DESK_EDITOR only (not admin), use the DeskEditorLayout
+  if (isDeskEditorOnly(user)) {
+    return <DeskEditorLayout title={title}>{children}</DeskEditorLayout>
   }
 
   return (
