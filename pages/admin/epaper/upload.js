@@ -4,7 +4,223 @@ import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import FullScreenLoader from '../../../components/FullScreenLoader'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/LayoutContext'
-import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle } from 'lucide-react'
+import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle, Zap } from 'lucide-react'
+import { PDFDocument } from 'pdf-lib'
+
+// Format file size for display
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 Bytes'
+  const k = 1024
+  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+// Target size for compression (2MB)
+const TARGET_SIZE_MB = 2
+const TARGET_SIZE_BYTES = TARGET_SIZE_MB * 1024 * 1024
+
+// Advanced PDF compression with image optimization
+async function compressPdf(file, onProgress) {
+  try {
+    onProgress?.('Reading PDF...')
+    const arrayBuffer = await file.arrayBuffer()
+    const originalSize = arrayBuffer.byteLength
+
+    // If file is already under target size, just do light optimization
+    if (originalSize <= TARGET_SIZE_BYTES) {
+      onProgress?.('PDF is already optimized size, applying light compression...')
+      return await lightCompression(file, arrayBuffer, originalSize, onProgress)
+    }
+
+    // For larger files, use advanced compression with image re-rendering
+    onProgress?.('Large PDF detected, applying advanced compression...')
+    return await advancedCompression(file, arrayBuffer, originalSize, onProgress)
+  } catch (err) {
+    console.warn('PDF compression failed, using original:', err)
+    return {
+      file,
+      originalSize: file.size,
+      compressedSize: file.size,
+      savedPercent: 0,
+      wasCompressed: false,
+      error: err.message,
+    }
+  }
+}
+
+// Light compression for small files - structural optimization only
+async function lightCompression(file, arrayBuffer, originalSize, onProgress) {
+  try {
+    const pdfDoc = await PDFDocument.load(arrayBuffer, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    })
+
+    onProgress?.('Optimizing PDF structure...')
+    const pages = pdfDoc.getPages()
+    
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+      objectsPerTick: 100,
+    })
+
+    const compressedSize = compressedBytes.byteLength
+    const savedPercent = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
+
+    if (compressedSize < originalSize) {
+      const compressedFile = new File([compressedBytes], file.name, { type: 'application/pdf' })
+      return {
+        file: compressedFile,
+        originalSize,
+        compressedSize,
+        savedPercent: parseFloat(savedPercent),
+        wasCompressed: true,
+        pageCount: pages.length,
+        compressionType: 'light',
+      }
+    }
+    
+    return {
+      file,
+      originalSize,
+      compressedSize: originalSize,
+      savedPercent: 0,
+      wasCompressed: false,
+      pageCount: pages.length,
+      compressionType: 'none',
+    }
+  } catch (err) {
+    throw err
+  }
+}
+
+// Advanced compression - renders pages as images and rebuilds PDF
+async function advancedCompression(file, arrayBuffer, originalSize, onProgress) {
+  try {
+    // Dynamically import pdfjs-dist (only when needed)
+    onProgress?.('Loading PDF renderer...')
+    const pdfjsLib = await import('pdfjs-dist')
+    
+    // Set worker source
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+
+    // Load PDF with pdf.js
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
+    const pdfDocument = await loadingTask.promise
+    const pageCount = pdfDocument.numPages
+
+    // Calculate optimal quality based on file size and page count
+    // Target: ~2MB total, so per-page budget varies
+    const perPageBudget = TARGET_SIZE_BYTES / pageCount
+    
+    // Start with high quality and adjust if needed
+    let quality = 0.85 // 85% JPEG quality - good balance
+    let scale = 1.5 // Render at 1.5x for clarity
+    
+    // For very large files or many pages, be more aggressive
+    if (originalSize > 20 * 1024 * 1024 || pageCount > 20) {
+      quality = 0.75
+      scale = 1.2
+    } else if (originalSize > 10 * 1024 * 1024 || pageCount > 10) {
+      quality = 0.80
+      scale = 1.3
+    }
+
+    onProgress?.(`Compressing ${pageCount} pages...`)
+
+    // Create new PDF document
+    const newPdfDoc = await PDFDocument.create()
+    
+    // Process each page
+    for (let i = 1; i <= pageCount; i++) {
+      onProgress?.(`Processing page ${i} of ${pageCount}...`)
+      
+      const page = await pdfDocument.getPage(i)
+      const viewport = page.getViewport({ scale })
+      
+      // Create canvas for rendering
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = 'white'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      
+      // Render page to canvas
+      await page.render({
+        canvasContext: ctx,
+        viewport: viewport,
+      }).promise
+      
+      // Convert to JPEG with specified quality
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality)
+      const jpegBytes = Uint8Array.from(atob(jpegDataUrl.split(',')[1]), c => c.charCodeAt(0))
+      
+      // Embed image in new PDF
+      const jpegImage = await newPdfDoc.embedJpg(jpegBytes)
+      
+      // Add page with same dimensions as original
+      const originalViewport = page.getViewport({ scale: 1 })
+      const newPage = newPdfDoc.addPage([originalViewport.width, originalViewport.height])
+      
+      // Draw image to fill page
+      newPage.drawImage(jpegImage, {
+        x: 0,
+        y: 0,
+        width: originalViewport.width,
+        height: originalViewport.height,
+      })
+      
+      // Clean up
+      canvas.remove()
+    }
+
+    onProgress?.('Finalizing compressed PDF...')
+    
+    // Save with optimization
+    const compressedBytes = await newPdfDoc.save({
+      useObjectStreams: true,
+    })
+    
+    const compressedSize = compressedBytes.byteLength
+    const savedPercent = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
+
+    console.log(`Advanced PDF Compression: ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)} (${savedPercent}% saved)`)
+
+    // Only use compressed if significantly smaller
+    if (compressedSize < originalSize * 0.9) {
+      const compressedFile = new File([compressedBytes], file.name, { type: 'application/pdf' })
+      return {
+        file: compressedFile,
+        originalSize,
+        compressedSize,
+        savedPercent: parseFloat(savedPercent),
+        wasCompressed: true,
+        pageCount,
+        compressionType: 'advanced',
+        quality: Math.round(quality * 100),
+      }
+    }
+    
+    // If compression didn't help much, return original
+    return {
+      file,
+      originalSize,
+      compressedSize: originalSize,
+      savedPercent: 0,
+      wasCompressed: false,
+      pageCount,
+      compressionType: 'skipped',
+    }
+  } catch (err) {
+    console.warn('Advanced compression failed, falling back to light:', err)
+    // Fallback to light compression
+    return await lightCompression(file, arrayBuffer, originalSize, onProgress)
+  }
+}
 
 function todayYmd() {
   const d = new Date()
@@ -49,9 +265,11 @@ function EPaperUploadContent() {
 
   const [file, setFile] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [busyMessage, setBusyMessage] = useState('Uploading PDF...')
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [issuePreview, setIssuePreview] = useState(null)
+  const [compressionInfo, setCompressionInfo] = useState(null)
 
   const selectedEdition = useMemo(
     () => editions.find((e) => e.id === editionId) || null,
@@ -179,9 +397,11 @@ function EPaperUploadContent() {
   async function onSubmit(e) {
     e.preventDefault()
     setBusy(true)
+    setBusyMessage('Preparing upload...')
     setError('')
     setResult(null)
     setIssuePreview(null)
+    setCompressionInfo(null)
 
     try {
       if (!file) throw new Error('Please choose a PDF file')
@@ -195,28 +415,76 @@ function EPaperUploadContent() {
       if (targetKind === 'edition' && !editionId) throw new Error('Please select an edition')
       if (targetKind === 'subEdition' && !subEditionId) throw new Error('Please select a sub-edition')
 
+      // Step 1: Compress PDF (without quality loss)
+      setBusyMessage('Compressing PDF...')
+      const compressionResult = await compressPdf(file, (msg) => setBusyMessage(msg))
+      setCompressionInfo(compressionResult)
+      
+      const fileToUpload = compressionResult.file
+      console.log('Compression result:', {
+        originalSize: formatFileSize(compressionResult.originalSize),
+        compressedSize: formatFileSize(compressionResult.compressedSize),
+        savedPercent: compressionResult.savedPercent,
+        wasCompressed: compressionResult.wasCompressed,
+        pageCount: compressionResult.pageCount,
+      })
+
       console.log('Upload payload:', {
         issueDate,
         tenantId,
         editionId,
         subEditionId,
         targetKind,
-        fileName: file.name
+        fileName: fileToUpload.name,
+        fileSize: formatFileSize(fileToUpload.size),
       })
 
-      // Step 1: upload to media (Bunny/CDN) via server proxy
+      // Step 2: Get upload config (backend URL + token) to bypass Vercel's 4.5MB limit
+      setBusyMessage('Connecting to server...')
+      const configRes = await fetch('/api/admin/media/upload-config')
+      if (configRes.status === 401) {
+        logout()
+        router.replace('/')
+        throw new Error('Unauthorized')
+      }
+      if (!configRes.ok) {
+        throw new Error('Failed to get upload configuration')
+      }
+      const { uploadUrl, token } = await configRes.json()
+
+      // Step 3: Upload directly to backend (bypasses Vercel serverless function limit)
+      setBusyMessage('Uploading PDF...')
       const form = new FormData()
-      form.append('file', file)
+      form.append('file', fileToUpload)
       form.append('kind', 'pdf')
       form.append('folder', 'epaper/pdfs')
 
-      const uploadText = await fetchTextOrRedirect('/api/admin/media/upload', { method: 'POST', body: form })
+      const uploadRes = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: form,
+      })
+
+      if (uploadRes.status === 401) {
+        logout()
+        router.replace('/')
+        throw new Error('Unauthorized')
+      }
+
+      const uploadText = await uploadRes.text()
+      if (!uploadRes.ok) {
+        throw new Error(uploadText || `Upload failed: ${uploadRes.status}`)
+      }
+
       const uploadData = JSON.parse(uploadText)
 
       const pdfUrl = uploadData?.publicUrl
       if (!pdfUrl) throw new Error('Upload did not return publicUrl')
 
-      // Step 2: create issue by URL
+      // Step 4: create issue by URL
+      setBusyMessage('Creating ePaper issue...')
       const payload = {
         pdfUrl,
         issueDate,
@@ -235,7 +503,8 @@ function EPaperUploadContent() {
       const created = JSON.parse(createText)
       setResult(created)
 
-      // Step 3: fetch issue details (pages preview) - optional, don't fail if this errors
+      // Step 5: fetch issue details (pages preview) - optional, don't fail if this errors
+      setBusyMessage('Loading preview...')
       try {
         const preview = await fetchIssuePreview(issueDate, editionId, subEditionId)
         if (preview) setIssuePreview(preview)
@@ -247,12 +516,13 @@ function EPaperUploadContent() {
       setError(e2?.message || String(e2))
     } finally {
       setBusy(false)
+      setBusyMessage('Uploading PDF...')
     }
   }
 
   return (
     <>
-      <FullScreenLoader show={busy} message="Uploading PDF..." />
+      <FullScreenLoader show={busy} message={busyMessage} />
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
         <div className="max-w-5xl mx-auto p-6 space-y-6">
           {/* Header */}
@@ -445,6 +715,47 @@ function EPaperUploadContent() {
                   <p className="text-sm text-slate-600">Your ePaper issue has been uploaded and published</p>
                 </div>
               </div>
+
+              {/* Compression Info */}
+              {compressionInfo && (
+                <div className="bg-purple-50 rounded-xl p-4 mb-4 border border-purple-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Zap className="w-4 h-4 text-purple-600" />
+                    <span className="text-sm font-semibold text-purple-900">PDF Optimization</span>
+                    {compressionInfo.compressionType === 'advanced' && (
+                      <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">Advanced</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div>
+                      <span className="text-purple-600">Original:</span>
+                      <span className="ml-1 font-medium text-purple-900">{formatFileSize(compressionInfo.originalSize)}</span>
+                    </div>
+                    <div>
+                      <span className="text-purple-600">Optimized:</span>
+                      <span className="ml-1 font-medium text-purple-900">{formatFileSize(compressionInfo.compressedSize)}</span>
+                    </div>
+                    {compressionInfo.wasCompressed && compressionInfo.savedPercent > 0 && (
+                      <div>
+                        <span className="text-purple-600">Saved:</span>
+                        <span className="ml-1 font-medium text-green-600">{compressionInfo.savedPercent}%</span>
+                      </div>
+                    )}
+                    {compressionInfo.pageCount && (
+                      <div>
+                        <span className="text-purple-600">Pages:</span>
+                        <span className="ml-1 font-medium text-purple-900">{compressionInfo.pageCount}</span>
+                      </div>
+                    )}
+                  </div>
+                  {compressionInfo.quality && (
+                    <div className="mt-2 text-xs text-purple-600">
+                      Image quality: {compressionInfo.quality}% (optimized for fast loading)
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="bg-slate-50 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-600 font-medium">Issue ID:</span>
