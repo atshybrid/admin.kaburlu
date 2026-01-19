@@ -71,46 +71,23 @@ function EPaperUploadContent() {
   }
 
   async function loadTenants() {
-    // If user has a tenantId assigned directly, use it
-    if (userTenantId && !canOverrideTenant) {
-      setTenantId(userTenantId)
-      return
-    }
-    
     setTenantsLoading(true)
     setError('')
     try {
-      // Try user-accessible tenants first, then fall back to full list
-      let list = []
-      try {
-        const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/users/me/tenants')
-        const data = JSON.parse(text)
-        const items = Array.isArray(data) ? data : (data?.data || data?.items || data?.tenants || [])
-        list = Array.isArray(items) ? items : []
-      } catch {
-        // Fallback to full tenants list for admins
-        const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
-        const data = JSON.parse(text)
-        const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
-        list = Array.isArray(items) ? items : []
-      }
+      // Load tenants list - API works for DESK_EDITOR role
+      const text = await fetchTextOrRedirect('/api/admin/proxy/tenants?full=true')
+      const data = JSON.parse(text)
+      // Response is an array directly
+      const list = Array.isArray(data) ? data : (data?.data || data?.items || [])
       
       setTenants(list)
-      // If user has a tenantId, use it as default, otherwise use first tenant
-      if (!tenantId) {
-        if (userTenantId && list.some(t => t.id === userTenantId)) {
-          setTenantId(userTenantId)
-        } else if (list[0]?.id) {
-          setTenantId(list[0].id)
-        }
+      // Set first tenant as default if no tenant selected
+      if (!tenantId && list.length > 0) {
+        setTenantId(list[0].id)
       }
     } catch (e) {
       console.error('Failed to load tenants:', e)
-      // If user has tenantId in their profile, use that
-      if (userTenantId) {
-        setTenantId(userTenantId)
-        setTenants([{ id: userTenantId, name: user?.tenantName || 'Your Newspaper' }])
-      }
+      setError('Failed to load newspapers: ' + (e?.message || String(e)))
     } finally {
       setTenantsLoading(false)
     }
