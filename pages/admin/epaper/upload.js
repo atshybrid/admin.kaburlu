@@ -114,13 +114,24 @@ function EPaperUploadContent() {
   }, [targetKind, editionId])
 
   async function fetchIssuePreview(nextIssueDate, nextEditionId, nextSubEditionId) {
+    // Validate date format before making API call
+    if (!nextIssueDate || !/^\d{4}-\d{2}-\d{2}$/.test(nextIssueDate)) {
+      console.warn('Invalid issueDate for preview:', nextIssueDate)
+      return null
+    }
+    
     const params = new URLSearchParams({ issueDate: nextIssueDate })
     if (nextSubEditionId) params.set('subEditionId', nextSubEditionId)
-    else params.set('editionId', nextEditionId)
+    else if (nextEditionId) params.set('editionId', nextEditionId)
     if (canOverrideTenant && tenantId) params.set('tenantId', tenantId)
 
-    const text = await fetchTextOrRedirect(`/api/admin/epaper/pdf-issues?${params.toString()}`)
-    return JSON.parse(text)
+    try {
+      const text = await fetchTextOrRedirect(`/api/admin/epaper/pdf-issues?${params.toString()}`)
+      return JSON.parse(text)
+    } catch (err) {
+      console.warn('Failed to fetch issue preview:', err)
+      return null
+    }
   }
 
   async function onSubmit(e) {
@@ -134,8 +145,22 @@ function EPaperUploadContent() {
       if (!file) throw new Error('Please choose a PDF file')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) throw new Error('issueDate must be YYYY-MM-DD')
 
+      // Validate tenant selection for SUPER_ADMIN/DESK_EDITOR
+      if (canOverrideTenant && !tenantId) {
+        throw new Error('Please select a newspaper before uploading')
+      }
+
       if (targetKind === 'edition' && !editionId) throw new Error('Please select an edition')
       if (targetKind === 'subEdition' && !subEditionId) throw new Error('Please select a sub-edition')
+
+      console.log('Upload payload:', {
+        issueDate,
+        tenantId,
+        editionId,
+        subEditionId,
+        targetKind,
+        fileName: file.name
+      })
 
       // Step 1: upload to media (Bunny/CDN) via server proxy
       const form = new FormData()
@@ -168,9 +193,14 @@ function EPaperUploadContent() {
       const created = JSON.parse(createText)
       setResult(created)
 
-      // Step 3: fetch issue details (pages preview)
-      const preview = await fetchIssuePreview(issueDate, editionId, subEditionId)
-      setIssuePreview(preview)
+      // Step 3: fetch issue details (pages preview) - optional, don't fail if this errors
+      try {
+        const preview = await fetchIssuePreview(issueDate, editionId, subEditionId)
+        if (preview) setIssuePreview(preview)
+      } catch (previewErr) {
+        console.warn('Could not fetch preview:', previewErr)
+        // Don't throw - upload was successful
+      }
     } catch (e2) {
       setError(e2?.message || String(e2))
     } finally {
@@ -180,7 +210,7 @@ function EPaperUploadContent() {
 
   return (
     <>
-      <FullScreenLoader show={busy} message="Publishing PDF..." />
+      <FullScreenLoader show={busy} message="Uploading PDF..." />
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-pink-50">
         <div className="max-w-5xl mx-auto p-6 space-y-6">
           {/* Header */}
@@ -217,20 +247,24 @@ function EPaperUploadContent() {
             </h2>
 
             {/* Tenant Selector */}
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Select Newspaper
-              </label>
-              <select
-                value={tenantId}
-                onChange={(e) => setTenantId(e.target.value)}
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
-              >
-                {tenants.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
-                ))}
-              </select>
-            </div>
+            {canOverrideTenant && tenants.length > 0 && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Select Newspaper <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={tenantId}
+                  onChange={(e) => setTenantId(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                >
+                  <option value="">-- Select a newspaper --</option>
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Date and Target Type */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
