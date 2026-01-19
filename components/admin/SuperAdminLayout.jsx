@@ -375,18 +375,13 @@ export default function SuperAdminLayout({ children, title }) {
     }
   }, [router])
 
-  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, etc.
-  const isSuperAdmin = (() => {
+  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, desk_editor, etc.
+  const hasAccess = (() => {
     if (!user) return false
     const role = user.role || user.roleName || user.userRole || user.role?.name || ''
     const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
-    return (
-      roleStr === 'SUPERADMIN' ||
-      roleStr === 'ADMIN' ||
-      roleStr.includes('SUPERADMIN') ||
-      roleStr.includes('ADMIN') ||
-      roleStr.includes('DESKEDITOR')
-    )
+    const allowedRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK']
+    return allowedRoles.some(r => roleStr === r || roleStr.includes(r))
   })()
 
   const handleLogout = () => {
@@ -405,7 +400,7 @@ export default function SuperAdminLayout({ children, title }) {
     )
   }
 
-  if (!isSuperAdmin) {
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-6 text-center">
