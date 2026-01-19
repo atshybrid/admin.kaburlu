@@ -2,19 +2,17 @@
  * Desk Editor Layout - Focused ePaper dashboard for DESK_EDITOR role
  * Clean, modern UI optimized for ePaper workflow
  */
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { getToken, logout } from '../../utils/auth'
 import useSessionExpiry from '../../hooks/useSessionExpiry'
 import MpinReLoginModal from '../auth/MpinReLoginModal'
+import { LayoutContext, useLayout } from './LayoutContext'
 
-// Shared context for layout state (same as SuperAdminLayout)
-// This allows pages to use useLayout() from either layout
-const LayoutContext = createContext({})
-export { LayoutContext }
-export const useLayout = () => useContext(LayoutContext)
+// Re-export for backward compatibility
+export { useLayout }
 
 // ePaper focused navigation for DESK_EDITOR
 const NAV_ITEMS = [

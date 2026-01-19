@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import { logout } from '../../../utils/auth'
-import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { useLayout } from '../../../components/admin/LayoutContext'
 import { Calendar, FileText, Eye, Download, Newspaper, RefreshCw } from 'lucide-react'
 import Image from 'next/image'
 

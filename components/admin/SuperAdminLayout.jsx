@@ -3,7 +3,7 @@
  * Clean separation: Global settings vs Tenant management
  * For DESK_EDITOR role, use DeskEditorLayout instead
  */
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
@@ -11,10 +11,10 @@ import { getToken, logout } from '../../utils/auth'
 import useSessionExpiry from '../../hooks/useSessionExpiry'
 import MpinReLoginModal from '../auth/MpinReLoginModal'
 import DeskEditorLayout from './DeskEditorLayout'
+import { LayoutContext, useLayout } from './LayoutContext'
 
-// Context for layout state
-const LayoutContext = createContext({})
-export const useLayout = () => useContext(LayoutContext)
+// Re-export for backward compatibility
+export { useLayout }
 
 // Navigation configuration - Clear hierarchy
 const NAV_SECTIONS = [

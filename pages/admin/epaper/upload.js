@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import FullScreenLoader from '../../../components/FullScreenLoader'
 import { logout } from '../../../utils/auth'
-import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { useLayout } from '../../../components/admin/LayoutContext'
 import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle } from 'lucide-react'
 
 function todayYmd() {
