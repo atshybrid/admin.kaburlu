@@ -4,6 +4,7 @@ import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/SuperAdminLayout'
 import { Calendar, FileText, Eye, Download, Newspaper, RefreshCw } from 'lucide-react'
+import Image from 'next/image'
 
 function todayYmd() {
   const d = new Date()
@@ -186,10 +187,12 @@ function EPaperEditionsContent() {
                   {/* Cover Image */}
                   <div className="relative aspect-[3/4] bg-slate-100">
                     {issue.coverImageUrl ? (
-                      <img
+                      <Image
                         src={issue.coverImageUrl}
                         alt={`${issue.tenant?.name} - ${issue.edition?.name}`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">

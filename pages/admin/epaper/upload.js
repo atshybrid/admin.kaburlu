@@ -74,11 +74,28 @@ function EPaperUploadContent() {
     setTenantsLoading(true)
     setError('')
     try {
+      console.log('Loading tenants...')
       // Load tenants list - API works for DESK_EDITOR role
-      const text = await fetchTextOrRedirect('/api/admin/proxy/tenants?full=true')
+      const res = await fetch('/api/admin/proxy/tenants?full=true')
+      console.log('Tenants API response status:', res.status)
+      
+      if (res.status === 401) {
+        logout()
+        router.replace('/')
+        throw new Error('Unauthorized')
+      }
+      
+      const text = await res.text()
+      console.log('Tenants API raw response:', text.substring(0, 500))
+      
+      if (!res.ok) {
+        throw new Error(text || `Request failed: ${res.status}`)
+      }
+      
       const data = JSON.parse(text)
       // Response is an array directly
       const list = Array.isArray(data) ? data : (data?.data || data?.items || [])
+      console.log('Tenants loaded:', list.length, 'items')
       
       setTenants(list)
       // Set first tenant as default if no tenant selected

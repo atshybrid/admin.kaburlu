@@ -4,6 +4,7 @@ import { forwardJson } from '../../../../lib/server/backend'
 export default async function handler(req, res) {
   try {
     const jwt = getAdminJwtFromRequest(req)
+    console.log('[Proxy] Path:', req.query.path, '| JWT present:', !!jwt)
     if (!jwt) return res.status(401).json({ error: 'UNAUTHENTICATED' })
 
     // Reject non-JSON requests for POST/PUT/PATCH
