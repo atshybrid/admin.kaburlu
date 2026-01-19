@@ -34,8 +34,12 @@ function EPaperUploadContent() {
   const roleStr = normalizeRole(user)
   const canOverrideTenant = parseOverrideRoles().includes(roleStr)
 
+  // Get user's tenant ID if they have one
+  const userTenantId = user?.tenantId || user?.tenant?.id || ''
+
   const [tenantId, setTenantId] = useState('')
   const [tenants, setTenants] = useState([])
+  const [tenantsLoading, setTenantsLoading] = useState(false)
 
   const [issueDate, setIssueDate] = useState(todayYmd())
   const [editions, setEditions] = useState([])
@@ -67,13 +71,31 @@ function EPaperUploadContent() {
   }
 
   async function loadTenants() {
-    if (!canOverrideTenant) return
-    const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
-    const data = JSON.parse(text)
-    const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
-    const list = Array.isArray(items) ? items : []
-    setTenants(list)
-    if (!tenantId && list[0]?.id) setTenantId(list[0].id)
+    if (!canOverrideTenant) {
+      // If user has a tenantId assigned, use it
+      if (userTenantId) {
+        setTenantId(userTenantId)
+      }
+      return
+    }
+    setTenantsLoading(true)
+    try {
+      const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
+      const data = JSON.parse(text)
+      const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
+      const list = Array.isArray(items) ? items : []
+      setTenants(list)
+      // If user has a tenantId, use it as default, otherwise use first tenant
+      if (!tenantId) {
+        if (userTenantId && list.some(t => t.id === userTenantId)) {
+          setTenantId(userTenantId)
+        } else if (list[0]?.id) {
+          setTenantId(list[0].id)
+        }
+      }
+    } finally {
+      setTenantsLoading(false)
+    }
   }
 
   async function loadEditions() {
@@ -93,9 +115,12 @@ function EPaperUploadContent() {
   }
 
   useEffect(() => {
-    loadTenants().catch(() => {})
+    // Wait for user to be loaded before fetching tenants
+    if (user) {
+      loadTenants().catch((e) => setError(e?.message || String(e)))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [user, canOverrideTenant])
 
   useEffect(() => {
     loadEditions().catch((e) => setError(e?.message || String(e)))
@@ -247,22 +272,32 @@ function EPaperUploadContent() {
             </h2>
 
             {/* Tenant Selector */}
-            {canOverrideTenant && tenants.length > 0 && (
+            {canOverrideTenant && (
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Select Newspaper <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={tenantId}
-                  onChange={(e) => setTenantId(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
-                >
-                  <option value="">-- Select a newspaper --</option>
-                  {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
-                  ))}
-                </select>
+                {tenantsLoading ? (
+                  <div className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-slate-50 text-slate-500">
+                    Loading newspapers...
+                  </div>
+                ) : tenants.length > 0 ? (
+                  <select
+                    value={tenantId}
+                    onChange={(e) => setTenantId(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-sm bg-white hover:border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all outline-none"
+                  >
+                    <option value="">-- Select a newspaper --</option>
+                    {tenants.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name || t.slug || t.id}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="w-full px-4 py-3 border-2 border-amber-200 bg-amber-50 rounded-xl text-sm text-amber-700">
+                    No newspapers available. Please contact administrator.
+                  </div>
+                )}
               </div>
             )}
 

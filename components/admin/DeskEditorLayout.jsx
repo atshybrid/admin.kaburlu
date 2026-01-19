@@ -10,8 +10,10 @@ import { getToken, logout } from '../../utils/auth'
 import useSessionExpiry from '../../hooks/useSessionExpiry'
 import MpinReLoginModal from '../auth/MpinReLoginModal'
 
-// Context for layout state
+// Shared context for layout state (same as SuperAdminLayout)
+// This allows pages to use useLayout() from either layout
 const LayoutContext = createContext({})
+export { LayoutContext }
 export const useLayout = () => useContext(LayoutContext)
 
 // ePaper focused navigation for DESK_EDITOR
@@ -363,10 +365,10 @@ function MobileSidebar({ open, onClose, user }) {
 }
 
 // Main Layout Export
-export default function DeskEditorLayout({ children, title }) {
+export default function DeskEditorLayout({ children, title, initialUser = null }) {
   const router = useRouter()
-  const [user, setUser] = useState(null)
-  const [checking, setChecking] = useState(true)
+  const [user, setUser] = useState(initialUser)
+  const [checking, setChecking] = useState(!initialUser)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -374,6 +376,13 @@ export default function DeskEditorLayout({ children, title }) {
   const { showMpinModal, handleMpinSuccess, handleModalClose } = useSessionExpiry()
 
   useEffect(() => {
+    // If we already have initialUser, skip fetching
+    if (initialUser) {
+      setUser(initialUser)
+      setChecking(false)
+      return
+    }
+    
     try {
       const tokenData = getToken()
       if (!tokenData || !tokenData.token) {
@@ -397,7 +406,7 @@ export default function DeskEditorLayout({ children, title }) {
     } finally {
       setChecking(false)
     }
-  }, [router])
+  }, [router, initialUser])
 
   // Role check - only DESK_EDITOR uses this layout
   const hasAccess = (() => {

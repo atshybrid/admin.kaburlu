@@ -436,8 +436,9 @@ export default function SuperAdminLayout({ children, title }) {
   }
 
   // If user is DESK_EDITOR only (not admin), use the DeskEditorLayout
+  // Pass user data so it can be used in the context
   if (isDeskEditorOnly(user)) {
-    return <DeskEditorLayout title={title}>{children}</DeskEditorLayout>
+    return <DeskEditorLayout title={title} initialUser={user}>{children}</DeskEditorLayout>
   }
 
   return (
