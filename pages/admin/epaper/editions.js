@@ -299,16 +299,16 @@ function EPaperEditionsContent() {
                       
                       {/* Actions */}
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        {/* Chronicle URL */}
+                        {/* Share PDF Link */}
                         <a
                           href={chronicleUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-medium rounded-lg transition-all border border-emerald-200"
-                          title="Open Chronicle URL"
+                          title="Open Share PDF Link"
                         >
                           <ExternalLink className="w-4 h-4" />
-                          <span className="hidden sm:inline">Chronicle</span>
+                          <span className="hidden sm:inline">Share PDF</span>
                         </a>
                         
                         {issue.pdfUrl && (
@@ -339,10 +339,10 @@ function EPaperEditionsContent() {
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-0 ml-[52px] border-t border-slate-100 bg-slate-50/50">
                         <div className="pt-4 space-y-3">
-                          {/* Chronicle URL Display */}
+                          {/* Share PDF Link Display */}
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide min-w-[100px]">
-                              Chronicle URL
+                              Share PDF Link
                             </span>
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <code className="flex-1 text-xs bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 truncate font-mono">
