@@ -3,8 +3,10 @@ import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/LayoutContext'
-import { Calendar, FileText, Eye, Download, Newspaper, RefreshCw, ExternalLink, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { Calendar, FileText, Eye, Download, Newspaper, RefreshCw, ExternalLink, Copy, Check, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import Image from 'next/image'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
+import { toast } from '../../../components/ui/Toast.jsx'
 
 function todayYmd() {
   const d = new Date()
@@ -68,6 +70,11 @@ function EPaperEditionsContent() {
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
   const [expandedIssueId, setExpandedIssueId] = useState(null)
   const [copiedUrl, setCopiedUrl] = useState(null)
+  
+  // Delete state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [issueToDelete, setIssueToDelete] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   async function fetchTextOrRedirect(url, init) {
     const res = await fetch(url, init)
@@ -122,6 +129,55 @@ function EPaperEditionsContent() {
       setTimeout(() => setCopiedUrl(null), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+    }
+  }
+
+  // Delete issue handlers
+  function openDeleteConfirm(issue) {
+    setIssueToDelete(issue)
+    setShowDeleteConfirm(true)
+  }
+
+  function closeDeleteConfirm() {
+    setShowDeleteConfirm(false)
+    setIssueToDelete(null)
+  }
+
+  async function handleDeleteIssue() {
+    if (!issueToDelete) return
+    
+    setDeleteLoading(true)
+    try {
+      const tenantId = issueToDelete.tenant?.id || issueToDelete.tenantId
+      const params = new URLSearchParams()
+      if (tenantId) params.set('tenantId', tenantId)
+      
+      const deleteUrl = `/api/admin/epaper/pdf-issues/${issueToDelete.id}${params.toString() ? `?${params.toString()}` : ''}`
+      
+      const res = await fetch(deleteUrl, { method: 'DELETE' })
+      
+      if (res.status === 401) {
+        logout()
+        router.replace('/')
+        throw new Error('Unauthorized')
+      }
+      
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `Delete failed: ${res.status}`)
+      }
+      
+      toast.success('Issue deleted successfully')
+      closeDeleteConfirm()
+      
+      // Refresh the list
+      await loadIssues()
+    } catch (e) {
+      const msg = e?.message || String(e)
+      toast.error(msg)
+      setError(msg)
+    } finally {
+      setDeleteLoading(false)
     }
   }
 
@@ -332,6 +388,16 @@ function EPaperEditionsContent() {
                             </a>
                           </>
                         )}
+                        
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => openDeleteConfirm(issue)}
+                          className="inline-flex items-center justify-center p-2 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-lg transition-all border border-red-200"
+                          title="Delete Issue"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                     
@@ -438,6 +504,23 @@ function EPaperEditionsContent() {
           )}
         </div>
       </div>
+      
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        onClose={closeDeleteConfirm}
+        onConfirm={handleDeleteIssue}
+        title="Delete ePaper Issue"
+        message={
+          issueToDelete
+            ? `Are you sure you want to delete the issue for "${issueToDelete.tenant?.name || 'Unknown'}" - ${issueToDelete.edition?.name || 'Edition'} (${issueToDelete.issueDate || 'Unknown date'})? This action cannot be undone.`
+            : 'Are you sure you want to delete this issue?'
+        }
+        confirmText="Delete Issue"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   )
 }
