@@ -4,7 +4,7 @@
  */
 
 import { useState, useMemo, useCallback } from 'react'
-import { IconChevronDown, IconChevronUp, IconSearch, IconFilter, IconRefresh, IconPlus } from './Icons'
+import { IconChevronDown, IconChevronUp, IconSearch, IconFilter, IconRefresh, IconPlus } from './icons'
 import Badge from './Badge'
 import Spinner from './Spinner'
 import EmptyState from './EmptyState'

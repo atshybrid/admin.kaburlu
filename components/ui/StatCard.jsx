@@ -2,7 +2,7 @@
  * Modern Stat Card Component (MVP Pattern - View Layer)
  */
 
-import { IconTrendingUp, IconTrendingDown } from './Icons'
+import { IconTrendingUp, IconTrendingDown } from './icons'
 
 export default function StatCard({
   title,

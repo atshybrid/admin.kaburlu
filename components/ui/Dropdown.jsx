@@ -3,7 +3,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { IconMoreVertical, IconChevronDown } from './Icons'
+import { IconMoreVertical, IconChevronDown } from './icons'
 
 export default function Dropdown({
   trigger,

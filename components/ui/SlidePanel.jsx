@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useCallback } from 'react'
-import { IconX } from './Icons'
+import { IconX } from './icons'
 import Spinner from './Spinner'
 
 export default function SlidePanel({

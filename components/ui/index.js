@@ -30,4 +30,4 @@ export {
 } from './Form.jsx'
 
 // Icons
-export * from './Icons'
+export * from './icons'

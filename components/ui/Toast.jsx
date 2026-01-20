@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { IconCheck, IconAlertCircle, IconX } from './Icons'
+import { IconCheck, IconAlertCircle, IconX } from './icons'
 
 const toastStore = {
   listeners: new Set(),

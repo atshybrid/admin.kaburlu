@@ -2,7 +2,7 @@
  * Modern Pagination Component (MVP Pattern - View Layer)
  */
 
-import { IconChevronLeft, IconChevronRight } from './Icons'
+import { IconChevronLeft, IconChevronRight } from './icons'
 
 export default function Pagination({
   currentPage = 1,

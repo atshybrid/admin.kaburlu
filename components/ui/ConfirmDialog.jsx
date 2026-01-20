@@ -4,7 +4,7 @@
 
 import Modal from './Modal'
 import Button from './Button.jsx'
-import { IconAlertCircle, IconTrash } from './Icons'
+import { IconAlertCircle, IconTrash } from './icons'
 
 export default function ConfirmDialog({
   isOpen,
