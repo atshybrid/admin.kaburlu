@@ -3,6 +3,9 @@ import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import DatePicker from '../../../components/epaper/DatePicker'
 import { getToken, logout } from '../../../utils/auth'
+import { toast } from '../../../components/ui/Toast.jsx'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
+import { Trash } from 'lucide-react'
 
 function todayYmd() {
   const d = new Date()
@@ -18,13 +21,20 @@ export default function EPaperIndex() {
   const [issues, setIssues] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const limit = 50
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [issueToDelete, setIssueToDelete] = useState(null)
+  const [highlightIssueId, setHighlightIssueId] = useState(null)
+  const [shareBannerIssue, setShareBannerIssue] = useState(null)
 
   const loadIssues = async () => {
     setLoading(true)
     setError('')
+    setSuccess('')
     try {
       const token = getToken()
       if (!token) {
@@ -66,8 +76,65 @@ export default function EPaperIndex() {
   }
 
   useEffect(() => {
+    // Initialize date/highlight from query params if present
+    const qDate = router.query?.date
+    const qHighlight = router.query?.highlight
+    if (typeof qDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(qDate)) {
+      setIssueDate(qDate)
+    }
+    if (typeof qHighlight === 'string') {
+      setHighlightIssueId(qHighlight)
+    }
     loadIssues()
   }, [issueDate, page])
+
+  // When issues load, resolve the highlighted issue and show a share/copy banner
+  useEffect(() => {
+    if (!highlightIssueId || !Array.isArray(issues) || issues.length === 0) {
+      setShareBannerIssue(null)
+      return
+    }
+    const found = issues.find((i) => String(i.id) === String(highlightIssueId))
+    setShareBannerIssue(found || null)
+  }, [issues, highlightIssueId])
+
+  const handleDeleteClick = (issue) => {
+    setIssueToDelete(issue)
+    setDeleteOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!issueToDelete) return
+    setDeleteLoading(true)
+    setError('')
+    setSuccess('')
+    try {
+      const params = new URLSearchParams()
+      if (issueToDelete?.tenant?.id) params.set('tenantId', issueToDelete.tenant.id)
+      const url = `/api/admin/epaper/issues/${issueToDelete.id}${params.toString() ? `?${params.toString()}` : ''}`
+      const res = await fetch(url, { method: 'DELETE' })
+      if (res.status === 401) {
+        logout()
+        router.push('/')
+        return
+      }
+      if (!res.ok) {
+        const t = await res.text()
+        throw new Error(t || 'Failed to delete issue')
+      }
+      setSuccess('Issue deleted successfully')
+      toast.success('Issue deleted successfully')
+      setDeleteOpen(false)
+      setIssueToDelete(null)
+      await loadIssues()
+    } catch (err) {
+      const msg = err?.message || 'Failed to delete issue'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
@@ -143,6 +210,70 @@ export default function EPaperIndex() {
             </div>
           </div>
 
+          {/* Info banner */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800">
+            <div className="font-semibold">ePaper rules</div>
+            <ul className="mt-1 list-disc list-inside">
+              <li>Only one issue per tenant + date + edition/sub-edition.</li>
+              <li>To replace, delete the old issue then upload new PDF.</li>
+              <li>Max PDF size is 100MB; large files are uploaded directly to storage.</li>
+            </ul>
+          </div>
+
+          {/* Share banner (after successful upload) */}
+          {shareBannerIssue && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 text-sm text-green-800">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="font-semibold">Issue published</div>
+                  <p className="mt-1">Share or copy the link for {shareBannerIssue.edition?.name || 'Edition'} on {formatDate(shareBannerIssue.issueDate || issueDate)}.</p>
+                  {(() => {
+                    const shareUrl = shareBannerIssue.canonicalUrl || shareBannerIssue.pdfUrl
+                    if (!shareUrl) return null
+                    return (
+                      <div className="mt-2">
+                        <a href={shareUrl} target="_blank" rel="noopener noreferrer" className="text-green-700 underline break-all">
+                          {shareUrl}
+                        </a>
+                      </div>
+                    )
+                  })()}
+                  {(() => {
+                    const previewImg = shareBannerIssue.ogImage || shareBannerIssue.coverImageUrl
+                    if (!previewImg) return null
+                    return (
+                      <div className="mt-3">
+                        <img src={previewImg} alt="Share preview" className="max-h-24 rounded border border-green-200" />
+                      </div>
+                    )
+                  })()}
+                </div>
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const shareUrl = shareBannerIssue.canonicalUrl || shareBannerIssue.pdfUrl
+                    if (!shareUrl) return null
+                    return (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(shareUrl).then(() => toast.success('Copied link')).catch(() => toast.error('Copy failed'))
+                        }}
+                        className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700"
+                      >
+                        Copy Link
+                      </button>
+                    )
+                  })()}
+                  <button
+                    onClick={() => setShareBannerIssue(null)}
+                    className="px-3 py-2 bg-green-100 text-green-700 rounded-lg text-sm font-medium hover:bg-green-200"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Error Alert */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
@@ -156,6 +287,19 @@ export default function EPaperIndex() {
               <button onClick={() => setError('')} className="text-red-500 hover:text-red-700">
                 ×
               </button>
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <svg className="w-5 h-5 text-green-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-green-900">Success</h3>
+                <p className="text-sm text-green-700 mt-1">{success}</p>
+              </div>
+              <button onClick={() => setSuccess('')} className="text-green-600 hover:text-green-800">×</button>
             </div>
           )}
 
@@ -291,6 +435,40 @@ export default function EPaperIndex() {
                                 Cover
                               </a>
                             )}
+                            {/* Copy canonical or PDF link */}
+                            { (issue.canonicalUrl || issue.pdfUrl) && (
+                              <button
+                                onClick={() => {
+                                  const shareUrl = issue.canonicalUrl || issue.pdfUrl
+                                  navigator.clipboard.writeText(shareUrl).then(() => toast.success('Copied link')).catch(() => toast.error('Copy failed'))
+                                }}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-medium hover:bg-green-100 transition-colors"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16h8M8 12h8m-6 8h6a2 2 0 002-2V8a2 2 0 00-2-2h-3.5L12 4H8a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Copy Link
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleDeleteClick(issue)}
+                              disabled={deleteLoading && issueToDelete?.id === issue.id}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                                deleteLoading && issueToDelete?.id === issue.id
+                                  ? 'bg-red-100 text-red-400 cursor-not-allowed'
+                                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+                              }`}
+                              title="Delete issue"
+                            >
+                              {deleteLoading && issueToDelete?.id === issue.id ? (
+                                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                              ) : (
+                                <Trash className="w-4 h-4" />
+                              )}
+                              {deleteLoading && issueToDelete?.id === issue.id ? 'Deleting…' : 'Delete'}
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -328,6 +506,17 @@ export default function EPaperIndex() {
             </div>
           )}
         </div>
+        <ConfirmDialog
+          isOpen={deleteOpen}
+          onClose={() => { setDeleteOpen(false); setIssueToDelete(null) }}
+          onConfirm={confirmDelete}
+          title="Delete ePaper issue"
+          message={`This will permanently remove the issue for ${issueToDelete ? new Date(issueToDelete.createdAt).toLocaleDateString('en-US') : ''}. PDF file and generated images may also be cleaned up. Proceed?`}
+          confirmText={deleteLoading ? 'Deleting…' : 'Delete'}
+          cancelText="Cancel"
+          variant="danger"
+          loading={deleteLoading}
+        />
       </div>
     </SuperAdminLayout>
   )

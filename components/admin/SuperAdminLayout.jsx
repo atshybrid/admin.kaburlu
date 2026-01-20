@@ -11,6 +11,7 @@ import { getToken, logout } from '../../utils/auth'
 import useSessionExpiry from '../../hooks/useSessionExpiry'
 import MpinReLoginModal from '../auth/MpinReLoginModal'
 import DeskEditorLayout from './DeskEditorLayout'
+import { ToastContainer } from '../ui/Toast.jsx'
 import { LayoutContext, useLayout } from './LayoutContext'
 
 // Re-export for backward compatibility
@@ -476,6 +477,9 @@ export default function SuperAdminLayout({ children, title }) {
           onClose={handleModalClose}
           onSuccess={handleMpinSuccess}
         />
+
+        {/* Global Toasts */}
+        <ToastContainer />
       </div>
     </LayoutContext.Provider>
   )

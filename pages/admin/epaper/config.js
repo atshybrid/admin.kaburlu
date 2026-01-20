@@ -44,7 +44,7 @@ function EPaperConfigContent() {
 
   async function loadTenants() {
     if (!canOverrideTenant) return
-    const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
+    const text = await fetchTextOrRedirect('/api/admin/proxy/tenants?full=true')
     const data = JSON.parse(text)
     const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
     const list = Array.isArray(items) ? items : []

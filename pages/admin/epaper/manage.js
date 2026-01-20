@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
 import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import { toast } from '../../../components/ui/Toast.jsx'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
 import DatePicker from '../../../components/epaper/DatePicker'
 import EditionCard from '../../../components/epaper/EditionCard'
 import { logout } from '../../../utils/auth'
@@ -40,8 +42,11 @@ function EPaperManageContent() {
   const [issues, setIssues] = useState([])
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
+  const [loadingIssueId, setLoadingIssueId] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [issueToDelete, setIssueToDelete] = useState(null)
 
   const fetchTextOrRedirect = useCallback(async (url, init) => {
     const res = await fetch(url, init)
@@ -58,7 +63,7 @@ function EPaperManageContent() {
   const loadTenants = useCallback(async () => {
     if (!canOverrideTenant) return
     try {
-      const text = await fetchTextOrRedirect('/api/admin/proxy/api/v1/tenants?full=true')
+      const text = await fetchTextOrRedirect('/api/admin/proxy/tenants?full=true')
       const data = JSON.parse(text)
       const items = Array.isArray(data) ? data : (data?.data || data?.items || [])
       const list = Array.isArray(items) ? items : []
@@ -104,6 +109,7 @@ function EPaperManageContent() {
 
   const handlePublish = async (issue) => {
     setActionLoading(true)
+    setLoadingIssueId(issue.id)
     setError('')
     setSuccess('')
     
@@ -136,16 +142,21 @@ function EPaperManageContent() {
       }
 
       setSuccess(`${issue.edition?.name || 'Edition'} published successfully!`)
+      toast.success('Issue published')
       loadIssues()
     } catch (err) {
-      setError(err?.message || 'Failed to publish issue')
+      const msg = err?.message || 'Failed to publish issue'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setActionLoading(false)
+      setLoadingIssueId(null)
     }
   }
 
   const handleUnpublish = async (issue) => {
     setActionLoading(true)
+    setLoadingIssueId(issue.id)
     setError('')
     setSuccess('')
     
@@ -178,51 +189,21 @@ function EPaperManageContent() {
       }
 
       setSuccess(`${issue.edition?.name || 'Edition'} unpublished successfully!`)
+      toast.success('Issue unpublished')
       loadIssues()
     } catch (err) {
-      setError(err?.message || 'Failed to unpublish issue')
+      const msg = err?.message || 'Failed to unpublish issue'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setActionLoading(false)
+      setLoadingIssueId(null)
     }
   }
 
-  const handleDelete = async (issue) => {
-    if (!confirm(`Delete ${issue.edition?.name || 'this edition'}? This cannot be undone.`)) {
-      return
-    }
-
-    setActionLoading(true)
-    setError('')
-    setSuccess('')
-    
-    try {
-      const params = new URLSearchParams({ issueId: issue.id })
-      if (canOverrideTenant && tenantId) {
-        params.set('tenantId', tenantId)
-      }
-
-      const res = await fetch(`/api/admin/epaper/pdf-issues?${params.toString()}`, {
-        method: 'DELETE'
-      })
-
-      if (res.status === 401) {
-        logout()
-        router.replace('/')
-        return
-      }
-
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || 'Failed to delete')
-      }
-
-      setSuccess(`${issue.edition?.name || 'Edition'} deleted successfully!`)
-      loadIssues()
-    } catch (err) {
-      setError(err?.message || 'Failed to delete issue')
-    } finally {
-      setActionLoading(false)
-    }
+  const handleDelete = (issue) => {
+    setIssueToDelete(issue)
+    setDeleteOpen(true)
   }
 
   return (
@@ -364,6 +345,7 @@ function EPaperManageContent() {
                   onUnpublish={handleUnpublish}
                   onDelete={handleDelete}
                   loading={actionLoading}
+                  loadingIssueId={loadingIssueId}
                   userRole={roleStr}
                 />
               ))}
@@ -371,6 +353,53 @@ function EPaperManageContent() {
           </div>
         )}
       </div>
+      <ConfirmDialog
+        isOpen={deleteOpen}
+        onClose={() => { setDeleteOpen(false); setIssueToDelete(null) }}
+        onConfirm={async () => {
+          if (!issueToDelete) return
+          setActionLoading(true)
+          setLoadingIssueId(issueToDelete.id)
+          setError('')
+          setSuccess('')
+          try {
+            const params = new URLSearchParams()
+            if (canOverrideTenant && tenantId) {
+              params.set('tenantId', tenantId)
+            }
+            const res = await fetch(`/api/admin/epaper/issues/${issueToDelete.id}${params.toString() ? `?${params.toString()}` : ''}`, {
+              method: 'DELETE'
+            })
+            if (res.status === 401) {
+              logout()
+              router.replace('/')
+              return
+            }
+            if (!res.ok) {
+              const text = await res.text()
+              throw new Error(text || 'Failed to delete')
+            }
+            setSuccess(`${issueToDelete.edition?.name || 'Edition'} deleted successfully!`)
+            toast.success('Issue deleted')
+            setDeleteOpen(false)
+            setIssueToDelete(null)
+            loadIssues()
+          } catch (err) {
+            const msg = err?.message || 'Failed to delete issue'
+            setError(msg)
+            toast.error(msg)
+          } finally {
+            setActionLoading(false)
+            setLoadingIssueId(null)
+          }
+        }}
+        title="Delete ePaper issue"
+        message={`This action cannot be undone. Proceed to delete ${issueToDelete?.edition?.name || 'this edition'}?`}
+        confirmText={actionLoading ? 'Deleting…' : 'Delete'}
+        cancelText="Cancel"
+        variant="danger"
+        loading={actionLoading}
+      />
     </div>
   )
 }

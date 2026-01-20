@@ -4,8 +4,9 @@ import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
 import FullScreenLoader from '../../../components/FullScreenLoader'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/LayoutContext'
-import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle, Zap } from 'lucide-react'
-import { PDFDocument } from 'pdf-lib'
+import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle } from 'lucide-react'
+import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
+import { toast } from '../../../components/ui/Toast.jsx'
 
 // Format file size for display
 function formatFileSize(bytes) {
@@ -16,211 +17,8 @@ function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-// Target size for compression (2MB)
-const TARGET_SIZE_MB = 2
-const TARGET_SIZE_BYTES = TARGET_SIZE_MB * 1024 * 1024
-
-// Advanced PDF compression with image optimization
-async function compressPdf(file, onProgress) {
-  try {
-    onProgress?.('Reading PDF...')
-    const arrayBuffer = await file.arrayBuffer()
-    const originalSize = arrayBuffer.byteLength
-
-    // If file is already under target size, just do light optimization
-    if (originalSize <= TARGET_SIZE_BYTES) {
-      onProgress?.('PDF is already optimized size, applying light compression...')
-      return await lightCompression(file, arrayBuffer, originalSize, onProgress)
-    }
-
-    // For larger files, use advanced compression with image re-rendering
-    onProgress?.('Large PDF detected, applying advanced compression...')
-    return await advancedCompression(file, arrayBuffer, originalSize, onProgress)
-  } catch (err) {
-    console.warn('PDF compression failed, using original:', err)
-    return {
-      file,
-      originalSize: file.size,
-      compressedSize: file.size,
-      savedPercent: 0,
-      wasCompressed: false,
-      error: err.message,
-    }
-  }
-}
-
-// Light compression for small files - structural optimization only
-async function lightCompression(file, arrayBuffer, originalSize, onProgress) {
-  try {
-    const pdfDoc = await PDFDocument.load(arrayBuffer, {
-      ignoreEncryption: true,
-      updateMetadata: false,
-    })
-
-    onProgress?.('Optimizing PDF structure...')
-    const pages = pdfDoc.getPages()
-    
-    const compressedBytes = await pdfDoc.save({
-      useObjectStreams: true,
-      addDefaultPage: false,
-      objectsPerTick: 100,
-    })
-
-    const compressedSize = compressedBytes.byteLength
-    const savedPercent = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
-
-    if (compressedSize < originalSize) {
-      const compressedFile = new File([compressedBytes], file.name, { type: 'application/pdf' })
-      return {
-        file: compressedFile,
-        originalSize,
-        compressedSize,
-        savedPercent: parseFloat(savedPercent),
-        wasCompressed: true,
-        pageCount: pages.length,
-        compressionType: 'light',
-      }
-    }
-    
-    return {
-      file,
-      originalSize,
-      compressedSize: originalSize,
-      savedPercent: 0,
-      wasCompressed: false,
-      pageCount: pages.length,
-      compressionType: 'none',
-    }
-  } catch (err) {
-    throw err
-  }
-}
-
-// Advanced compression - renders pages as images and rebuilds PDF
-async function advancedCompression(file, arrayBuffer, originalSize, onProgress) {
-  try {
-    // Dynamically import pdfjs-dist (only when needed)
-    onProgress?.('Loading PDF renderer...')
-    const pdfjsLib = await import('pdfjs-dist')
-    
-    // Set worker source
-    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-
-    // Load PDF with pdf.js
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer })
-    const pdfDocument = await loadingTask.promise
-    const pageCount = pdfDocument.numPages
-
-    // Calculate optimal quality based on file size and page count
-    // Target: ~2MB total, so per-page budget varies
-    const perPageBudget = TARGET_SIZE_BYTES / pageCount
-    
-    // Start with high quality and adjust if needed
-    let quality = 0.85 // 85% JPEG quality - good balance
-    let scale = 1.5 // Render at 1.5x for clarity
-    
-    // For very large files or many pages, be more aggressive
-    if (originalSize > 20 * 1024 * 1024 || pageCount > 20) {
-      quality = 0.75
-      scale = 1.2
-    } else if (originalSize > 10 * 1024 * 1024 || pageCount > 10) {
-      quality = 0.80
-      scale = 1.3
-    }
-
-    onProgress?.(`Compressing ${pageCount} pages...`)
-
-    // Create new PDF document
-    const newPdfDoc = await PDFDocument.create()
-    
-    // Process each page
-    for (let i = 1; i <= pageCount; i++) {
-      onProgress?.(`Processing page ${i} of ${pageCount}...`)
-      
-      const page = await pdfDocument.getPage(i)
-      const viewport = page.getViewport({ scale })
-      
-      // Create canvas for rendering
-      const canvas = document.createElement('canvas')
-      canvas.width = viewport.width
-      canvas.height = viewport.height
-      
-      const ctx = canvas.getContext('2d')
-      ctx.fillStyle = 'white'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-      
-      // Render page to canvas
-      await page.render({
-        canvasContext: ctx,
-        viewport: viewport,
-      }).promise
-      
-      // Convert to JPEG with specified quality
-      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality)
-      const jpegBytes = Uint8Array.from(atob(jpegDataUrl.split(',')[1]), c => c.charCodeAt(0))
-      
-      // Embed image in new PDF
-      const jpegImage = await newPdfDoc.embedJpg(jpegBytes)
-      
-      // Add page with same dimensions as original
-      const originalViewport = page.getViewport({ scale: 1 })
-      const newPage = newPdfDoc.addPage([originalViewport.width, originalViewport.height])
-      
-      // Draw image to fill page
-      newPage.drawImage(jpegImage, {
-        x: 0,
-        y: 0,
-        width: originalViewport.width,
-        height: originalViewport.height,
-      })
-      
-      // Clean up
-      canvas.remove()
-    }
-
-    onProgress?.('Finalizing compressed PDF...')
-    
-    // Save with optimization
-    const compressedBytes = await newPdfDoc.save({
-      useObjectStreams: true,
-    })
-    
-    const compressedSize = compressedBytes.byteLength
-    const savedPercent = ((originalSize - compressedSize) / originalSize * 100).toFixed(1)
-
-    console.log(`Advanced PDF Compression: ${formatFileSize(originalSize)} → ${formatFileSize(compressedSize)} (${savedPercent}% saved)`)
-
-    // Only use compressed if significantly smaller
-    if (compressedSize < originalSize * 0.9) {
-      const compressedFile = new File([compressedBytes], file.name, { type: 'application/pdf' })
-      return {
-        file: compressedFile,
-        originalSize,
-        compressedSize,
-        savedPercent: parseFloat(savedPercent),
-        wasCompressed: true,
-        pageCount,
-        compressionType: 'advanced',
-        quality: Math.round(quality * 100),
-      }
-    }
-    
-    // If compression didn't help much, return original
-    return {
-      file,
-      originalSize,
-      compressedSize: originalSize,
-      savedPercent: 0,
-      wasCompressed: false,
-      pageCount,
-      compressionType: 'skipped',
-    }
-  } catch (err) {
-    console.warn('Advanced compression failed, falling back to light:', err)
-    // Fallback to light compression
-    return await lightCompression(file, arrayBuffer, originalSize, onProgress)
-  }
-}
+// Max PDF size: 100MB
+const MAX_PDF_SIZE_BYTES = 100 * 1024 * 1024
 
 function todayYmd() {
   const d = new Date()
@@ -269,7 +67,12 @@ function EPaperUploadContent() {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null)
   const [issuePreview, setIssuePreview] = useState(null)
-  const [compressionInfo, setCompressionInfo] = useState(null)
+  const [existingIssue, setExistingIssue] = useState(null)
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
+  const [replaceLoading, setReplaceLoading] = useState(false)
+
+  // Cache pending upload params to use after confirm
+  const [pendingUpload, setPendingUpload] = useState(null)
 
   const selectedEdition = useMemo(
     () => editions.find((e) => e.id === editionId) || null,
@@ -397,15 +200,20 @@ function EPaperUploadContent() {
   async function onSubmit(e) {
     e.preventDefault()
     setBusy(true)
-    setBusyMessage('Preparing upload...')
+    setBusyMessage('Checking for existing issue...')
     setError('')
     setResult(null)
     setIssuePreview(null)
-    setCompressionInfo(null)
+    setExistingIssue(null)
 
     try {
       if (!file) throw new Error('Please choose a PDF file')
       if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate)) throw new Error('issueDate must be YYYY-MM-DD')
+
+      // Validate max size 100MB
+      if (file.size > MAX_PDF_SIZE_BYTES) {
+        throw new Error(`PDF is too large. Max allowed is 100MB. Selected: ${formatFileSize(file.size)}`)
+      }
 
       // Validate tenant selection for SUPER_ADMIN/DESK_EDITOR
       if (canOverrideTenant && !tenantId) {
@@ -414,109 +222,140 @@ function EPaperUploadContent() {
 
       if (targetKind === 'edition' && !editionId) throw new Error('Please select an edition')
       if (targetKind === 'subEdition' && !subEditionId) throw new Error('Please select a sub-edition')
+      // Step 1: Check if issue already exists
+      const checkParams = new URLSearchParams({ issueDate })
+      if (targetKind === 'subEdition') checkParams.set('subEditionId', subEditionId)
+      else checkParams.set('editionId', editionId)
+      if (canOverrideTenant && tenantId) checkParams.set('tenantId', tenantId)
 
-      // Step 1: Compress PDF (without quality loss)
-      setBusyMessage('Compressing PDF...')
-      const compressionResult = await compressPdf(file, (msg) => setBusyMessage(msg))
-      setCompressionInfo(compressionResult)
-      
-      const fileToUpload = compressionResult.file
-      console.log('Compression result:', {
-        originalSize: formatFileSize(compressionResult.originalSize),
-        compressedSize: formatFileSize(compressionResult.compressedSize),
-        savedPercent: compressionResult.savedPercent,
-        wasCompressed: compressionResult.wasCompressed,
-        pageCount: compressionResult.pageCount,
-      })
+      const checkText = await fetchTextOrRedirect(`/api/admin/epaper/issues/check-exists?${checkParams.toString()}`)
+      const checkData = JSON.parse(checkText)
+      if (checkData?.exists && checkData.issue) {
+        // Ask user to confirm replace (delete then upload)
+        setExistingIssue(checkData.issue)
+        setPendingUpload({
+          issueDate,
+          editionId,
+          subEditionId,
+          targetKind,
+          tenantId,
+          file,
+        })
+        setShowReplaceConfirm(true)
+        return
+      }
 
-      console.log('Upload payload:', {
+      // No existing issue: proceed with upload
+      await performUpload({
         issueDate,
-        tenantId,
         editionId,
         subEditionId,
         targetKind,
-        fileName: fileToUpload.name,
-        fileSize: formatFileSize(fileToUpload.size),
+        tenantId,
+        file,
       })
-
-      // Step 2: Get upload config (backend URL + token) to bypass Vercel's 4.5MB limit
-      setBusyMessage('Connecting to server...')
-      const configRes = await fetch('/api/admin/media/upload-config')
-      if (configRes.status === 401) {
-        logout()
-        router.replace('/')
-        throw new Error('Unauthorized')
-      }
-      if (!configRes.ok) {
-        throw new Error('Failed to get upload configuration')
-      }
-      const { uploadUrl, token } = await configRes.json()
-
-      // Step 3: Upload directly to backend (bypasses Vercel serverless function limit)
-      setBusyMessage('Uploading PDF...')
-      const form = new FormData()
-      form.append('file', fileToUpload)
-      form.append('kind', 'pdf')
-      form.append('folder', 'epaper/pdfs')
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: form,
-      })
-
-      if (uploadRes.status === 401) {
-        logout()
-        router.replace('/')
-        throw new Error('Unauthorized')
-      }
-
-      const uploadText = await uploadRes.text()
-      if (!uploadRes.ok) {
-        throw new Error(uploadText || `Upload failed: ${uploadRes.status}`)
-      }
-
-      const uploadData = JSON.parse(uploadText)
-
-      const pdfUrl = uploadData?.publicUrl
-      if (!pdfUrl) throw new Error('Upload did not return publicUrl')
-
-      // Step 4: create issue by URL
-      setBusyMessage('Creating ePaper issue...')
-      const payload = {
-        pdfUrl,
-        issueDate,
-        ...(targetKind === 'subEdition' ? { subEditionId } : { editionId }),
-      }
-
-      const createParams = new URLSearchParams()
-      if (canOverrideTenant && tenantId) createParams.set('tenantId', tenantId)
-      const createUrl = `/api/admin/epaper/pdf-issues/upload-by-url${createParams.toString() ? `?${createParams.toString()}` : ''}`
-
-      const createText = await fetchTextOrRedirect(createUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const created = JSON.parse(createText)
-      setResult(created)
-
-      // Step 5: fetch issue details (pages preview) - optional, don't fail if this errors
-      setBusyMessage('Loading preview...')
-      try {
-        const preview = await fetchIssuePreview(issueDate, editionId, subEditionId)
-        if (preview) setIssuePreview(preview)
-      } catch (previewErr) {
-        console.warn('Could not fetch preview:', previewErr)
-        // Don't throw - upload was successful
-      }
     } catch (e2) {
-      setError(e2?.message || String(e2))
+      const msg = e2?.message || String(e2)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setBusy(false)
       setBusyMessage('Uploading PDF...')
+    }
+  }
+
+  async function performUpload({ issueDate, editionId, subEditionId, targetKind, tenantId, file }) {
+    // Step 2: Get upload config (backend URL + token)
+    setBusy(true)
+    setBusyMessage('Connecting to server...')
+    const configRes = await fetch('/api/admin/media/upload-config')
+    if (configRes.status === 401) {
+      logout()
+      router.replace('/')
+      throw new Error('Unauthorized')
+    }
+    if (!configRes.ok) {
+      throw new Error('Failed to get upload configuration')
+    }
+    const { uploadUrl, token } = await configRes.json()
+
+    // Step 3: Upload directly to backend
+    setBusyMessage('Uploading PDF...')
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kind', 'pdf')
+    form.append('folder', 'epaper/pdfs')
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: form,
+    })
+
+    const uploadText = await uploadRes.text()
+    if (uploadRes.status === 401) {
+      logout()
+      router.replace('/')
+      throw new Error('Unauthorized')
+    }
+    if (uploadRes.status === 413) {
+      throw new Error('Upload rejected: file too large (413). Please ensure the PDF is under 100MB or contact admin.')
+    }
+    if (!uploadRes.ok) {
+      throw new Error(uploadText || `Upload failed: ${uploadRes.status}`)
+    }
+
+    const uploadData = JSON.parse(uploadText)
+    const pdfUrl = uploadData?.publicUrl
+    if (!pdfUrl) throw new Error('Upload did not return publicUrl')
+
+    // Step 4: create issue by URL
+    setBusyMessage('Creating ePaper issue...')
+    const payload = {
+      pdfUrl,
+      issueDate,
+      ...(targetKind === 'subEdition' ? { subEditionId } : { editionId }),
+    }
+
+    const createParams = new URLSearchParams()
+    if (canOverrideTenant && tenantId) createParams.set('tenantId', tenantId)
+    const createUrl = `/api/admin/epaper/pdf-issues/upload-by-url${createParams.toString() ? `?${createParams.toString()}` : ''}`
+
+    const createText = await fetchTextOrRedirect(createUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const created = JSON.parse(createText)
+    setResult(created)
+    toast.success('Issue published successfully')
+
+    // Step 5: fetch issue details (pages preview) - optional
+    setBusyMessage('Loading preview...')
+    try {
+      const preview = await fetchIssuePreview(issueDate, editionId, subEditionId)
+      if (preview) setIssuePreview(preview)
+    } catch (_) {
+      // ignore
+    }
+
+    // Navigate to the ePaper table and highlight the newly created issue
+    try {
+      // Try to derive the created issue id from API response or preview
+      const createdIssueId = created?.issue?.id || created?.id || created?.data?.id || created?.issueId
+      let highlightId = createdIssueId
+      if (!highlightId && issuePreview?.issues?.length === 1) {
+        highlightId = issuePreview.issues[0].id
+      }
+
+      const params = new URLSearchParams()
+      params.set('date', issueDate)
+      if (highlightId) params.set('highlight', String(highlightId))
+      router.push(`/admin/epaper?${params.toString()}`)
+    } catch (_) {
+      // If navigation fails, stay on the page; user can go manually
     }
   }
 
@@ -553,6 +392,14 @@ function EPaperUploadContent() {
 
           {/* Upload Form */}
           <form onSubmit={onSubmit} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+              <div className="font-medium">Upload guidelines</div>
+              <ul className="mt-1 list-disc list-inside">
+                <li>Max PDF size: 100MB.</li>
+                <li>If an issue exists for the selected date + edition, you will be asked to delete it before replacing.</li>
+                <li>Uploads go directly to storage for better performance.</li>
+              </ul>
+            </div>
             <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
               <FileText className="w-5 h-5 text-purple-600" />
               Issue Details
@@ -691,7 +538,7 @@ function EPaperUploadContent() {
                 className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed hover:from-purple-600 hover:to-pink-700 transition-all shadow-lg shadow-purple-200 hover:shadow-xl"
               >
                 <Upload className="w-4 h-4" />
-                {busy ? 'Uploading…' : 'Upload & Publish Issue'}
+                {busy ? 'Processing…' : 'Upload & Publish Issue'}
               </button>
               <button
                 type="button"
@@ -703,7 +550,41 @@ function EPaperUploadContent() {
             </div>
           </form>
 
-          {/* Success Result */}
+            {/* Replace Confirm Dialog */}
+            <ConfirmDialog
+              isOpen={showReplaceConfirm}
+              onClose={() => { setShowReplaceConfirm(false); setExistingIssue(null); setPendingUpload(null) }}
+              onConfirm={async () => {
+                if (!existingIssue || !pendingUpload) return
+                setReplaceLoading(true)
+                setError('')
+                try {
+                  const params = new URLSearchParams()
+                  if (canOverrideTenant && pendingUpload.tenantId) params.set('tenantId', pendingUpload.tenantId)
+                  const delUrl = `/api/admin/epaper/issues/${existingIssue.id}${params.toString() ? `?${params.toString()}` : ''}`
+                  await fetchTextOrRedirect(delUrl, { method: 'DELETE' })
+                  setShowReplaceConfirm(false)
+                  setExistingIssue(null)
+                  await performUpload(pendingUpload)
+                } catch (e) {
+                  const msg = e?.message || String(e)
+                  setError(msg)
+                  toast.error(msg)
+                } finally {
+                  setReplaceLoading(false)
+                  setPendingUpload(null)
+                  setBusy(false)
+                }
+              }}
+              title="Issue already exists"
+              message={`An issue for ${issueDate} is already present (pages: ${existingIssue?.pageCount ?? '—'}). Do you want to replace it? This will delete the existing issue before re-uploading.`}
+              confirmText={replaceLoading ? 'Replacing…' : 'Delete & Replace'}
+              cancelText="Cancel"
+              variant="warning"
+              loading={replaceLoading}
+            />
+
+            {/* Success Result */}
           {result?.issue && (
             <div className="bg-white rounded-2xl shadow-lg border border-green-200 p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -715,46 +596,6 @@ function EPaperUploadContent() {
                   <p className="text-sm text-slate-600">Your ePaper issue has been uploaded and published</p>
                 </div>
               </div>
-
-              {/* Compression Info */}
-              {compressionInfo && (
-                <div className="bg-purple-50 rounded-xl p-4 mb-4 border border-purple-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-4 h-4 text-purple-600" />
-                    <span className="text-sm font-semibold text-purple-900">PDF Optimization</span>
-                    {compressionInfo.compressionType === 'advanced' && (
-                      <span className="text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">Advanced</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                    <div>
-                      <span className="text-purple-600">Original:</span>
-                      <span className="ml-1 font-medium text-purple-900">{formatFileSize(compressionInfo.originalSize)}</span>
-                    </div>
-                    <div>
-                      <span className="text-purple-600">Optimized:</span>
-                      <span className="ml-1 font-medium text-purple-900">{formatFileSize(compressionInfo.compressedSize)}</span>
-                    </div>
-                    {compressionInfo.wasCompressed && compressionInfo.savedPercent > 0 && (
-                      <div>
-                        <span className="text-purple-600">Saved:</span>
-                        <span className="ml-1 font-medium text-green-600">{compressionInfo.savedPercent}%</span>
-                      </div>
-                    )}
-                    {compressionInfo.pageCount && (
-                      <div>
-                        <span className="text-purple-600">Pages:</span>
-                        <span className="ml-1 font-medium text-purple-900">{compressionInfo.pageCount}</span>
-                      </div>
-                    )}
-                  </div>
-                  {compressionInfo.quality && (
-                    <div className="mt-2 text-xs text-purple-600">
-                      Image quality: {compressionInfo.quality}% (optimized for fast loading)
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="bg-slate-50 rounded-xl p-4 space-y-2">
                 <div className="flex justify-between text-sm">
