@@ -51,28 +51,18 @@ export default function ArticlesListView() {
       console.log('👤 User Data:', userData);
       setUser(userData);
       
-      const loginResponse = tokenData.data?.loginResponse || userData.loginResponse;
-      const userTenants = loginResponse?.tenants || [];
-      
-      console.log('🏢 Login Response Tenants:', userTenants);
       console.log('✅ Is Super Admin?', isSuperAdmin(userData));
       
       if (isSuperAdmin(userData)) {
-        console.log('🎯 Setting tenants for Super Admin:', userTenants.length);
-        
-        // If no tenants in login response, fetch from API
-        if (!userTenants || userTenants.length === 0) {
-          console.log('⚠️ No tenants in login response, fetching from API...');
-          fetchTenantsFromApi();
-        } else {
-          setTenants(userTenants);
-          // Auto-select first tenant for super admin
-          if (userTenants.length > 0) {
-            console.log('🎯 Auto-selecting tenant:', userTenants[0].name);
-            setSelectedTenant(userTenants[0]);
-          }
-        }
+        // Super admin: Always fetch tenants from API (not in login response)
+        console.log('🎯 Super Admin detected - fetching tenants from API');
+        fetchTenantsFromApi();
       } else {
+        // Non-admin: Use tenants from login response
+        const loginResponse = tokenData.data?.loginResponse || userData.loginResponse;
+        const userTenants = loginResponse?.tenants || [];
+        console.log('🏢 Login Response Tenants:', userTenants);
+        
         const userTenant = userTenants?.[0];
         if (userTenant) {
           console.log('🏢 Setting tenant for non-admin:', userTenant.name);
