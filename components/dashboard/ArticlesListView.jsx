@@ -127,11 +127,24 @@ export default function ArticlesListView() {
 
       const response = await articleService.getUnifiedArticles(params);
 
+      console.log('📊 API Response for tab:', activeTab, response);
+
       if (response.success && response.data) {
-        setArticles(prev => ({
-          ...prev,
-          [activeTab]: response.data
-        }));
+        if (activeTab === 'all') {
+          // For 'all' tab, store the full structure
+          setArticles(prev => ({
+            ...prev,
+            all: response.data
+          }));
+        } else {
+          // For specific tabs (newspaper, web, shortNews), extract the specific data
+          const tabData = response.data[activeTab] || response.data;
+          console.log('📊 Tab data for', activeTab, ':', tabData);
+          setArticles(prev => ({
+            ...prev,
+            [activeTab]: tabData
+          }));
+        }
       }
     } catch (error) {
       console.error('Fetch articles error:', error);
