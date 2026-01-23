@@ -18,6 +18,7 @@ export default function ArticlesListView() {
   // Filters
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [status, setStatus] = useState('PUBLISHED');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   
@@ -32,6 +33,7 @@ export default function ArticlesListView() {
   
   // Tenant data
   const [tenants, setTenants] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // Helper function to check if user is super admin
   const isSuperAdmin = (userData) => {
@@ -95,10 +97,32 @@ export default function ArticlesListView() {
 
   useEffect(() => {
     if (selectedTenant) {
+      fetchCategories();
       fetchArticles();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTenant, activeTab, status, fromDate, toDate, currentPage]);
+  }, [selectedTenant]);
+
+  useEffect(() => {
+    if (selectedTenant) {
+      fetchArticles();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, status, selectedCategory, fromDate, toDate, currentPage]);
+
+  const fetchCategories = async () => {
+    if (!selectedTenant) return;
+    
+    try {
+      console.log('📚 Fetching categories for tenant:', selectedTenant.id);
+      const response = await articleService.getCategories(selectedTenant.id);
+      const categoriesList = Array.isArray(response) ? response : (response?.data || []);
+      console.log('✅ Fetched categories:', categoriesList.length);
+      setCategories(categoriesList);
+    } catch (error) {
+      console.error('❌ Failed to fetch categories:', error);
+    }
+  };
 
   const fetchArticles = async () => {
     if (!selectedTenant) return;
@@ -121,7 +145,8 @@ export default function ArticlesListView() {
         sortOrder: 'desc'
       };
 
-      // Only add date filters if they are set
+      // Only add filters if they are set
+      if (selectedCategory) params.categoryId = selectedCategory;
       if (fromDate) params.fromDate = fromDate;
       if (toDate) params.toDate = toDate;
 
@@ -222,7 +247,7 @@ export default function ArticlesListView() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Tenant Selection (Super Admin only) */}
           {isSuperAdmin(user) && (
             <div>
@@ -235,6 +260,7 @@ export default function ArticlesListView() {
                   const tenant = tenants.find(t => t.id === e.target.value);
                   console.log('🔄 Tenant changed to:', tenant?.name);
                   setSelectedTenant(tenant);
+                  setSelectedCategory(''); // Reset category when tenant changes
                   setCurrentPage(1);
                 }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -248,6 +274,29 @@ export default function ArticlesListView() {
               </select>
             </div>
           )}
+
+          {/* Category Filter */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <select
+              value={selectedCategory}
+              onChange={(e) => {
+                setSelectedCategory(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={!selectedTenant}
+            >
+              <option value="">All Categories</option>
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name || category.translatedName}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Status Filter */}
           <div>
