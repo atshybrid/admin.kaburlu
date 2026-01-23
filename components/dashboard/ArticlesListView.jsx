@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { getToken } from '../../utils/auth';
 import { articleService } from '../../lib/api/services/articleService';
@@ -7,6 +8,7 @@ import { Toast } from '../ui/Toast';
 import { Tabs } from '../ui/Tabs';
 
 export default function ArticlesListView() {
+  const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -40,8 +42,15 @@ export default function ArticlesListView() {
       const userTenants = loginResponse?.tenants || [];
       const userRole = userData.role?.name || userData.roleName || userData.role;
       
+      console.log('👤 User Role:', userRole);
+      console.log('🏢 User Tenants:', userTenants);
+      
       if (userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN') {
         setTenants(userTenants || []);
+        // Auto-select first tenant for super admin
+        if (userTenants && userTenants.length > 0) {
+          setSelectedTenant(userTenants[0]);
+        }
       } else if (userRole === 'TENANT_ADMIN' || userRole === 'TENANTADMIN' || userRole === 'REPORTER') {
         const userTenant = userTenants?.[0];
         if (userTenant) {
@@ -103,6 +112,22 @@ export default function ArticlesListView() {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
+  };
+
+  const handleViewArticle = (article) => {
+    // Navigate to article detail/edit page
+    const articleType = article.type || activeTab;
+    
+    // For now, just log the article - you can implement detail view later
+    console.log('📄 View article:', article);
+    
+    // Example navigation (adjust based on your routing structure):
+    // router.push(`/admin/articles/${articleType}/${article.id}`);
+    
+    setToast({ 
+      type: 'info', 
+      message: `Article: ${article.title || article.heading} | Type: ${articleType}` 
+    });
   };
 
   const formatDate = (dateString) => {
@@ -359,7 +384,10 @@ export default function ArticlesListView() {
 
                     {/* Actions */}
                     <div className="flex-shrink-0">
-                      <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                      <button 
+                        onClick={() => handleViewArticle(article)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
                         View
                       </button>
                     </div>
