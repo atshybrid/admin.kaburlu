@@ -154,8 +154,8 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         console.log('✅ Using tenant from list (has entity):', existingTenant.name)
         setTenantData(existingTenant)
         
-        // Fetch categories and languages
-        await loadCategoriesAndLanguages(tenantId)
+        // Fetch categories and languages (pass tenant data directly)
+        await loadCategoriesAndLanguages(tenantId, existingTenant)
         return
       }
       
@@ -202,15 +202,15 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       
       setTenantData(tenantDetails)
 
-      // Fetch categories and languages
-      await loadCategoriesAndLanguages(tenantId)
+      // Fetch categories and languages (pass tenant data directly)
+      await loadCategoriesAndLanguages(tenantId, tenantDetails)
     } catch (err) {
       console.error('❌ Failed to load tenant data:', err)
       setError(`Failed to load tenant data: ${err.message || err}`)
     }
   }
 
-  const loadCategoriesAndLanguages = async (tenantId) => {
+  const loadCategoriesAndLanguages = async (tenantId, tenantDetails = null) => {
     try {
       // Always fetch categories and languages (not in login response)
       console.log('📚 Fetching categories and languages...')
@@ -231,10 +231,12 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         setForm(prev => ({ ...prev, categoryId: categoriesList[0].id }))
       }
       
-      // Use tenant's language code from entity data
+      // Use tenant's language code from entity data (use passed tenant details or state)
       if (languagesList.length > 0) {
-        const entityData = tenantData?.entity || tenantData
+        const currentTenant = tenantDetails || tenantData
+        const entityData = currentTenant?.entity || currentTenant
         const tenantLanguageCode = entityData?.language?.code || languagesList[0]?.code || 'te'
+        console.log('🌐 Tenant entity data:', entityData)
         console.log('🌐 Setting language to tenant language:', tenantLanguageCode)
         setForm(prev => ({ ...prev, languageCode: tenantLanguageCode }))
       }
