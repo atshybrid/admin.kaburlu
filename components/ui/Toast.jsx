@@ -39,6 +39,9 @@ const toastStore = {
   }
 }
 
+// Toast component export
+export { Toast }
+
 // Toast API
 export const toast = {
   success(message, options = {}) {

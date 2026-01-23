@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { logout } from '../../../utils/auth'
 
 // Tenant override roles from env or default to SUPER_ADMIN only
@@ -256,7 +256,7 @@ export default function EditionsManagePage() {
   const showTenantSelector = user && TENANT_OVERRIDE_ROLES.includes(user.role)
 
   return (
-    <SuperAdminLayout title="Manage ePaper Editions">
+    <DashboardLayout title="Manage ePaper Editions">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="space-y-6">
           {/* Header */}
@@ -525,6 +525,6 @@ export default function EditionsManagePage() {
           </div>
         </div>
       )}
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

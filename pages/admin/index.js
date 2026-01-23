@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
 
 // Check if user is DESK_EDITOR only
@@ -148,8 +148,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <SuperAdminLayout title="Overview">
+    <DashboardLayout title="Overview">
       <OverviewContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

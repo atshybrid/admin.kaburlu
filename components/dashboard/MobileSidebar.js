@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { useEffect } from 'react'
-import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/Icons'
+import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/icons'
 
 export default function MobileSidebar({ open, onClose, onLogout }) {
   const primary = [

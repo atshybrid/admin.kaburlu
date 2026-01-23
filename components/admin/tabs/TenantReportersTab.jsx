@@ -244,6 +244,7 @@ export default function TenantReportersTab({ tenantContext }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {r.profilePhotoUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img src={r.profilePhotoUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand to-brand-dark flex items-center justify-center text-white text-xs font-medium">

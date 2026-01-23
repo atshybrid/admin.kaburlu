@@ -47,10 +47,10 @@ function AppContent({ Component, pageProps }) {
   )
 }
 
-export default function App(props) {
+export default function App({ Component, pageProps, ...rest }) {
   return (
     <ErrorBoundary>
-      <AppContent {...props} />
+      <AppContent Component={Component} pageProps={pageProps} {...rest} />
     </ErrorBoundary>
   )
 }

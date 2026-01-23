@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import DatePicker from '../../../components/epaper/DatePicker'
 import { getToken, logout } from '../../../utils/auth'
 import { toast } from '../../../components/ui/Toast.jsx'
@@ -86,6 +86,7 @@ export default function EPaperIndex() {
       setHighlightIssueId(qHighlight)
     }
     loadIssues()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [issueDate, page])
 
   // When issues load, resolve the highlighted issue and show a share/copy banner
@@ -156,7 +157,7 @@ export default function EPaperIndex() {
   }
 
   return (
-    <SuperAdminLayout>
+    <DashboardLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
@@ -243,6 +244,7 @@ export default function EPaperIndex() {
                     if (!previewImg) return null
                     return (
                       <div className="mt-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={previewImg} alt="Share preview" className="max-h-24 rounded border border-green-200" />
                       </div>
                     )
@@ -518,6 +520,6 @@ export default function EPaperIndex() {
           loading={deleteLoading}
         />
       </div>
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

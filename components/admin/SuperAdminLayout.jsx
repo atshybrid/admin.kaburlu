@@ -30,6 +30,13 @@ const NAV_SECTIONS = [
     ]
   },
   {
+    id: 'content',
+    label: 'Content',
+    items: [
+      { id: 'articles', label: 'Articles', href: '/admin/articles', icon: 'file-text' },
+    ]
+  },
+  {
     id: 'locations',
     label: 'Locations',
     items: [
@@ -106,7 +113,7 @@ function Icon({ name, className = 'w-5 h-5' }) {
 // Sidebar component
 function Sidebar({ collapsed, onToggle }) {
   const router = useRouter()
-  const [expandedSections, setExpandedSections] = useState(['platform', 'tenants'])
+  const [expandedSections, setExpandedSections] = useState(['platform', 'content', 'tenants'])
   
   const toggleSection = (id) => {
     setExpandedSections(prev => 

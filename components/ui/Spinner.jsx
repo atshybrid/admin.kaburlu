@@ -2,7 +2,7 @@
  * Modern Spinner Component (MVP Pattern - View Layer)
  */
 
-export default function Spinner({ size = 'md', className = '' }) {
+function Spinner({ size = 'md', className = '' }) {
   const sizes = {
     xs: 'w-3 h-3 border',
     sm: 'w-4 h-4 border-2',
@@ -21,3 +21,6 @@ export default function Spinner({ size = 'md', className = '' }) {
     />
   )
 }
+
+export { Spinner }
+export default Spinner

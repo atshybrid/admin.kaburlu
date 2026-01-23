@@ -3,7 +3,7 @@
  * /admin/languages route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
 
 function getApiBase() {
@@ -147,8 +147,8 @@ function LanguagesContent() {
 
 export default function AdminLanguages() {
   return (
-    <SuperAdminLayout title="Languages">
+    <DashboardLayout title="Languages">
       <LanguagesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

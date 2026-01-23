@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { 
   IconMenu, IconUsers, IconFolder, IconLang, IconArticles, 
   IconGeo, IconTenant, IconSettings, IconKey 
-} from '../ui/Icons'
+} from '../ui/icons'
 
 const navGroups = [
   {

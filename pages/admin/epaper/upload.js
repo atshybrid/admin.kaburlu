@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import FullScreenLoader from '../../../components/FullScreenLoader'
-import { logout } from '../../../utils/auth'
+import { logout, getToken } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/LayoutContext'
 import { Upload, Calendar, FileText, Newspaper, Check, AlertCircle } from 'lucide-react'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
@@ -316,19 +316,46 @@ function EPaperUploadContent() {
     const payload = {
       pdfUrl,
       issueDate,
+      generateImages: true,  // Always generate page images
       ...(targetKind === 'subEdition' ? { subEditionId } : { editionId }),
     }
 
     const createParams = new URLSearchParams()
     if (canOverrideTenant && tenantId) createParams.set('tenantId', tenantId)
-    const createUrl = `/api/admin/epaper/pdf-issues/upload-by-url${createParams.toString() ? `?${createParams.toString()}` : ''}`
+    
+    // Get auth token from localStorage
+    const authToken = getToken()?.token
+    if (!authToken) {
+      logout()
+      router.replace('/')
+      throw new Error('Authentication required')
+    }
+    
+    // Use direct backend API
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com/api/v1'
+    const createUrl = `${backendUrl}/epaper/pdf-issues/upload-by-url${createParams.toString() ? `?${createParams.toString()}` : ''}`
 
-    const createText = await fetchTextOrRedirect(createUrl, {
+    const createRes = await fetch(createUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
       body: JSON.stringify(payload),
     })
-    const created = JSON.parse(createText)
+    
+    if (createRes.status === 401) {
+      logout()
+      router.replace('/')
+      throw new Error('Unauthorized')
+    }
+    
+    if (!createRes.ok) {
+      const errorText = await createRes.text()
+      throw new Error(errorText || `Create issue failed: ${createRes.status}`)
+    }
+    
+    const created = await createRes.json()
     setResult(created)
     toast.success('Issue published successfully')
 
@@ -610,6 +637,7 @@ function EPaperUploadContent() {
               {result.issue.coverImageUrl && (
                 <div className="mt-4">
                   <p className="text-sm font-medium text-slate-700 mb-2">Cover Preview:</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={result.issue.coverImageUrl}
                     alt="cover"
@@ -637,6 +665,7 @@ function EPaperUploadContent() {
                     className="group block"
                   >
                     <div className="relative overflow-hidden rounded-lg border-2 border-slate-200 hover:border-purple-400 transition-all shadow-sm hover:shadow-md">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={p.imageUrl}
                         alt={`p${p.pageNumber}`}
@@ -662,8 +691,8 @@ function EPaperUploadContent() {
 
 export default function EPaperUploadPage() {
   return (
-    <SuperAdminLayout title="ePaper Upload">
+    <DashboardLayout title="ePaper Upload">
       <EPaperUploadContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

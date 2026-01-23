@@ -3,7 +3,7 @@
  * /admin/locations/constituencies route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
 function getApiBase() {
@@ -191,8 +191,8 @@ function ConstituenciesContent() {
 
 export default function AdminConstituencies() {
   return (
-    <SuperAdminLayout title="Constituencies">
+    <DashboardLayout title="Constituencies">
       <ConstituenciesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

@@ -22,37 +22,36 @@ import {
   IconLayers,
   IconChevronDown,
   IconNewspaper
-} from '../ui/Icons'
+} from '../ui/icons'
 import { useState } from 'react'
 
 const navigation = {
   main: [
-    { key: 'overview', href: '/dashboard', label: 'Overview', icon: IconHome, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'articles', href: '/dashboard/articles', label: 'Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'reporters', href: '/dashboard/reporters', label: 'Reporters', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'categories', href: '/dashboard/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'languages', href: '/dashboard/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'users', href: '/dashboard/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'overview', href: '/admin', label: 'Overview', icon: IconHome, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'articles', href: '/admin/articles', label: 'All Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER'] },
+    { key: 'create-article', href: '/admin/articles/create', label: 'Create Article', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER'] },
+    { key: 'users', href: '/admin/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'roles', href: '/admin/roles', label: 'Roles', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ],
   epaper: [
-    { key: 'epaper-editions', href: '/admin/epaper/editions', label: 'Epaper Editions', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
+    { key: 'epaper-overview', href: '/admin/epaper', label: 'ePaper Overview', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
+    { key: 'epaper-editions', href: '/admin/epaper/editions', label: 'Editions', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
     { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload Issues', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
+    { key: 'epaper-issues', href: '/admin/epaper/issues', label: 'Issues', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
   ],
   location: [
-    { key: 'states', href: '/dashboard/states', label: 'States', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'districts', href: '/dashboard/districts', label: 'Districts', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'assembly', href: '/dashboard/assembly', label: 'Assembly Constituencies', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'mandals', href: '/dashboard/mandals', label: 'Mandals', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'states', href: '/admin/locations/states', label: 'States', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'districts', href: '/admin/locations/districts', label: 'Districts', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'assembly', href: '/admin/locations/constituencies', label: 'Assembly Constituencies', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    { key: 'mandals', href: '/admin/locations/mandals', label: 'Mandals', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
   ],
   tenants: [
-    { key: 'tenants', href: '/dashboard/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'ID Card Settings', icon: IconKey, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Razorpay Settings', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Domain Settings', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'tenants', href: '/admin/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ],
   settings: [
-    { key: 'roles', href: '/dashboard/roles', label: 'Roles & Permissions', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'global-razorpay-settings', href: '/dashboard/global-razorpay-settings', label: 'Global Razorpay', icon: IconSettings, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    { key: 'global-razorpay', href: '/admin/settings/razorpay', label: 'Global Razorpay', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ]
 }
 

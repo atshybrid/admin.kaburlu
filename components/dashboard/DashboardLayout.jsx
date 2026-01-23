@@ -12,6 +12,10 @@ import ModernMobileSidebar from './ModernMobileSidebar'
 import ModernHeader from './ModernHeader'
 import { ToastContainer } from '../ui/Toast.jsx'
 import Spinner from '../ui/Spinner.jsx'
+import { LayoutContext, useLayout } from '../admin/LayoutContext'
+
+// Re-export for backward compatibility
+export { useLayout }
 
 export default function DashboardLayout({ children, title = 'Dashboard' }) {
   const router = useRouter()
@@ -42,12 +46,12 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
     router.push('/')
   }
 
-  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, desk_editor, etc.
+  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, desk_editor, reporter, etc.
   const hasAccess = (() => {
     if (!user) return false
     const role = user.role || user.roleName || user.userRole || user.role?.name || ''
     const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
-    const allowedRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK']
+    const allowedRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK', 'TENANTADMIN', 'REPORTER']
     return allowedRoles.some(r => roleStr === r || roleStr.includes(r))
   })()
 
@@ -83,7 +87,7 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
   }
 
   return (
-    <>
+    <LayoutContext.Provider value={{ user, setUser }}>
       <Head>
         <title>{title} | Kaburlu Admin</title>
         <meta name="robots" content="noindex,nofollow" />
@@ -126,6 +130,6 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
 
       {/* Toast notifications */}
       <ToastContainer />
-    </>
+    </LayoutContext.Provider>
   )
 }

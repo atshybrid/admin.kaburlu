@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { logout } from '../../../utils/auth'
 import { useLayout } from '../../../components/admin/LayoutContext'
+import { epaperService } from '../../../lib/api/services/epaperService'
 import { Calendar, FileText, Eye, Download, Newspaper, RefreshCw, ExternalLink, Copy, Check, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
@@ -148,24 +149,9 @@ function EPaperEditionsContent() {
     
     setDeleteLoading(true)
     try {
-      const tenantId = issueToDelete.tenant?.id || issueToDelete.tenantId
-      const params = new URLSearchParams()
-      if (tenantId) params.set('tenantId', tenantId)
+      console.log('🗑️ Deleting ePaper issue:', issueToDelete.id)
       
-      const deleteUrl = `/api/admin/epaper/pdf-issues/${issueToDelete.id}${params.toString() ? `?${params.toString()}` : ''}`
-      
-      const res = await fetch(deleteUrl, { method: 'DELETE' })
-      
-      if (res.status === 401) {
-        logout()
-        router.replace('/')
-        throw new Error('Unauthorized')
-      }
-      
-      if (!res.ok) {
-        const text = await res.text()
-        throw new Error(text || `Delete failed: ${res.status}`)
-      }
+      await epaperService.deleteIssue(issueToDelete.id)
       
       toast.success('Issue deleted successfully')
       closeDeleteConfirm()
@@ -527,8 +513,8 @@ function EPaperEditionsContent() {
 
 export default function EPaperEditionsPage() {
   return (
-    <SuperAdminLayout title="ePaper Editions">
+    <DashboardLayout title="ePaper Editions">
       <EPaperEditionsContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

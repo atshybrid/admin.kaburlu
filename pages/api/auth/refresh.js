@@ -1,3 +1,5 @@
+import { getBackendApiBase } from '../../../lib/server/backend'
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -15,10 +17,10 @@ export default async function handler(req, res) {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const backendUrl = process.env.KABURLU_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL
+    const backendBase = getBackendApiBase()
 
     // Call backend refresh endpoint
-    const response = await fetch(`${backendUrl}/api/v1/auth/refresh`, {
+    const response = await fetch(`${backendBase}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

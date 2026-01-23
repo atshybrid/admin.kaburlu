@@ -5,7 +5,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import SuperAdminLayout from '../../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../../components/dashboard/DashboardLayout'
 import Button from '../../../../components/ui/Button'
 import Spinner from '../../../../components/ui/Spinner'
 import Badge from '../../../../components/ui/Badge'
@@ -141,18 +141,18 @@ export default function TenantOverviewPage() {
 
   if (loading) {
     return (
-      <SuperAdminLayout>
+      <DashboardLayout>
         <div className="flex items-center justify-center min-h-screen">
           <Spinner size="lg" />
           <span className="ml-3 text-gray-600">Loading tenant...</span>
         </div>
-      </SuperAdminLayout>
+      </DashboardLayout>
     )
   }
 
   if (error) {
     return (
-      <SuperAdminLayout>
+      <DashboardLayout>
         <div className="px-6 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
@@ -174,13 +174,13 @@ export default function TenantOverviewPage() {
             </div>
           </div>
         </div>
-      </SuperAdminLayout>
+      </DashboardLayout>
     )
   }
 
   if (!tenant) {
     return (
-      <SuperAdminLayout>
+      <DashboardLayout>
         <div className="px-6 py-8">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-gray-600">Tenant not found</p>
@@ -189,12 +189,12 @@ export default function TenantOverviewPage() {
             </Button>
           </div>
         </div>
-      </SuperAdminLayout>
+      </DashboardLayout>
     )
   }
 
   return (
-    <SuperAdminLayout>
+    <DashboardLayout>
       <div className="px-6 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -466,6 +466,6 @@ export default function TenantOverviewPage() {
           existingEntity={tenant?.entity}
         />
       </div>
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

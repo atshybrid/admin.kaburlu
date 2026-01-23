@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { logout } from '../../../utils/auth'
-import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { useLayout } from '../../../components/dashboard/DashboardLayout'
 
 function normalizeRole(user) {
   const role = user?.role || user?.roleName || user?.userRole || user?.role?.name || ''
@@ -191,6 +191,7 @@ function EPaperIssuesContent() {
                 )}
               </div>
               {data.issue.coverImageUrl && (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={data.issue.coverImageUrl} alt="cover" className="w-32 rounded-lg border" />
               )}
             </div>
@@ -199,6 +200,7 @@ function EPaperIssuesContent() {
               <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                 {data.issue.pages.slice(0, 12).map((p) => (
                   <a key={p.pageNumber} href={p.imageUrl} target="_blank" rel="noreferrer" className="block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={p.imageUrl} alt={`p${p.pageNumber}`} className="w-full rounded-lg border" />
                     <div className="mt-1 text-xs text-slate-500">Page {p.pageNumber}</div>
                   </a>
@@ -213,8 +215,8 @@ function EPaperIssuesContent() {
 
 export default function EPaperIssuesPage() {
   return (
-    <SuperAdminLayout title="ePaper Issues">
+    <DashboardLayout title="ePaper Issues">
       <EPaperIssuesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

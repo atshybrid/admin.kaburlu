@@ -3,7 +3,7 @@
  * /admin/categories route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
 
 function getApiBase() {
@@ -201,8 +201,8 @@ function CategoriesContent() {
 
 export default function AdminCategories() {
   return (
-    <SuperAdminLayout title="Categories">
+    <DashboardLayout title="Categories">
       <CategoriesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

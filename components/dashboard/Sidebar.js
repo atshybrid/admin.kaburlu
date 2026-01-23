@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/Icons'
+import { IconMenu, IconUsers, IconFolder, IconLang, IconArticles, IconGeo, IconTenant, IconSettings, IconKey } from '../ui/icons'
 
 export default function Sidebar({ user, onLogout, currentTab = 'overview' }) {
   const primary = [

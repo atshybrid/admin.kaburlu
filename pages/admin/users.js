@@ -3,7 +3,7 @@
  * /admin/users route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
 
 function getApiBase() {
@@ -225,8 +225,8 @@ function UsersContent() {
 
 export default function AdminUsers() {
   return (
-    <SuperAdminLayout title="Users">
+    <DashboardLayout title="Users">
       <UsersContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

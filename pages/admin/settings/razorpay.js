@@ -3,7 +3,7 @@
  * /admin/settings/razorpay route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
 function getApiBase() {
@@ -246,8 +246,8 @@ function RazorpaySettingsContent() {
 
 export default function AdminRazorpaySettings() {
   return (
-    <SuperAdminLayout title="Payment Settings">
+    <DashboardLayout title="Payment Settings">
       <RazorpaySettingsContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

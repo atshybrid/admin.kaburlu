@@ -3,7 +3,7 @@
  * /admin/tenants/[id]/[[...tab]]
  */
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../../components/dashboard/DashboardLayout'
 import TenantDetailLayout from '../../../../components/admin/TenantDetailLayout'
 import { 
   TenantOverviewTab, 
@@ -91,9 +91,9 @@ export default function TenantDetailPage() {
   const { id } = router.query
   
   return (
-    <SuperAdminLayout title={`Tenant ${id || ''}`}>
+    <DashboardLayout title={`Tenant ${id || ''}`}>
       <TenantDetailContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }
 

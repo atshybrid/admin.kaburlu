@@ -3,7 +3,7 @@
  * /admin/roles route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
 
 function getApiBase() {
@@ -153,8 +153,8 @@ function RolesContent() {
 
 export default function AdminRoles() {
   return (
-    <SuperAdminLayout title="Roles">
+    <DashboardLayout title="Roles">
       <RolesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

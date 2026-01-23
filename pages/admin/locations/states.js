@@ -3,7 +3,7 @@
  * /admin/locations/states route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
 function getApiBase() {
@@ -163,8 +163,8 @@ function StatesContent() {
 
 export default function AdminStates() {
   return (
-    <SuperAdminLayout title="States">
+    <DashboardLayout title="States">
       <StatesContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

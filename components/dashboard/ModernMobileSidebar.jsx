@@ -20,7 +20,7 @@ import {
   IconCreditCard,
   IconShield,
   IconLogout
-} from '../ui/Icons'
+} from '../ui/icons'
 
 const navigation = [
   { section: 'Main', items: [

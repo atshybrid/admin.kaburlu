@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getToken } from '../../utils/auth'
 import Loader from '../Loader'
+import SmartArticleDrawer from './SmartArticleDrawer'
 
 export default function ArticlesView() {
   const [domains, setDomains] = useState([])
@@ -15,9 +16,7 @@ export default function ArticlesView() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const [openCreate, setOpenCreate] = useState(false)
-  const [openView, setOpenView] = useState(false)
-  const [viewItem, setViewItem] = useState(null)
+  const [openCreateAI, setOpenCreateAI] = useState(false)
 
   // Load domains for selector
   useEffect(() => {
@@ -114,7 +113,12 @@ export default function ArticlesView() {
               {[10,20,30,50].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
-          <button className="px-3 py-2 rounded bg-brand text-white hover:bg-brand-dark" onClick={() => setOpenCreate(true)}>New Article</button>
+          <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand to-brand-dark text-white hover:shadow-lg transition-all font-medium flex items-center gap-2" onClick={() => setOpenCreateAI(true)} title="AI-Powered Article Creation">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Create Article with AI
+          </button>
         </div>
       </div>
 
@@ -136,12 +140,11 @@ export default function ArticlesView() {
                   <th className="text-left px-4 py-2">Status</th>
                   <th className="text-left px-4 py-2">Views</th>
                   <th className="text-left px-4 py-2">Created</th>
-                  <th className="text-right px-4 py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
-                  <tr><td className="px-4 py-6 text-gray-500" colSpan={7}>No articles found.</td></tr>
+                  <tr><td className="px-4 py-6 text-gray-500" colSpan={6}>No articles found.</td></tr>
                 )}
                 {items.map((a) => (
                   <tr key={a.id} className="border-t">
@@ -162,9 +165,6 @@ export default function ArticlesView() {
                     </td>
                     <td className="px-4 py-2">{a.viewCount ?? 0}</td>
                     <td className="px-4 py-2">{new Date(a.createdAt).toLocaleString()}</td>
-                    <td className="px-4 py-2 text-right">
-                      <button className="px-2 py-1 text-xs rounded border hover:bg-gray-50" onClick={()=>{ setViewItem(a); setOpenView(true) }}>View</button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -181,11 +181,8 @@ export default function ArticlesView() {
         </div>
       </div>
 
-      {openCreate && (
-        <NewArticleDrawer onClose={() => setOpenCreate(false)} onCreated={() => { setOpenCreate(false); /* list may not reflect without matching domain */ }} />
-      )}
-      {openView && viewItem && (
-        <ArticleDetailDrawer item={viewItem} domain={domain} onClose={() => { setOpenView(false); setViewItem(null) }} />
+      {openCreateAI && (
+        <SmartArticleDrawer onClose={() => setOpenCreateAI(false)} onCreated={() => { setOpenCreateAI(false); /* Refresh list */ }} />
       )}
     </div>
   )

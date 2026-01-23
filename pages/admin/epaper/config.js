@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { logout } from '../../../utils/auth'
-import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { useLayout } from '../../../components/dashboard/DashboardLayout'
 
 function normalizeRole(user) {
   const role = user?.role || user?.roleName || user?.userRole || user?.role?.name || ''
@@ -131,8 +131,8 @@ function EPaperConfigContent() {
 
 export default function EPaperConfigPage() {
   return (
-    <SuperAdminLayout title="ePaper Config">
+    <DashboardLayout title="ePaper Config">
       <EPaperConfigContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

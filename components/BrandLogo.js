@@ -1,4 +1,4 @@
-export default function BrandLogo({ className = '', size = 56, src = '/images/kaburlu.jpg', showText = false }) {
+export default function BrandLogo({ className = '', size = 56, src = '/images/Kaburlu.jpg', showText = false }) {
   return (
     <div className={`flex items-center gap-3 ${className}`}>
       <div style={{ width: size, height: size }} className="flex items-center justify-center animate-float-logo">

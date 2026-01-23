@@ -3,7 +3,7 @@
  * /admin/locations/mandals route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
 function getApiBase() {
@@ -220,8 +220,8 @@ function MandalsContent() {
 
 export default function AdminMandals() {
   return (
-    <SuperAdminLayout title="Mandals">
+    <DashboardLayout title="Mandals">
       <MandalsContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

@@ -3,7 +3,7 @@
  * /admin/locations/districts route
  */
 import { useState, useEffect } from 'react'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
 function getApiBase() {
@@ -182,8 +182,8 @@ function DistrictsContent() {
 
 export default function AdminDistricts() {
   return (
-    <SuperAdminLayout title="Districts">
+    <DashboardLayout title="Districts">
       <DistrictsContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

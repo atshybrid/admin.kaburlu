@@ -5,7 +5,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import CreateTenantModal from '../../../components/admin/modals/CreateTenantModal'
 import Button from '../../../components/ui/Button'
 import Spinner from '../../../components/ui/Spinner'
@@ -90,7 +90,7 @@ export default function TenantsListPage() {
   }
 
   return (
-    <SuperAdminLayout>
+    <DashboardLayout>
       <div className="px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
@@ -248,6 +248,6 @@ export default function TenantsListPage() {
           onSuccess={handleCreateSuccess}
         />
       </div>
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }

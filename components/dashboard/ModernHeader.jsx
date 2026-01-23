@@ -11,7 +11,7 @@ import {
   IconUser,
   IconLogout,
   IconChevronDown
-} from '../ui/Icons'
+} from '../ui/icons'
 
 export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashboard' }) {
   const [showUserMenu, setShowUserMenu] = useState(false)

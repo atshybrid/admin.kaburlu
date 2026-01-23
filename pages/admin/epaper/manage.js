@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
-import SuperAdminLayout from '../../../components/admin/SuperAdminLayout'
+import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { toast } from '../../../components/ui/Toast.jsx'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
 import DatePicker from '../../../components/epaper/DatePicker'
 import EditionCard from '../../../components/epaper/EditionCard'
 import { logout } from '../../../utils/auth'
-import { useLayout } from '../../../components/admin/SuperAdminLayout'
+import { useLayout } from '../../../components/dashboard/DashboardLayout'
 
 function todayYmd() {
   const d = new Date()
@@ -406,8 +406,8 @@ function EPaperManageContent() {
 
 export default function EPaperManagePage() {
   return (
-    <SuperAdminLayout>
+    <DashboardLayout>
       <EPaperManageContent />
-    </SuperAdminLayout>
+    </DashboardLayout>
   )
 }
