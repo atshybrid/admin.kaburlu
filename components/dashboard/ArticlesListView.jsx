@@ -32,28 +32,42 @@ export default function ArticlesListView() {
   // Tenant data
   const [tenants, setTenants] = useState([]);
 
+  // Helper function to check if user is super admin
+  const isSuperAdmin = (userData) => {
+    if (!userData) return false;
+    const role = userData.role?.name || userData.roleName || userData.role;
+    const normalizedRole = String(role).toUpperCase().replace(/[_\s-]/g, '');
+    console.log('🔍 Checking role:', role, '→ Normalized:', normalizedRole);
+    return normalizedRole === 'SUPERADMIN' || normalizedRole === 'ADMIN';
+  };
+
   useEffect(() => {
     const tokenData = getToken();
+    console.log('🔐 Token Data:', tokenData);
+    
     if (tokenData?.user || tokenData?.data?.user) {
       const userData = tokenData.user || tokenData.data?.user;
+      console.log('👤 User Data:', userData);
       setUser(userData);
       
       const loginResponse = tokenData.data?.loginResponse || userData.loginResponse;
       const userTenants = loginResponse?.tenants || [];
-      const userRole = userData.role?.name || userData.roleName || userData.role;
       
-      console.log('👤 User Role:', userRole);
-      console.log('🏢 User Tenants:', userTenants);
+      console.log('🏢 Login Response Tenants:', userTenants);
+      console.log('✅ Is Super Admin?', isSuperAdmin(userData));
       
-      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPERADMIN') {
+      if (isSuperAdmin(userData)) {
+        console.log('🎯 Setting tenants for Super Admin:', userTenants.length);
         setTenants(userTenants || []);
         // Auto-select first tenant for super admin
         if (userTenants && userTenants.length > 0) {
+          console.log('🎯 Auto-selecting tenant:', userTenants[0].name);
           setSelectedTenant(userTenants[0]);
         }
-      } else if (userRole === 'TENANT_ADMIN' || userRole === 'TENANTADMIN' || userRole === 'REPORTER') {
+      } else {
         const userTenant = userTenants?.[0];
         if (userTenant) {
+          console.log('🏢 Setting tenant for non-admin:', userTenant.name);
           setTenants([userTenant]);
           setSelectedTenant(userTenant);
         }
@@ -179,15 +193,16 @@ export default function ArticlesListView() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {/* Tenant Selection (Super Admin only) */}
-          {(user?.role === 'SUPER_ADMIN' || user?.role?.name === 'SUPER_ADMIN' || user?.roleName === 'SUPER_ADMIN') && (
+          {isSuperAdmin(user) && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tenant
+                Tenant {tenants.length > 0 && `(${tenants.length})`}
               </label>
               <select
                 value={selectedTenant?.id || ''}
                 onChange={(e) => {
                   const tenant = tenants.find(t => t.id === e.target.value);
+                  console.log('🔄 Tenant changed to:', tenant?.name);
                   setSelectedTenant(tenant);
                   setCurrentPage(1);
                 }}
