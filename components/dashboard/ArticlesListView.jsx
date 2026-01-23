@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { getToken } from '../../utils/auth';
 import { articleService } from '../../lib/api/services/articleService';
+import { tenantsApi } from '../../lib/api/tenantApi';
 import { Spinner } from '../ui/Spinner';
 import { Toast } from '../ui/Toast';
 import { Tabs } from '../ui/Tabs';
@@ -58,11 +59,18 @@ export default function ArticlesListView() {
       
       if (isSuperAdmin(userData)) {
         console.log('🎯 Setting tenants for Super Admin:', userTenants.length);
-        setTenants(userTenants || []);
-        // Auto-select first tenant for super admin
-        if (userTenants && userTenants.length > 0) {
-          console.log('🎯 Auto-selecting tenant:', userTenants[0].name);
-          setSelectedTenant(userTenants[0]);
+        
+        // If no tenants in login response, fetch from API
+        if (!userTenants || userTenants.length === 0) {
+          console.log('⚠️ No tenants in login response, fetching from API...');
+          fetchTenantsFromApi();
+        } else {
+          setTenants(userTenants);
+          // Auto-select first tenant for super admin
+          if (userTenants.length > 0) {
+            console.log('🎯 Auto-selecting tenant:', userTenants[0].name);
+            setSelectedTenant(userTenants[0]);
+          }
         }
       } else {
         const userTenant = userTenants?.[0];
@@ -74,6 +82,26 @@ export default function ArticlesListView() {
       }
     }
   }, []);
+
+  const fetchTenantsFromApi = async () => {
+    try {
+      console.log('🔄 Fetching tenants from API...');
+      const response = await tenantsApi.list(true);
+      const tenantsList = Array.isArray(response) ? response : (response?.data || response?.items || []);
+      
+      console.log('✅ Fetched tenants from API:', tenantsList.length);
+      setTenants(tenantsList);
+      
+      // Auto-select first tenant
+      if (tenantsList.length > 0) {
+        console.log('🎯 Auto-selecting first tenant:', tenantsList[0].name);
+        setSelectedTenant(tenantsList[0]);
+      }
+    } catch (error) {
+      console.error('❌ Failed to fetch tenants from API:', error);
+      setToast({ type: 'error', message: 'Failed to load tenants' });
+    }
+  };
 
   useEffect(() => {
     if (selectedTenant) {
