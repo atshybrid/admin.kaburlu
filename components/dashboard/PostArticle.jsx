@@ -230,8 +230,13 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       if (categoriesList.length > 0 && !form.categoryId) {
         setForm(prev => ({ ...prev, categoryId: categoriesList[0].id }))
       }
+      
+      // Use tenant's language code from entity data
       if (languagesList.length > 0) {
-        setForm(prev => ({ ...prev, languageCode: languagesList[0].code || 'te' }))
+        const entityData = tenantData?.entity || tenantData
+        const tenantLanguageCode = entityData?.language?.code || languagesList[0]?.code || 'te'
+        console.log('🌐 Setting language to tenant language:', tenantLanguageCode)
+        setForm(prev => ({ ...prev, languageCode: tenantLanguageCode }))
       }
     } catch (err) {
       console.error('❌ Failed to load categories/languages:', err)
@@ -316,6 +321,9 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       const webArticle = response.web_article || response
       const shortArticle = response.short_mobile_article || response
       
+      // Get language code from AI response
+      const responseLanguageCode = response.language?.code || aiPayload.language?.code || form.languageCode
+      
       setForm(prev => ({
         ...prev,
         // Title from print headline (preferred) or fallback to response.title
@@ -338,7 +346,13 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         location: printArticle.dateline?.place || response.location || '',
         
         // News Type from print news_type or detected category
-        newsType: printArticle.news_type || response.detected_category || response.newsType || response.category || ''
+        newsType: printArticle.news_type || response.detected_category || response.newsType || response.category || '',
+        
+        // Language from AI request/response (maintain the language used in AI processing)
+        languageCode: responseLanguageCode,
+        
+        // Auto-set status to PUBLISHED
+        status: 'PUBLISHED'
       }))
 
       // Auto-match category

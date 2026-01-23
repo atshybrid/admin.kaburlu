@@ -10,23 +10,17 @@ export default function ArticlesListView() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
-  const [activeTab, setActiveTab] = useState('newspaper');
+  const [activeTab, setActiveTab] = useState('all');
   
   // Filters
   const [selectedTenant, setSelectedTenant] = useState(null);
   const [status, setStatus] = useState('PUBLISHED');
-  const [fromDate, setFromDate] = useState(() => {
-    // Default: Last 7 days
-    const date = new Date();
-    date.setDate(date.getDate() - 7);
-    return date.toISOString().split('T')[0];
-  });
-  const [toDate, setToDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   
   // Data
   const [articles, setArticles] = useState({
+    all: { newspaper: { items: [], total: 0 }, web: { items: [], total: 0 }, shortNews: { items: [], total: 0 } },
     newspaper: { items: [], total: 0, page: 1, limit: 20 },
     web: { items: [], total: 0, page: 1, limit: 20 },
     shortNews: { items: [], total: 0, page: 1, limit: 20 }
@@ -71,25 +65,32 @@ export default function ArticlesListView() {
     setLoading(true);
     try {
       const typeMap = {
+        all: 'all',
         newspaper: 'newspaper',
         web: 'web',
         shortNews: 'shortNews'
       };
 
-      const response = await articleService.getUnifiedArticles({
+      const params = {
         tenantId: selectedTenant.id,
         type: typeMap[activeTab],
         status,
-        fromDate,
-        toDate,
         page: currentPage,
         limit: 20,
-        sortBy: 'createdAt',
         sortOrder: 'desc'
-      });
+      };
+
+      // Only add date filters if they are set
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
+
+      const response = await articleService.getUnifiedArticles(params);
 
       if (response.success && response.data) {
-        setArticles(response.data);
+        setArticles(prev => ({
+          ...prev,
+          [activeTab]: response.data
+        }));
       }
     } catch (error) {
       console.error('Fetch articles error:', error);
@@ -114,7 +115,23 @@ export default function ArticlesListView() {
     });
   };
 
-  const currentData = articles[activeTab] || { items: [], total: 0, page: 1, limit: 20 };
+  // Get current data based on active tab
+  const getCurrentData = () => {
+    if (activeTab === 'all') {
+      const allData = articles.all || { newspaper: { items: [], total: 0 }, web: { items: [], total: 0 }, shortNews: { items: [], total: 0 } };
+      // Combine all items
+      const allItems = [
+        ...(allData.newspaper?.items || []).map(item => ({ ...item, type: 'newspaper' })),
+        ...(allData.web?.items || []).map(item => ({ ...item, type: 'web' })),
+        ...(allData.shortNews?.items || []).map(item => ({ ...item, type: 'shortNews' }))
+      ];
+      const allTotal = (allData.newspaper?.total || 0) + (allData.web?.total || 0) + (allData.shortNews?.total || 0);
+      return { items: allItems, total: allTotal, page: currentPage, limit: 20 };
+    }
+    return articles[activeTab] || { items: [], total: 0, page: 1, limit: 20 };
+  };
+
+  const currentData = getCurrentData();
   const totalPages = Math.ceil(currentData.total / currentData.limit);
 
   return (
@@ -174,17 +191,17 @@ export default function ArticlesListView() {
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="">All Statuses</option>
               <option value="PUBLISHED">Published</option>
               <option value="PENDING">Pending</option>
               <option value="REJECTED">Rejected</option>
+              <option value="">All Statuses</option>
             </select>
           </div>
 
-          {/* From Date */}
+          {/* From Date (Optional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              From Date
+              From Date (Optional)
             </label>
             <input
               type="date"
@@ -194,13 +211,14 @@ export default function ArticlesListView() {
                 setCurrentPage(1);
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Select start date..."
             />
           </div>
 
-          {/* To Date */}
+          {/* To Date (Optional) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              To Date
+              To Date (Optional)
             </label>
             <input
               type="date"
@@ -210,6 +228,7 @@ export default function ArticlesListView() {
                 setCurrentPage(1);
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Select end date..."
             />
           </div>
         </div>
@@ -220,6 +239,16 @@ export default function ArticlesListView() {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
+              onClick={() => handleTabChange('all')}
+              className={`px-6 py-3 text-sm font-medium border-b-2 ${
+                activeTab === 'all'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              📋 All ({((articles.all?.newspaper?.total || 0) + (articles.all?.web?.total || 0) + (articles.all?.shortNews?.total || 0))})
+            </button>
+            <button
               onClick={() => handleTabChange('newspaper')}
               className={`px-6 py-3 text-sm font-medium border-b-2 ${
                 activeTab === 'newspaper'
@@ -227,7 +256,7 @@ export default function ArticlesListView() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              📰 News ({articles.newspaper?.total || 0})
+              📰 Newspaper ({articles.newspaper?.total || 0})
             </button>
             <button
               onClick={() => handleTabChange('web')}
@@ -284,9 +313,22 @@ export default function ArticlesListView() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        {article.title || article.heading}
-                      </h3>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {article.title || article.heading}
+                        </h3>
+                        {activeTab === 'all' && article.type && (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            article.type === 'newspaper' 
+                              ? 'bg-purple-100 text-purple-800'
+                              : article.type === 'web'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {article.type === 'newspaper' ? '📰 Print' : article.type === 'web' ? '🌐 Web' : '📱 Short'}
+                          </span>
+                        )}
+                      </div>
                       
                       {article.slug && (
                         <p className="text-sm text-gray-500 mb-2">/{article.slug}</p>
