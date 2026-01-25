@@ -7,8 +7,11 @@ export default async function handler(req, res) {
   const { path } = req.query
   const pathString = Array.isArray(path) ? path.join('/') : path || ''
   
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com'
-  const targetUrl = `${backendUrl}/api/v1/${pathString}`
+  const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com'
+  const backendBase = String(rawBackendUrl || '')
+    .replace(/\/+$/, '')
+    .replace(/(\/api\/v1)+$/, '')
+  const targetUrl = `${backendBase}/api/v1/${pathString}`
   
   // Forward query params
   const url = new URL(targetUrl)
