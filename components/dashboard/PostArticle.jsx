@@ -29,6 +29,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [step, setStep] = useState(1)
+  const [showPayloadPreview, setShowPayloadPreview] = useState(false)
 
   // Tenant data
   const [tenants, setTenants] = useState([])
@@ -462,6 +463,152 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     }
   }
 
+  const buildUnifiedPayload = () => {
+    if (!selectedTenant) {
+      throw new Error('Tenant is required')
+    }
+    if (!form.title.trim() || !form.content.trim()) {
+      throw new Error('Title and content are required')
+    }
+    if (!form.categoryId) {
+      throw new Error('Category is required')
+    }
+
+    const selectedCategory = categories.find(c => c.id === form.categoryId)
+    const primaryDomain = tenantData?.domains?.find(d => d.isPrimary)
+    const domainId = primaryDomain?.id || null
+    const hasUnifiedResponse = aiResponse?.print_article && aiResponse?.web_article
+
+    let bodyParagraphs, highlights, webSections, seoData, shortNewsData
+
+    if (hasUnifiedResponse) {
+      bodyParagraphs = aiResponse.print_article.body || form.content.trim().split('\n\n').filter(Boolean)
+      highlights = aiResponse.print_article.highlights || []
+
+      webSections = [{
+        subhead: aiResponse.web_article.subheads?.[0] || '',
+        paragraphs: aiResponse.web_article.body || bodyParagraphs
+      }]
+
+      seoData = {
+        slug: aiResponse.web_article.seo?.url_slug || form.title.toLowerCase()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .substring(0, 100),
+        metaTitle: aiResponse.web_article.seo?.meta_title || form.title.trim(),
+        metaDescription: aiResponse.web_article.seo?.meta_description || form.summary?.trim() || '',
+        keywords: aiResponse.web_article.seo?.keywords || (form.tags ? form.tags.split(',').map(t => t.trim()) : [])
+      }
+
+      shortNewsData = {
+        h1: aiResponse.short_mobile_article?.h1 || form.title.trim(),
+        h2: aiResponse.short_mobile_article?.h2 || form.summary?.trim() || '',
+        content: aiResponse.short_mobile_article?.body || bodyParagraphs.join('\n\n')
+      }
+    } else {
+      bodyParagraphs = form.content.trim().split('\n\n').filter(Boolean)
+      highlights = []
+
+      webSections = [{
+        subhead: '',
+        paragraphs: bodyParagraphs
+      }]
+
+      seoData = {
+        slug: form.title.toLowerCase()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .substring(0, 100),
+        metaTitle: form.title.trim(),
+        metaDescription: form.summary?.trim() || '',
+        keywords: form.tags ? form.tags.split(',').map(t => t.trim()) : []
+      }
+
+      shortNewsData = {
+        h1: form.title.trim(),
+        h2: form.summary?.trim() || '',
+        content: bodyParagraphs.join('\n\n')
+      }
+    }
+
+    const mediaImages = []
+    mediaRequirements.forEach(req => {
+      const uploaded = uploadedImages[req.id]
+      if (uploaded?.url) {
+        mediaImages.push({
+          url: uploaded.url,
+          caption: uploaded.caption || req.caption_suggestion?.te || '',
+          alt: uploaded.alt || req.alt_suggestion?.en || ''
+        })
+      }
+    })
+
+    if (form.imageUrl && !mediaImages.find(img => img.url === form.imageUrl)) {
+      mediaImages.push({
+        url: form.imageUrl,
+        caption: '',
+        alt: form.title
+      })
+    }
+
+    return {
+      tenantId: selectedTenant,
+      domainId: domainId || selectedTenant,
+
+      baseArticle: {
+        languageCode: form.languageCode || 'te',
+        newsType: form.newsType || selectedCategory?.translatedName || selectedCategory?.name || 'News',
+        category: {
+          categoryId: form.categoryId,
+          categoryName: selectedCategory?.translatedName || selectedCategory?.name || ''
+        },
+        publisher: {
+          tenantId: selectedTenant,
+          domainId: domainId || null,
+          publisherId: null,
+          publisherName: tenantData?.entity?.nativeName || tenantData?.name || ''
+        }
+      },
+
+      location: locationData || {
+        inputText: form.location || '',
+        resolved: {
+          village: {},
+          mandal: {},
+          district: {},
+          state: {}
+        },
+        dateline: null
+      },
+
+      printArticle: {
+        headline: form.title.trim(),
+        subtitle: form.summary?.trim() || null,
+        body: bodyParagraphs,
+        highlights: highlights,
+        responses: []
+      },
+
+      webArticle: {
+        headline: hasUnifiedResponse ? aiResponse.web_article.headline : form.title.trim(),
+        lead: hasUnifiedResponse ? aiResponse.web_article.lead : (form.summary?.trim() || bodyParagraphs[0] || ''),
+        sections: webSections,
+        seo: seoData
+      },
+
+      shortNews: shortNewsData,
+
+      media: {
+        images: mediaImages
+      },
+
+      publishControl: {
+        publishReady: form.status === 'PUBLISHED',
+        reason: form.status === 'DRAFT' ? 'Pending review' : 'Ready to publish'
+      }
+    }
+  }
+
   // Step 2/3: Submit final article with unified API
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -486,151 +633,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     setLoading(true)
 
     try {
-      // Get selected category details
-      const selectedCategory = categories.find(c => c.id === form.categoryId)
-      
-      // Get domain ID from tenant
-      const primaryDomain = tenantData?.domains?.find(d => d.isPrimary)
-      const domainId = primaryDomain?.id || null
-      
-      // Check if we have AI unified response structure
-      const hasUnifiedResponse = aiResponse?.print_article && aiResponse?.web_article
-      
-      let bodyParagraphs, highlights, webSections, seoData, shortNewsData
-
-      if (hasUnifiedResponse) {
-        // Use AI unified structure
-        bodyParagraphs = aiResponse.print_article.body || form.content.trim().split('\n\n').filter(Boolean)
-        highlights = aiResponse.print_article.highlights || []
-        
-        webSections = [{
-          subhead: aiResponse.web_article.subheads?.[0] || '',
-          paragraphs: aiResponse.web_article.body || bodyParagraphs
-        }]
-        
-        seoData = {
-          slug: aiResponse.web_article.seo?.url_slug || form.title.toLowerCase()
-            .replace(/[^\w\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .substring(0, 100),
-          metaTitle: aiResponse.web_article.seo?.meta_title || form.title.trim(),
-          metaDescription: aiResponse.web_article.seo?.meta_description || form.summary?.trim() || '',
-          keywords: aiResponse.web_article.seo?.keywords || (form.tags ? form.tags.split(',').map(t => t.trim()) : [])
-        }
-        
-        shortNewsData = {
-          h1: aiResponse.short_mobile_article?.h1 || form.title.trim(),
-          h2: aiResponse.short_mobile_article?.h2 || form.summary?.trim() || '',
-          content: aiResponse.short_mobile_article?.body || bodyParagraphs.join('\n\n')
-        }
-      } else {
-        // Fallback to manual split
-        bodyParagraphs = form.content.trim().split('\n\n').filter(Boolean)
-        highlights = []
-        
-        webSections = [{
-          subhead: '',
-          paragraphs: bodyParagraphs
-        }]
-        
-        seoData = {
-          slug: form.title.toLowerCase()
-            .replace(/[^\w\s-]/g, '')
-            .replace(/\s+/g, '-')
-            .substring(0, 100),
-          metaTitle: form.title.trim(),
-          metaDescription: form.summary?.trim() || '',
-          keywords: form.tags ? form.tags.split(',').map(t => t.trim()) : []
-        }
-        
-        shortNewsData = {
-          h1: form.title.trim(),
-          h2: form.summary?.trim() || '',
-          content: bodyParagraphs.join('\n\n')
-        }
-      }
-
-      // Build media array from uploaded images + requirements
-      const mediaImages = []
-      
-      // Add uploaded images with AI-suggested captions
-      mediaRequirements.forEach(req => {
-        const uploaded = uploadedImages[req.id]
-        if (uploaded?.url) {
-          mediaImages.push({
-            url: uploaded.url,  // CDN URL from upload response
-            caption: uploaded.caption || req.caption_suggestion?.te || '',  // Telugu caption
-            alt: uploaded.alt || req.alt_suggestion?.en || ''  // English alt text
-          })
-        }
-      })
-
-      // Add manually uploaded image if any (from form)
-      if (form.imageUrl && !mediaImages.find(img => img.url === form.imageUrl)) {
-        mediaImages.push({
-          url: form.imageUrl,
-          caption: '',
-          alt: form.title
-        })
-      }
-
-      // Build unified article payload
-      const unifiedPayload = {
-        tenantId: selectedTenant,
-        domainId: domainId || selectedTenant, // Fallback to tenantId if no domain
-        
-        baseArticle: {
-          languageCode: form.languageCode || 'te',
-          newsType: form.newsType || selectedCategory?.translatedName || selectedCategory?.name || 'News',
-          category: {
-            categoryId: form.categoryId,
-            categoryName: selectedCategory?.translatedName || selectedCategory?.name || ''
-          },
-          publisher: {
-            tenantId: selectedTenant,
-            domainId: domainId || null,
-            publisherId: null, // Will be set by backend
-            publisherName: tenantData?.entity?.nativeName || tenantData?.name || ''
-          }
-        },
-
-        location: locationData || {
-          inputText: form.location || '',
-          resolved: {
-            village: {},
-            mandal: {},
-            district: {},
-            state: {}
-          },
-          dateline: null
-        },
-
-        printArticle: {
-          headline: form.title.trim(),
-          subtitle: form.summary?.trim() || null,
-          body: bodyParagraphs,
-          highlights: highlights,
-          responses: []
-        },
-
-        webArticle: {
-          headline: hasUnifiedResponse ? aiResponse.web_article.headline : form.title.trim(),
-          lead: hasUnifiedResponse ? aiResponse.web_article.lead : (form.summary?.trim() || bodyParagraphs[0] || ''),
-          sections: webSections,
-          seo: seoData
-        },
-
-        shortNews: shortNewsData,
-
-        media: {
-          images: mediaImages
-        },
-
-        publishControl: {
-          publishReady: form.status === 'PUBLISHED',
-          reason: form.status === 'DRAFT' ? 'Pending review' : 'Ready to publish'
-        }
-      }
+      const unifiedPayload = buildUnifiedPayload()
 
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       console.log('📋 STEP 3: CREATE UNIFIED ARTICLE REQUEST')
@@ -668,6 +671,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       setMediaRequirements([])
       setUploadedImages({})
       setStep(1)
+      setShowPayloadPreview(false)
 
       if (onSuccess) {
         setTimeout(() => onSuccess(result), 1500)
@@ -882,6 +886,11 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
                     </option>
                   ))}
                 </select>
+                {form.categoryId && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    Selected: {(categories.find(c => c.id === form.categoryId)?.translatedName || categories.find(c => c.id === form.categoryId)?.name) || '—'} • ID: {form.categoryId}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -960,6 +969,29 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
                 placeholder="politics, government, telangana"
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand"
               />
+            </div>
+
+            <div className="border-t border-slate-200 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowPayloadPreview(v => !v)}
+                className="text-sm font-semibold text-brand hover:underline"
+              >
+                {showPayloadPreview ? 'Hide POST payload' : 'Show POST payload'}
+              </button>
+              {showPayloadPreview && (
+                <div className="mt-3 bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto">
+                  <pre className="text-xs leading-relaxed whitespace-pre">
+                    {(() => {
+                      try {
+                        return JSON.stringify(buildUnifiedPayload(), null, 2)
+                      } catch (e) {
+                        return `Unable to build payload: ${e?.message || String(e)}`
+                      }
+                    })()}
+                  </pre>
+                </div>
+              )}
             </div>
 
             {/* Media Upload Section */}
