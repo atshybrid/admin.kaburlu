@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { tenantsService } from '../lib/api/services/tenants'
+import { prgiApi } from '../lib/api/services/prgiApi'
 import { useCrud, useSearch } from './useCrud'
 
 export function useTenants() {
@@ -77,10 +78,33 @@ export function useTenants() {
     }
   }, [crud])
 
-  // Verify tenant PRGI status
-  const verifyTenant = useCallback(async (tenantId, payload) => {
+  // Verify tenant PRGI status using PRGI API
+  const verifyTenant = useCallback(async (tenantId) => {
     try {
-      await tenantsService.verify(tenantId, payload)
+      // Use prgiApi.verify for PRGI verification
+      await prgiApi.verify(tenantId)
+      await crud.fetch()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }, [crud])
+
+  // Reject tenant PRGI status using PRGI API
+  const rejectTenant = useCallback(async (tenantId, reason) => {
+    try {
+      await prgiApi.reject(tenantId, reason)
+      await crud.fetch()
+      return { success: true }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  }, [crud])
+
+  // Submit tenant PRGI for verification
+  const submitTenantForVerification = useCallback(async (tenantId) => {
+    try {
+      await prgiApi.submit(tenantId)
       await crud.fetch()
       return { success: true }
     } catch (err) {
@@ -130,8 +154,10 @@ export function useTenants() {
     // Domain
     addDomain,
 
-    // Verification
+    // Verification (PRGI)
     verifyTenant,
+    rejectTenant,
+    submitTenantForVerification,
 
     // Utilities
     slugify

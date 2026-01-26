@@ -49,12 +49,14 @@ export default function ModernTenantsView() {
     query,
     setQuery,
     slugify,
-    verifyTenant
+    verifyTenant,
+    rejectTenant
   } = useTenants()
 
   const { states } = useStates()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [verifyTarget, setVerifyTarget] = useState(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   // Form state for create
   const [formData, setFormData] = useState({
@@ -103,15 +105,31 @@ export default function ModernTenantsView() {
     setDeleteTarget(null)
   }
 
-  const handleVerify = async (status, remark) => {
+  const handleVerify = async () => {
     if (!verifyTarget) return
-    const result = await verifyTenant(verifyTarget.id, { prgiStatus: status, remark })
+    const result = await verifyTenant(verifyTarget.id)
     if (result.success) {
-      toast.success('Status updated successfully')
+      toast.success('Tenant PRGI verified successfully')
     } else {
       toast.error(result.error)
     }
     setVerifyTarget(null)
+  }
+
+  const handleReject = async () => {
+    if (!verifyTarget) return
+    if (!rejectReason.trim()) {
+      toast.error('Please provide a rejection reason')
+      return
+    }
+    const result = await rejectTenant(verifyTarget.id, rejectReason.trim())
+    if (result.success) {
+      toast.success('Tenant PRGI rejected')
+    } else {
+      toast.error(result.error)
+    }
+    setVerifyTarget(null)
+    setRejectReason('')
   }
 
   // Table columns
@@ -384,7 +402,7 @@ export default function ModernTenantsView() {
       {/* Verify Status Modal */}
       <Modal
         isOpen={!!verifyTarget}
-        onClose={() => setVerifyTarget(null)}
+        onClose={() => { setVerifyTarget(null); setRejectReason(''); }}
         title="Update PRGI Status"
         size="sm"
       >
@@ -392,20 +410,43 @@ export default function ModernTenantsView() {
           <p className="text-sm text-gray-600">
             Update verification status for <strong>{verifyTarget?.name}</strong>
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3 text-xs text-gray-600 mb-4">
+            <div><div className="text-gray-500">PRGI Number</div><div className="font-mono">{verifyTarget?.prgiNumber || '—'}</div></div>
+            <div><div className="text-gray-500">Current Status</div><div className="font-mono">{verifyTarget?.prgiStatus || '—'}</div></div>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Rejection reason (required only for reject)</label>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="w-full border rounded-lg p-2 text-sm"
+              placeholder="Explain why the PRGI is rejected..."
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
             <Button
-              variant="success"
-              onClick={() => handleVerify('VERIFIED', '')}
-              loading={operationLoading}
+              variant="secondary"
+              onClick={() => { setVerifyTarget(null); setRejectReason(''); }}
+              className="flex-1"
             >
-              Verify
+              Cancel
             </Button>
             <Button
-              variant="warning"
-              onClick={() => handleVerify('PENDING', '')}
+              variant="danger"
+              onClick={handleReject}
               loading={operationLoading}
+              className="flex-1"
             >
-              Mark Pending
+              Reject
+            </Button>
+            <Button
+              variant="success"
+              onClick={handleVerify}
+              loading={operationLoading}
+              className="flex-1"
+            >
+              Verify
             </Button>
           </div>
         </div>

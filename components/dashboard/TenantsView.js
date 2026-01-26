@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { getToken } from '../../utils/auth'
+import { prgiApi } from '../../lib/api/services/prgiApi'
 import Loader from '../Loader'
 
 function getApiBase() {
@@ -795,16 +796,7 @@ function VerifyModal({ tenant, onClose, onUpdated }) {
     setError('')
     setLoading(true)
     try {
-      const t = getToken()
-      const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
-      const res = await fetch(`${base}/api/v1/prgi/${tenant.id}/verify`, {
-        method: 'POST',
-        headers: {
-          'accept': '*/*',
-          'Authorization': `Bearer ${t?.token || ''}`
-        }
-      })
-      if (!res.ok) throw new Error(`Verify failed: ${res.status}`)
+      await prgiApi.verify(tenant.id)
       onUpdated()
     } catch (e) {
       setError(e.message || 'Failed to verify')
@@ -818,18 +810,7 @@ function VerifyModal({ tenant, onClose, onUpdated }) {
     if (!reason.trim()) { setError('Please provide a rejection reason'); return }
     setLoading(true)
     try {
-      const t = getToken()
-      const base = (process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com')
-      const res = await fetch(`${base}/api/v1/prgi/${tenant.id}/reject`, {
-        method: 'POST',
-        headers: {
-          'accept': '*/*',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${t?.token || ''}`
-        },
-        body: JSON.stringify({ reason: reason.trim() })
-      })
-      if (!res.ok) throw new Error(`Reject failed: ${res.status}`)
+      await prgiApi.reject(tenant.id, reason.trim())
       onUpdated()
     } catch (e) {
       setError(e.message || 'Failed to reject')
