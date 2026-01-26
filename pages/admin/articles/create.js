@@ -36,10 +36,14 @@ export default function CreateArticlePage() {
     setLoading(false)
   }, [router])
 
-  const handleSuccess = (article) => {
-    // Redirect to articles list after successful creation
+  const handleSuccess = (article, tenantId) => {
+    // Redirect to articles list with selected tenant ID
     setTimeout(() => {
-      router.push('/admin/articles')
+      if (tenantId) {
+        router.push(`/admin/articles?tenantId=${tenantId}`)
+      } else {
+        router.push('/admin/articles')
+      }
     }, 1500)
   }
 

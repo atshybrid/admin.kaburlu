@@ -40,6 +40,13 @@ export default async function handler(req, res) {
     // Add body for POST, PUT, PATCH
     if (['POST', 'PUT', 'PATCH'].includes(req.method) && req.body) {
       fetchOptions.body = JSON.stringify(req.body)
+      
+      // Debug: Log media images if it's an article creation
+      if (pathString.includes('articles/unified')) {
+        console.log('📤 Proxy: articles/unified request')
+        console.log('📸 Media in payload:', JSON.stringify(req.body?.media, null, 2))
+        console.log('📸 Images count:', req.body?.media?.images?.length || 0)
+      }
     }
 
     const response = await fetch(url.toString(), fetchOptions)

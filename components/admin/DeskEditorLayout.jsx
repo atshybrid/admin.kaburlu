@@ -32,6 +32,24 @@ const NAV_ITEMS = [
   },
 ]
 
+// Article navigation for DESK_EDITOR
+const ARTICLE_NAV_ITEMS = [
+  { 
+    id: 'articles', 
+    label: 'All Articles', 
+    href: '/admin/articles', 
+    icon: 'articles',
+    description: 'View & manage articles'
+  },
+  { 
+    id: 'create-article', 
+    label: 'Create Article', 
+    href: '/admin/articles/create', 
+    icon: 'plus',
+    description: 'Create new article'
+  },
+]
+
 // Modern Icons
 function Icon({ name, className = 'w-5 h-5' }) {
   const icons = {
@@ -40,6 +58,12 @@ function Icon({ name, className = 'w-5 h-5' }) {
     ),
     'upload': (
       <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+    ),
+    'articles': (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    ),
+    'plus': (
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
     ),
     'menu': <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />,
     'x': <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />,
@@ -109,8 +133,8 @@ function Sidebar({ collapsed, onToggle, user }) {
         </div>
       )}
 
-      {/* Navigation */}
-      <nav className={`flex-1 ${collapsed ? 'px-2 mt-6' : 'px-3'} space-y-2`}>
+      {/* ePaper Navigation */}
+      <nav className={`${collapsed ? 'px-2 mt-6' : 'px-3'} space-y-2`}>
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.href)
           return (
@@ -119,6 +143,53 @@ function Sidebar({ collapsed, onToggle, user }) {
                 className={`group relative flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 cursor-pointer
                   ${active 
                     ? 'bg-gradient-to-r from-brand to-brand/90 text-white shadow-lg shadow-brand/25' 
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                  } ${collapsed ? 'justify-center px-3' : ''}`}
+                title={collapsed ? item.label : undefined}
+              >
+                {/* Active indicator */}
+                {active && !collapsed && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r-full" />
+                )}
+                
+                <Icon 
+                  name={item.icon} 
+                  className={`w-5 h-5 flex-shrink-0 transition-transform duration-200 ${active ? '' : 'group-hover:scale-110'}`} 
+                />
+                
+                {!collapsed && (
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">{item.label}</p>
+                    {!active && (
+                      <p className="text-[11px] text-slate-500 group-hover:text-slate-400 mt-0.5 truncate">
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Link>
+          )
+        })}
+      </nav>
+
+      {/* Article Management Label */}
+      {!collapsed && (
+        <div className="px-5 mt-6 mb-3">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Article Management</p>
+        </div>
+      )}
+
+      {/* Article Navigation */}
+      <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-3'} space-y-2`}>
+        {ARTICLE_NAV_ITEMS.map((item) => {
+          const active = isActive(item.href)
+          return (
+            <Link key={item.id} href={item.href}>
+              <div
+                className={`group relative flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 cursor-pointer
+                  ${active 
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25' 
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                   } ${collapsed ? 'justify-center px-3' : ''}`}
                 title={collapsed ? item.label : undefined}

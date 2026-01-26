@@ -28,8 +28,8 @@ import { useState } from 'react'
 const navigation = {
   main: [
     { key: 'overview', href: '/admin', label: 'Overview', icon: IconHome, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'articles', href: '/admin/articles', label: 'All Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER'] },
-    { key: 'create-article', href: '/admin/articles/create', label: 'Create Article', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER'] },
+    { key: 'articles', href: '/admin/articles', label: 'All Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
+    { key: 'create-article', href: '/admin/articles/create', label: 'Create Article', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
     { key: 'users', href: '/admin/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },

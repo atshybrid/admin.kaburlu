@@ -31,6 +31,9 @@ export default function ArticlesListView() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Selected article for detail view
+  const [selectedArticle, setSelectedArticle] = useState(null);
+  
   // Tenant data
   const [tenants, setTenants] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -40,57 +43,60 @@ export default function ArticlesListView() {
     if (!userData) return false;
     const role = userData.role?.name || userData.roleName || userData.role;
     const normalizedRole = String(role).toUpperCase().replace(/[_\s-]/g, '');
-    console.log('🔍 Checking role:', role, '→ Normalized:', normalizedRole);
     return normalizedRole === 'SUPERADMIN' || normalizedRole === 'ADMIN';
   };
 
+  // Get tenant ID from URL query (passed from create article page)
+  const queryTenantId = router.query?.tenantId;
+
   useEffect(() => {
     const tokenData = getToken();
-    console.log('🔐 Token Data:', tokenData);
     
     if (tokenData?.user || tokenData?.data?.user) {
       const userData = tokenData.user || tokenData.data?.user;
-      console.log('👤 User Data:', userData);
       setUser(userData);
-      
-      console.log('✅ Is Super Admin?', isSuperAdmin(userData));
       
       if (isSuperAdmin(userData)) {
         // Super admin: Always fetch tenants from API (not in login response)
-        console.log('🎯 Super Admin detected - fetching tenants from API');
         fetchTenantsFromApi();
       } else {
         // Non-admin: Use tenants from login response
         const loginResponse = tokenData.data?.loginResponse || userData.loginResponse;
         const userTenants = loginResponse?.tenants || [];
-        console.log('🏢 Login Response Tenants:', userTenants);
         
         const userTenant = userTenants?.[0];
         if (userTenant) {
-          console.log('🏢 Setting tenant for non-admin:', userTenant.name);
           setTenants([userTenant]);
           setSelectedTenant(userTenant);
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When tenants are loaded and queryTenantId exists, auto-select that tenant
+  useEffect(() => {
+    if (queryTenantId && tenants.length > 0) {
+      const matchingTenant = tenants.find(t => t.id === queryTenantId);
+      if (matchingTenant) {
+        setSelectedTenant(matchingTenant);
+      }
+    }
+  }, [queryTenantId, tenants]);
 
   const fetchTenantsFromApi = async () => {
     try {
-      console.log('🔄 Fetching tenants from API...');
       const response = await tenantsApi.list(true);
       const tenantsList = Array.isArray(response) ? response : (response?.data || response?.items || []);
       
-      console.log('✅ Fetched tenants from API:', tenantsList.length);
       setTenants(tenantsList);
       
-      // Auto-select first tenant
-      if (tenantsList.length > 0) {
-        console.log('🎯 Auto-selecting first tenant:', tenantsList[0].name);
+      // Check if there's a tenant ID from URL query, otherwise auto-select first
+      if (tenantsList.length > 0 && !queryTenantId) {
         setSelectedTenant(tenantsList[0]);
       }
     } catch (error) {
-      console.error('❌ Failed to fetch tenants from API:', error);
+      console.error('Failed to fetch tenants:', error);
       setToast({ type: 'error', message: 'Failed to load tenants' });
     }
   };
@@ -185,19 +191,8 @@ export default function ArticlesListView() {
   };
 
   const handleViewArticle = (article) => {
-    // Navigate to article detail/edit page
-    const articleType = article.type || activeTab;
-    
-    // For now, just log the article - you can implement detail view later
-    console.log('📄 View article:', article);
-    
-    // Example navigation (adjust based on your routing structure):
-    // router.push(`/admin/articles/${articleType}/${article.id}`);
-    
-    setToast({ 
-      type: 'info', 
-      message: `Article: ${article.title || article.heading} | Type: ${articleType}` 
-    });
+    // Open article detail modal
+    setSelectedArticle(article);
   };
 
   const formatDate = (dateString) => {
@@ -416,7 +411,8 @@ export default function ArticlesListView() {
               {currentData.items.map((article) => (
                 <div
                   key={article.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  onClick={() => handleViewArticle(article)}
+                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-blue-300 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start gap-4">
                     {/* Featured Image */}
@@ -433,10 +429,16 @@ export default function ArticlesListView() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="text-lg font-semibold text-gray-900">
                           {article.title || article.heading}
                         </h3>
+                        {/* Category Badge */}
+                        {(article.category?.name || article.categoryName || article.categories?.[0]?.name) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                            📁 {article.category?.name || article.categoryName || article.categories?.[0]?.name}
+                          </span>
+                        )}
                         {activeTab === 'all' && article.type && (
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                             article.type === 'newspaper' 
@@ -480,8 +482,8 @@ export default function ArticlesListView() {
                     {/* Actions */}
                     <div className="flex-shrink-0">
                       <button 
-                        onClick={() => handleViewArticle(article)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        onClick={(e) => { e.stopPropagation(); handleViewArticle(article); }}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
                       >
                         View
                       </button>
@@ -516,6 +518,244 @@ export default function ArticlesListView() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Article Detail Modal */}
+      {selectedArticle && (
+        <ArticleDetailModal 
+          article={selectedArticle} 
+          onClose={() => setSelectedArticle(null)} 
+        />
+      )}
+    </div>
+  );
+}
+
+// Article Detail Modal Component
+function ArticleDetailModal({ article, onClose }) {
+  if (!article) return null;
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Get content from various possible fields
+  const content = article.content || article.body || article.contentHtml || '';
+  const summary = article.summary || article.excerpt || article.shortDescription || '';
+  const images = article.images || [];
+  const featuredImage = article.featuredImageUrl || article.coverImageUrl || images[0] || '';
+  const categoryName = article.category?.name || article.categoryName || article.categories?.[0]?.name || '-';
+  const articleType = article.type || 'web';
+  const h1 = article.h1 || article.contentJson?.h1 || '';
+  const h2 = article.h2 || article.contentJson?.h2 || '';
+  const sections = article.sections || article.contentJson?.sections || [];
+
+  return (
+    <div className="fixed inset-0 z-50">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+        onClick={onClose} 
+      />
+      
+      {/* Modal Panel */}
+      <div className="absolute right-0 top-0 h-full w-full max-w-3xl bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+        {/* Header */}
+        <div className="h-16 px-6 flex items-center justify-between border-b bg-gray-50">
+          <div className="min-w-0 flex-1">
+            <div className="font-bold text-lg text-gray-900 truncate">{article.title || article.heading || 'Article'}</div>
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                articleType === 'newspaper' 
+                  ? 'bg-purple-100 text-purple-800'
+                  : articleType === 'web'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-orange-100 text-orange-800'
+              }`}>
+                {articleType === 'newspaper' ? '📰 Print' : articleType === 'web' ? '🌐 Web' : '📱 Short'}
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+                📁 {categoryName}
+              </span>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                article.status === 'PUBLISHED' 
+                  ? 'bg-green-100 text-green-800'
+                  : article.status === 'PENDING'
+                  ? 'bg-yellow-100 text-yellow-800'
+                  : 'bg-red-100 text-red-800'
+              }`}>
+                {article.status}
+              </span>
+            </div>
+          </div>
+          <button 
+            className="p-2 rounded-lg hover:bg-gray-200 transition-colors" 
+            onClick={onClose}
+          >
+            <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Featured Image */}
+          {featuredImage && (
+            <div className="relative w-full h-64 rounded-lg overflow-hidden">
+              <Image
+                src={featuredImage}
+                alt={article.title || article.heading}
+                fill
+                className="object-cover"
+              />
+            </div>
+          )}
+
+          {/* Meta Information */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <div className="text-xs text-gray-500 uppercase font-medium">Created</div>
+              <div className="text-sm font-medium text-gray-900">{formatDate(article.createdAt)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase font-medium">Published</div>
+              <div className="text-sm font-medium text-gray-900">{formatDate(article.publishedAt)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase font-medium">Author</div>
+              <div className="text-sm font-medium text-gray-900">{article.author?.name || article.author?.mobileNumber || '-'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 uppercase font-medium">Views</div>
+              <div className="text-sm font-medium text-gray-900">{article.viewCount || article.views || 0}</div>
+            </div>
+          </div>
+
+          {/* H1/H2 Headlines */}
+          {(h1 || h2) && (
+            <div className="space-y-2">
+              {h1 && <h1 className="text-2xl font-bold text-gray-900">{h1}</h1>}
+              {h2 && <h2 className="text-lg text-gray-700">{h2}</h2>}
+            </div>
+          )}
+
+          {/* Summary */}
+          {summary && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Summary</div>
+              <p className="text-gray-600 leading-relaxed bg-blue-50 p-4 rounded-lg border border-blue-100">
+                {summary}
+              </p>
+            </div>
+          )}
+
+          {/* Sections */}
+          {sections.length > 0 && (
+            <div className="space-y-4">
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Content Sections</div>
+              {sections.map((section, index) => (
+                <div key={index} className="bg-gray-50 p-4 rounded-lg">
+                  {section.heading && (
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.heading}</h3>
+                  )}
+                  {Array.isArray(section.paragraphs) && section.paragraphs.map((para, pIndex) => (
+                    <p key={pIndex} className="text-gray-700 mb-2">{para}</p>
+                  ))}
+                  {typeof section.content === 'string' && (
+                    <p className="text-gray-700">{section.content}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Main Content */}
+          {content && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Content</div>
+              {typeof content === 'string' && content.includes('<') ? (
+                <div 
+                  className="prose max-w-none text-gray-700"
+                  dangerouslySetInnerHTML={{ __html: content }} 
+                />
+              ) : (
+                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{content}</p>
+              )}
+            </div>
+          )}
+
+          {/* Additional Images */}
+          {images.length > 1 && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Images ({images.length})</div>
+              <div className="grid grid-cols-3 gap-2">
+                {images.map((img, index) => (
+                  <div key={index} className="relative aspect-video rounded-lg overflow-hidden">
+                    <Image
+                      src={typeof img === 'string' ? img : img.url}
+                      alt={`Image ${index + 1}`}
+                      fill
+                      className="object-cover hover:scale-105 transition-transform cursor-pointer"
+                      onClick={() => window.open(typeof img === 'string' ? img : img.url, '_blank')}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tags */}
+          {article.tags && article.tags.length > 0 && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Tags</div>
+              <div className="flex flex-wrap gap-2">
+                {(Array.isArray(article.tags) ? article.tags : article.tags.split(',')).map((tag, index) => (
+                  <span key={index} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">
+                    #{typeof tag === 'string' ? tag.trim() : tag.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Slug */}
+          {article.slug && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">URL Slug</div>
+              <code className="block bg-gray-100 px-3 py-2 rounded text-sm text-gray-700 font-mono">
+                /{article.slug}
+              </code>
+            </div>
+          )}
+
+          {/* Location */}
+          {(article.location || article.dateline) && (
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-2 uppercase">Location / Dateline</div>
+              <p className="text-gray-700">
+                📍 {article.dateline || article.location?.inputText || JSON.stringify(article.location)}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="h-16 px-6 flex items-center justify-end border-t bg-gray-50 gap-3">
+          <button 
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@
  * Step 3: Final submission to backend
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { articleService } from '../../lib/api/services/articleService'
 import { aiArticleService } from '../../lib/api/services/aiArticleService'
 import { locationService } from '../../lib/api/services/locationService'
@@ -61,12 +61,30 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
 
   // Location resolution
   const [locationData, setLocationData] = useState(null)
+  const locationDataRef = useRef(locationData)
   const [searchingLocation, setSearchingLocation] = useState(false)
+  
+  // Keep locationData ref in sync
+  useEffect(() => {
+    locationDataRef.current = locationData
+  }, [locationData])
 
   // Media requirements from AI
   const [mediaRequirements, setMediaRequirements] = useState([])
   const [uploadedImages, setUploadedImages] = useState({})
   const [uploadingImage, setUploadingImage] = useState(null)
+
+  // Extra images (up to 5)
+  const [extraImages, setExtraImages] = useState([
+    { url: '', caption: '', name: '', uploading: false }
+  ])
+  const extraImagesRef = useRef(extraImages)
+  const MAX_EXTRA_IMAGES = 5
+  
+  // Keep ref in sync with state to avoid stale closures
+  useEffect(() => {
+    extraImagesRef.current = extraImages
+  }, [extraImages])
 
   // Get user on mount or from props
   useEffect(() => {
@@ -113,25 +131,20 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
 
   const loadTenants = async () => {
     try {
-      console.log('📥 Loading tenants list for super admin...')
-      
       // Try to get from login response first
       const tokenData = getToken()
       const loginResponse = tokenData?.data?.loginResponse || tokenData?.user?.loginResponse
       const userTenants = loginResponse?.tenants || []
       
       if (userTenants.length > 0) {
-        console.log('✅ Using tenants from login response:', userTenants.length)
         setTenants(userTenants)
         
         if (!selectedTenant) {
           setSelectedTenant(userTenants[0].id)
         }
       } else {
-        console.log('🔄 Fetching tenants from API...')
         const data = await tenantsApi.list(true)
         const tenantsList = Array.isArray(data) ? data : (data?.data || data?.items || [])
-        console.log('✅ Fetched tenants from API:', tenantsList.length)
         
         setTenants(tenantsList)
         
@@ -140,19 +153,16 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         }
       }
     } catch (err) {
-      console.error('❌ Failed to load tenants:', err)
+      console.error('Failed to load tenants:', err)
       setError(`Failed to load tenants: ${err.message || err}`)
     }
   }
 
   const loadTenantData = async (tenantId) => {
     try {
-      console.log('📥 Loading tenant data for:', tenantId)
-      
       // Try to find tenant in the already-loaded tenants list first (has full data with entity)
       const existingTenant = tenants.find(t => t.id === tenantId)
       if (existingTenant && existingTenant.entity) {
-        console.log('✅ Using tenant from list (has entity):', existingTenant.name)
         setTenantData(existingTenant)
         
         // Fetch categories and languages (pass tenant data directly)
@@ -165,40 +175,27 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       const loginResponse = tokenData?.data?.loginResponse || tokenData?.user?.loginResponse
       const userTenants = loginResponse?.tenants || []
       
-      console.log('🔍 User tenants from login:', userTenants.length, userTenants.map(t => ({ id: t.id, name: t.name })))
-      
       const userTenant = userTenants.find(t => t.id === tenantId || t.tenantId === tenantId)
       
       let tenantDetails = null
       
       // If user's tenant and data available in login response, use it
       if (userTenant && userTenant.entity) {
-        console.log('✅ Using tenant data from login response:', userTenant.name)
         tenantDetails = userTenant
       } else {
         // Otherwise fetch from API
-        console.log('🔄 Fetching tenant data from API for ID:', tenantId)
         try {
           const apiResult = await tenantsApi.get(tenantId)
-          console.log('✅ API result:', apiResult)
           tenantDetails = apiResult?.data || apiResult
         } catch (apiErr) {
-          console.error('❌ API fetch failed:', apiErr)
+          console.error('API fetch failed:', apiErr)
           // If API fails but we have basic tenant info from login, use that
           if (userTenant) {
-            console.log('⚠️ Falling back to basic tenant info from login')
             tenantDetails = userTenant
           } else {
             throw apiErr
           }
         }
-      }
-
-      console.log('📦 Final tenant details:', tenantDetails)
-      
-      // Ensure tenant data has entity (API returns entity as nested object)
-      if (tenantDetails && !tenantDetails.entity && tenantDetails.id) {
-        console.warn('⚠️ Tenant data missing entity, may cause issues')
       }
       
       setTenantData(tenantDetails)
@@ -206,7 +203,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       // Fetch categories and languages (pass tenant data directly)
       await loadCategoriesAndLanguages(tenantId, tenantDetails)
     } catch (err) {
-      console.error('❌ Failed to load tenant data:', err)
+      console.error('Failed to load tenant data:', err)
       setError(`Failed to load tenant data: ${err.message || err}`)
     }
   }
@@ -214,7 +211,6 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
   const loadCategoriesAndLanguages = async (tenantId, tenantDetails = null) => {
     try {
       // Always fetch categories and languages (not in login response)
-      console.log('📚 Fetching categories and languages...')
       const [categoriesData, languagesData] = await Promise.all([
         articleService.getCategories(tenantId),
         articleService.getLanguages()
@@ -222,8 +218,6 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
 
       const categoriesList = Array.isArray(categoriesData) ? categoriesData : (categoriesData?.data || [])
       const languagesList = Array.isArray(languagesData) ? languagesData : (languagesData?.data || [])
-      
-      console.log('✅ Categories:', categoriesList.length, 'Languages:', languagesList.length)
       
       setCategories(categoriesList)
       setLanguages(languagesList)
@@ -237,12 +231,10 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         const currentTenant = tenantDetails || tenantData
         const entityData = currentTenant?.entity || currentTenant
         const tenantLanguageCode = entityData?.language?.code || languagesList[0]?.code || 'te'
-        console.log('🌐 Tenant entity data:', entityData)
-        console.log('🌐 Setting language to tenant language:', tenantLanguageCode)
         setForm(prev => ({ ...prev, languageCode: tenantLanguageCode }))
       }
     } catch (err) {
-      console.error('❌ Failed to load categories/languages:', err)
+      console.error('Failed to load categories/languages:', err)
       // Don't throw, just log - categories/languages are not critical for initial load
     }
   }
@@ -295,27 +287,14 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         model: '5.2'
       }
 
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('📋 STEP 1: AI REWRITE REQUEST')
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('🔗 Endpoint: POST /ai/rewrite/unified')
-      console.log('📦 Payload:', JSON.stringify(aiPayload, null, 2))
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-
       // Call AI rewrite API with exact payload format
       const response = await aiArticleService.rewrite(aiPayload)
 
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('📋 STEP 2: AI REWRITE RESPONSE')
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('✅ Response:', JSON.stringify(response, null, 2))
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       setAiResponse(response)
 
       // Extract media requirements if available
       if (response.media_requirements?.must_photos) {
         setMediaRequirements(response.media_requirements.must_photos)
-        console.log('📸 Media Requirements:', response.media_requirements.must_photos)
       }
 
       // Pre-fill form with AI response
@@ -392,22 +371,49 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
 
     setSearchingLocation(true)
     try {
-      const searchResult = await locationService.search(locationText, tenantId, 20)
-      const bestMatch = locationService.getBestMatch(searchResult)
+      // Handle location text with "/" separator (e.g., "సంగారెడ్డి/పటాన్‌చెరు")
+      // Search for each part separately and use the best match
+      const locationParts = locationText.split('/').map(p => p.trim()).filter(Boolean)
+      
+      let bestMatch = null
+      let searchResult = null
+      
+      for (const part of locationParts) {
+        const result = await locationService.search(part, tenantId, 20)
+        const match = locationService.getBestMatch(result)
+        
+        if (match) {
+          bestMatch = match
+          searchResult = result
+          break // Use first successful match
+        }
+      }
       
       if (bestMatch) {
         const resolved = locationService.buildResolvedLocation(bestMatch)
-        const dateline = locationService.formatDateline(bestMatch, form.languageCode)
         
+        // Get publisher name from tenant data
+        const publisherName = tenantData?.entity?.nativeName || tenantData?.name || ''
+        const dateline = locationService.formatDateline(bestMatch, form.languageCode, publisherName)
+        
+        const locationPayload = {
+          inputText: locationText,
+          resolved: resolved,
+          dateline: dateline
+        }
+        
+        setLocationData(locationPayload)
+      } else {
+        // Still set location with input text
         setLocationData({
           inputText: locationText,
-          resolved,
-          dateline
-        })
-        
-        console.log('📍 Location Resolved:', {
-          input: locationText,
-          matched: dateline?.placeName
+          resolved: {
+            village: {},
+            mandal: {},
+            district: {},
+            state: {}
+          },
+          dateline: null
         })
       }
     } catch (err) {
@@ -423,6 +429,8 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     if (!file) return
 
     setUploadingImage(photoId)
+    setError('') // Clear previous errors
+    
     try {
       // Get requirement metadata for this photo
       const requirement = mediaRequirements.find(req => req.id === photoId)
@@ -434,12 +442,12 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         kind: 'image'
       }
 
-      console.log('📤 Uploading image:', { photoId, metadata })
-
       // Upload using new media API
       const result = await articleService.uploadMedia(file, metadata)
-
-      console.log('✅ Image Uploaded:', { photoId, url: result.url })
+      
+      if (!result?.url) {
+        throw new Error('No URL returned from upload')
+      }
 
       // Store uploaded image with metadata
       setUploadedImages(prev => ({
@@ -453,14 +461,101 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         }
       }))
 
-      setSuccess(`✓ Image uploaded successfully!`)
-      setTimeout(() => setSuccess(''), 2000)
+      setSuccess(`✓ Required photo uploaded: ${result.url.substring(0, 40)}...`)
+      setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      console.error('❌ Upload Error:', err)
-      setError(`Failed to upload image: ${err.message}`)
+      console.error('Upload Error:', err)
+      setError(`❌ Upload failed: ${err.message}`)
     } finally {
       setUploadingImage(null)
     }
+  }
+
+  // Handle extra image upload
+  const handleExtraImageUpload = async (index, file) => {
+    if (!file) return
+
+    setExtraImages(prev => prev.map((img, i) => 
+      i === index ? { ...img, uploading: true } : img
+    ))
+
+    try {
+      const metadata = {
+        key: extraImages[index].name || file.name,
+        filename: extraImages[index].caption || file.name,
+        kind: 'image'
+      }
+
+      const result = await articleService.uploadMedia(file, metadata)
+      
+      // Validate URL exists
+      if (!result?.url) {
+        throw new Error('Upload succeeded but no URL returned')
+      }
+
+      setExtraImages(prev => {
+        const newState = prev.map((img, i) => 
+          i === index ? { ...img, url: result.url, uploading: false } : img
+        )
+        // Update ref immediately for payload building
+        extraImagesRef.current = newState
+        return newState
+      })
+
+      setSuccess(`✓ Image uploaded: ${result.url.substring(0, 50)}...`)
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      console.error('Extra Image Upload Error:', err)
+      setError(`Failed to upload: ${err.message}`)
+      setExtraImages(prev => prev.map((img, i) => 
+        i === index ? { ...img, uploading: false } : img
+      ))
+    }
+  }
+
+  // Add new extra image slot
+  const addExtraImageSlot = () => {
+    if (extraImages.length < MAX_EXTRA_IMAGES) {
+      setExtraImages(prev => {
+        const newState = [...prev, { url: '', caption: '', name: '', uploading: false }]
+        extraImagesRef.current = newState
+        return newState
+      })
+    }
+  }
+
+  // Remove extra image slot
+  const removeExtraImageSlot = (index) => {
+    setExtraImages(prev => {
+      const newState = prev.filter((_, i) => i !== index)
+      extraImagesRef.current = newState
+      return newState
+    })
+  }
+
+  // Update extra image field
+  const updateExtraImage = (index, field, value) => {
+    setExtraImages(prev => {
+      const newState = prev.map((img, i) => 
+        i === index ? { ...img, [field]: value } : img
+      )
+      // Update ref immediately for payload building
+      extraImagesRef.current = newState
+      return newState
+    })
+  }
+
+  // Check if at least one image exists
+  const hasAtLeastOneImage = () => {
+    // Check AI uploaded images
+    const hasAIImages = Object.values(uploadedImages).some(img => img?.url)
+    // Check main image URL
+    const hasMainImage = !!form.imageUrl?.trim()
+    // Check extra images - use ref to get latest value
+    const currentExtraImages = extraImagesRef.current
+    const hasExtraImages = currentExtraImages.some(img => img.url?.trim())
+    
+    return hasAIImages || hasMainImage || hasExtraImages
   }
 
   const buildUnifiedPayload = () => {
@@ -532,6 +627,8 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     }
 
     const mediaImages = []
+    
+    // From AI media requirements
     mediaRequirements.forEach(req => {
       const uploaded = uploadedImages[req.id]
       if (uploaded?.url) {
@@ -543,6 +640,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       }
     })
 
+    // From main image URL field
     if (form.imageUrl && !mediaImages.find(img => img.url === form.imageUrl)) {
       mediaImages.push({
         url: form.imageUrl,
@@ -550,6 +648,21 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         alt: form.title
       })
     }
+
+    // From extra images - use ref to get latest value (avoid stale closure)
+    const currentExtraImages = extraImagesRef.current
+    currentExtraImages.forEach((img) => {
+      if (img.url?.trim() && !mediaImages.find(m => m.url === img.url)) {
+        mediaImages.push({
+          url: img.url.trim(),
+          caption: img.caption?.trim() || '',
+          alt: img.name?.trim() || form.title
+        })
+      }
+    })
+    
+    // Get location data from ref
+    const currentLocationData = locationDataRef.current
 
     return {
       tenantId: selectedTenant,
@@ -570,7 +683,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         }
       },
 
-      location: locationData || {
+      location: currentLocationData || {
         inputText: form.location || '',
         resolved: {
           village: {},
@@ -630,25 +743,18 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       return
     }
 
+    // Validate at least one image
+    if (!hasAtLeastOneImage()) {
+      setError('⚠️ కనీసం 1 image అవసరం! Please upload at least one image before submitting.')
+      return
+    }
+
     setLoading(true)
 
     try {
       const unifiedPayload = buildUnifiedPayload()
 
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('📋 STEP 3: CREATE UNIFIED ARTICLE REQUEST')
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('🔗 Endpoint: POST /articles/unified')
-      console.log('📦 Payload:', JSON.stringify(unifiedPayload, null, 2))
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-
       const result = await articleService.createUnified(unifiedPayload)
-      
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('📋 STEP 4: CREATE ARTICLE RESPONSE')
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
-      console.log('✅ Result:', JSON.stringify(result, null, 2))
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
       
       setSuccess('🎉 Article created successfully! (Print + Web + Short News)')
       
@@ -670,11 +776,13 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       setLocationData(null)
       setMediaRequirements([])
       setUploadedImages({})
+      setExtraImages([{ url: '', caption: '', name: '', uploading: false }])
       setStep(1)
       setShowPayloadPreview(false)
 
       if (onSuccess) {
-        setTimeout(() => onSuccess(result), 1500)
+        // Pass both result and selected tenant ID
+        setTimeout(() => onSuccess(result, selectedTenant), 1500)
       }
     } catch (err) {
       console.error('❌ Create Error:', err)
@@ -972,15 +1080,31 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
             </div>
 
             <div className="border-t border-slate-200 pt-6">
-              <button
-                type="button"
-                onClick={() => setShowPayloadPreview(v => !v)}
-                className="text-sm font-semibold text-brand hover:underline"
-              >
-                {showPayloadPreview ? 'Hide POST payload' : 'Show POST payload'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowPayloadPreview(v => !v)}
+                  className="text-sm font-semibold text-brand hover:underline"
+                >
+                  {showPayloadPreview ? 'Hide POST payload' : 'Show POST payload'}
+                </button>
+                {showPayloadPreview && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPayloadPreview(false) || setTimeout(() => setShowPayloadPreview(true), 10)}
+                    className="text-xs px-2 py-1 bg-slate-200 rounded hover:bg-slate-300"
+                  >
+                    🔄 Refresh
+                  </button>
+                )}
+              </div>
               {showPayloadPreview && (
                 <div className="mt-3 bg-slate-900 text-slate-100 rounded-lg p-4 overflow-x-auto">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs text-slate-400">
+                      📸 Images: {extraImagesRef.current.filter(img => img.url?.trim()).length} uploaded
+                    </span>
+                  </div>
                   <pre className="text-xs leading-relaxed whitespace-pre">
                     {(() => {
                       try {
@@ -1056,6 +1180,155 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
                 </div>
               </div>
             )}
+
+            {/* Extra Images Section */}
+            <div className="border-t border-slate-200 pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span className="text-xl">🖼️</span> Extra Images
+                    <span className="text-red-500 text-sm">*</span>
+                  </h4>
+                  <p className="text-sm text-slate-500 mt-1">
+                    కనీసం 1 image అవసరం • Add up to {MAX_EXTRA_IMAGES} additional images (caption & name optional)
+                  </p>
+                </div>
+                {extraImages.length < MAX_EXTRA_IMAGES && (
+                  <button
+                    type="button"
+                    onClick={addExtraImageSlot}
+                    className="px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-semibold hover:bg-emerald-100 flex items-center gap-1"
+                  >
+                    <span>+</span> Add Image
+                  </button>
+                )}
+              </div>
+
+              {/* Image count indicator */}
+              <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`w-3 h-3 rounded-full ${hasAtLeastOneImage() ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-sm text-slate-600">
+                    {hasAtLeastOneImage() 
+                      ? '✓ Image requirement satisfied' 
+                      : '⚠️ At least 1 image required'}
+                  </span>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {extraImages.filter(img => img.url).length + Object.values(uploadedImages).filter(img => img?.url).length + (form.imageUrl ? 1 : 0)} total images
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {extraImages.map((img, index) => (
+                  <div key={index} className="p-4 bg-gradient-to-r from-slate-50 to-white border border-slate-200 rounded-lg">
+                    <div className="flex items-start justify-between mb-3">
+                      <span className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
+                        Image {index + 1}
+                      </span>
+                      {extraImages.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeExtraImageSlot(index)}
+                          className="text-red-500 hover:text-red-700 text-sm font-medium"
+                        >
+                          ✕ Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Name (Alt Text) <span className="text-slate-400">- Optional</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={img.name}
+                          onChange={(e) => updateExtraImage(index, 'name', e.target.value)}
+                          placeholder="e.g., CM Photo, Building Image..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Caption <span className="text-slate-400">- Optional</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={img.caption}
+                          onChange={(e) => updateExtraImage(index, 'caption', e.target.value)}
+                          placeholder="e.g., ముఖ్యమంత్రి ప్రసంగిస్తున్నారు..."
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      {/* File Upload */}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleExtraImageUpload(index, file)
+                        }}
+                        disabled={img.uploading}
+                        className="block text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand file:text-white hover:file:bg-brand-dark disabled:opacity-50"
+                      />
+                      
+                      {/* OR URL input */}
+                      <span className="text-xs text-slate-400">or</span>
+                      <input
+                        type="url"
+                        value={img.url}
+                        onChange={(e) => updateExtraImage(index, 'url', e.target.value)}
+                        placeholder="Paste image URL..."
+                        className="flex-1 min-w-[200px] px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:border-brand"
+                      />
+
+                      {/* Status indicators */}
+                      {img.uploading && (
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
+                          <div className="w-4 h-4 border-2 border-slate-300 border-t-brand rounded-full animate-spin" />
+                          Uploading...
+                        </div>
+                      )}
+                      {img.url && !img.uploading && (
+                        <span className="text-green-600 text-sm font-medium">✓ Ready</span>
+                      )}
+                    </div>
+
+                    {/* Preview */}
+                    {img.url && (
+                      <div className="mt-3 flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={img.url} 
+                          alt={img.name || `Extra image ${index + 1}`}
+                          className="h-16 w-24 object-cover rounded-lg border border-slate-200"
+                          onError={(e) => { e.target.style.display = 'none' }}
+                        />
+                        <div className="text-xs text-slate-500">
+                          <p className="truncate max-w-[300px]">{img.url}</p>
+                          {img.caption && <p className="text-slate-600 mt-0.5">Caption: {img.caption}</p>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {extraImages.length < MAX_EXTRA_IMAGES && (
+                <button
+                  type="button"
+                  onClick={addExtraImageSlot}
+                  className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-brand hover:text-brand transition-colors flex items-center justify-center gap-2"
+                >
+                  <span className="text-xl">+</span> Add Another Image ({extraImages.length}/{MAX_EXTRA_IMAGES})
+                </button>
+              )}
+            </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">

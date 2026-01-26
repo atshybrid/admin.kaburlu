@@ -70,7 +70,7 @@ export function hasAdminAccess(user) {
  * @returns {boolean}
  */
 export function hasArticleAccess(user) {
-  return isSuperAdmin(user) || isTenantAdmin(user) || isReporter(user)
+  return isSuperAdmin(user) || isTenantAdmin(user) || isReporter(user) || isDeskEditor(user)
 }
 
 /**

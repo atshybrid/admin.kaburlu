@@ -17,6 +17,7 @@ export default function ArticlesView() {
   const [error, setError] = useState('')
 
   const [openCreateAI, setOpenCreateAI] = useState(false)
+  const [selectedArticle, setSelectedArticle] = useState(null)
 
   // Load domains for selector
   useEffect(() => {
@@ -135,28 +136,34 @@ export default function ArticlesView() {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="text-left px-4 py-2">Title</th>
+                  <th className="text-left px-4 py-2">Category</th>
                   <th className="text-left px-4 py-2">Type</th>
                   <th className="text-left px-4 py-2">Language</th>
                   <th className="text-left px-4 py-2">Status</th>
                   <th className="text-left px-4 py-2">Views</th>
                   <th className="text-left px-4 py-2">Created</th>
+                  <th className="text-left px-4 py-2">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 && (
-                  <tr><td className="px-4 py-6 text-gray-500" colSpan={6}>No articles found.</td></tr>
+                  <tr><td className="px-4 py-6 text-gray-500" colSpan={8}>No articles found.</td></tr>
                 )}
                 {items.map((a) => (
-                  <tr key={a.id} className="border-t">
+                  <tr key={a.id} className="border-t hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setSelectedArticle(a)}>
                     <td className="px-4 py-2">
-                      <div className="font-medium text-gray-800 line-clamp-2">{a.title || '-'}</div>
-                      <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                         {Array.isArray(a.images) && a.images[0] ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={a.images[0]} alt="thumb" className="h-6 w-10 object-cover rounded border" />
+                          <img src={a.images[0]} alt="thumb" className="h-10 w-14 object-cover rounded border flex-shrink-0" />
                         ) : null}
-                        <span>{a.categories?.[0]?.name || '-'}</span>
+                        <div className="font-medium text-gray-800 line-clamp-2">{a.title || '-'}</div>
                       </div>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {a.categories?.[0]?.name || a.category?.name || a.categoryName || '-'}
+                      </span>
                     </td>
                     <td className="px-4 py-2 uppercase text-[11px]">{a.type || '-'}</td>
                     <td className="px-4 py-2">{a.language?.name || a.language?.code || '-'}</td>
@@ -165,6 +172,14 @@ export default function ArticlesView() {
                     </td>
                     <td className="px-4 py-2">{a.viewCount ?? 0}</td>
                     <td className="px-4 py-2">{new Date(a.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setSelectedArticle(a); }}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
+                      >
+                        View
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -183,6 +198,10 @@ export default function ArticlesView() {
 
       {openCreateAI && (
         <SmartArticleDrawer onClose={() => setOpenCreateAI(false)} onCreated={() => { setOpenCreateAI(false); /* Refresh list */ }} />
+      )}
+
+      {selectedArticle && (
+        <ArticleDetailDrawer item={selectedArticle} domain={domain} onClose={() => setSelectedArticle(null)} />
       )}
     </div>
   )
