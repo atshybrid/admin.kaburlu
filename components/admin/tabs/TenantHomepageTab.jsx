@@ -1,15 +1,23 @@
 /**
  * TenantHomepageTab - Manage tenant homepage Style1 & Style2 configuration
  * Style1: GET/PATCH /tenant-theme/{tenantId}/homepage/style1
+ * Style1 Smart: GET/PUT /tenant-theme/{tenantId}/homepage/style1/smart
  * Style2: GET/PATCH /tenant-theme/{tenantId}/homepage/style2/v2
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { getToken } from '../../../utils/auth'
 
 // Use local proxy to avoid CORS
 function getApiBase() {
   if (typeof window !== 'undefined') return '/api/proxy'
   return (process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
+}
+
+// Default smart config
+const DEFAULT_SMART_CONFIG = {
+  categorySection1: [],
+  categorySection2: [],
+  categoryHub: []
 }
 
 // Icons
@@ -53,6 +61,429 @@ const LayoutIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
   </svg>
 )
+
+const SparklesIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+  </svg>
+)
+
+const InfoIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+
+const GridIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+  </svg>
+)
+
+// ============================================================================
+// SMART CONFIG PANEL COMPONENT - Style1 Smart Configuration
+// ============================================================================
+function SmartConfigPanel({ tenantId, categories, onSuccess, onError }) {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [hasData, setHasData] = useState(false)
+  const [config, setConfig] = useState({ ...DEFAULT_SMART_CONFIG })
+  
+  // Category options from props
+  const categoryOptions = useMemo(() => {
+    return categories.map(cat => ({
+      value: cat.slug || cat.name?.toLowerCase().replace(/\s+/g, '-'),
+      label: cat.name
+    }))
+  }, [categories])
+  
+  // Load existing config
+  const loadConfig = useCallback(async () => {
+    if (!tenantId) return
+    setLoading(true)
+    
+    try {
+      const t = getToken()
+      const res = await fetch(`${getApiBase()}/api/v1/tenant-theme/${tenantId}/homepage/style1/smart`, {
+        headers: { 'Authorization': `Bearer ${t?.token || ''}` }
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        const configData = data?.data || data
+        if (configData && (configData.categorySection1?.length || configData.categorySection2?.length || configData.categoryHub?.length)) {
+          setConfig({
+            categorySection1: configData.categorySection1 || [],
+            categorySection2: configData.categorySection2 || [],
+            categoryHub: configData.categoryHub || []
+          })
+          setHasData(true)
+        } else {
+          setConfig({ ...DEFAULT_SMART_CONFIG })
+          setHasData(false)
+        }
+      } else {
+        setConfig({ ...DEFAULT_SMART_CONFIG })
+        setHasData(false)
+      }
+    } catch (e) {
+      console.error('Failed to load smart config:', e)
+      setConfig({ ...DEFAULT_SMART_CONFIG })
+      setHasData(false)
+    } finally {
+      setLoading(false)
+    }
+  }, [tenantId])
+  
+  useEffect(() => {
+    loadConfig()
+  }, [loadConfig])
+  
+  // Save config
+  const handleSave = async () => {
+    // Validation
+    if (config.categorySection1.length > 4) {
+      onError?.('Category Section 1 allows maximum 4 categories')
+      return
+    }
+    if (config.categorySection2.length > 4) {
+      onError?.('Category Section 2 allows maximum 4 categories')
+      return
+    }
+    if (config.categoryHub.length > 2) {
+      onError?.('Category Hub allows maximum 2 categories')
+      return
+    }
+    
+    setSaving(true)
+    
+    try {
+      const t = getToken()
+      const res = await fetch(`${getApiBase()}/api/v1/tenant-theme/${tenantId}/homepage/style1/smart`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${t?.token || ''}`
+        },
+        body: JSON.stringify(config)
+      })
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.message || `Failed: ${res.status}`)
+      }
+      
+      setHasData(true)
+      onSuccess?.('Smart configuration saved successfully!')
+    } catch (e) {
+      onError?.(e.message || 'Failed to save configuration')
+    } finally {
+      setSaving(false)
+    }
+  }
+  
+  // Toggle category in a section
+  const toggleCategory = (section, categorySlug) => {
+    const maxLimits = {
+      categorySection1: 4,
+      categorySection2: 4,
+      categoryHub: 2
+    }
+    
+    setConfig(prev => {
+      const current = prev[section] || []
+      const exists = current.includes(categorySlug)
+      
+      if (exists) {
+        return { ...prev, [section]: current.filter(c => c !== categorySlug) }
+      } else {
+        if (current.length >= maxLimits[section]) {
+          onError?.(`Maximum ${maxLimits[section]} categories allowed for ${section.replace(/([A-Z])/g, ' $1').trim()}`)
+          return prev
+        }
+        return { ...prev, [section]: [...current, categorySlug] }
+      }
+    })
+  }
+  
+  // Remove category from section
+  const removeCategory = (section, categorySlug) => {
+    setConfig(prev => ({
+      ...prev,
+      [section]: (prev[section] || []).filter(c => c !== categorySlug)
+    }))
+  }
+  
+  // Section configuration component
+  const CategorySelector = ({ section, title, description, maxCount, icon }) => {
+    const selectedCategories = config[section] || []
+    const isMaxReached = selectedCategories.length >= maxCount
+    
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-4 py-3 bg-gradient-to-r from-slate-50 to-white border-b">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-brand/10 flex items-center justify-center text-xl">
+                {icon}
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-900">{title}</h4>
+                <p className="text-xs text-slate-500">{description}</p>
+              </div>
+            </div>
+            <div className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+              selectedCategories.length === maxCount 
+                ? 'bg-green-100 text-green-700' 
+                : selectedCategories.length > 0 
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-slate-100 text-slate-500'
+            }`}>
+              {selectedCategories.length} / {maxCount}
+            </div>
+          </div>
+        </div>
+        
+        {/* Selected Categories */}
+        <div className="px-4 py-3 border-b bg-slate-50/50">
+          <div className="text-xs font-medium text-slate-500 mb-2">Selected Categories</div>
+          {selectedCategories.length === 0 ? (
+            <div className="text-sm text-slate-400 italic">No categories selected</div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {selectedCategories.map((slug, idx) => {
+                const cat = categoryOptions.find(c => c.value === slug)
+                return (
+                  <div 
+                    key={slug} 
+                    className="group flex items-center gap-2 px-3 py-1.5 bg-brand/10 text-brand rounded-lg border border-brand/20"
+                  >
+                    <span className="text-xs font-medium text-brand/60">#{idx + 1}</span>
+                    <span className="text-sm font-medium">{cat?.label || slug}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeCategory(section, slug)}
+                      className="ml-1 p-0.5 hover:bg-brand/20 rounded transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        
+        {/* Available Categories Grid */}
+        <div className="px-4 py-3">
+          <div className="text-xs font-medium text-slate-500 mb-2">
+            {isMaxReached ? '✓ Maximum categories selected' : 'Click to add categories'}
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
+            {categoryOptions.map(cat => {
+              const isSelected = selectedCategories.includes(cat.value)
+              const isDisabled = !isSelected && isMaxReached
+              
+              return (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => !isDisabled && toggleCategory(section, cat.value)}
+                  disabled={isDisabled}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-all ${
+                    isSelected
+                      ? 'bg-brand text-white border-brand shadow-sm'
+                      : isDisabled
+                        ? 'bg-slate-100 text-slate-300 border-slate-100 cursor-not-allowed'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand hover:text-brand'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <svg className="animate-spin w-10 h-10 text-brand mx-auto mb-3" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <p className="text-sm text-slate-500">Loading smart configuration...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="space-y-6">
+      {/* Header with status */}
+      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl border border-indigo-100">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <SparklesIcon />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900">Smart Configuration</h3>
+            <p className="text-sm text-slate-500">
+              {hasData ? 'Edit your category selections' : 'Set up your homepage categories'}
+            </p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+          hasData ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${hasData ? 'bg-green-500' : 'bg-amber-500'}`}></span>
+          {hasData ? 'Configured' : 'Not Configured'}
+        </div>
+      </div>
+      
+      {/* Info Alert */}
+      <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+        <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600">
+          <InfoIcon />
+        </div>
+        <div className="text-sm text-blue-800">
+          <p className="font-medium mb-1">How Smart Configuration Works</p>
+          <ul className="text-xs space-y-1 text-blue-700">
+            <li>• <strong>Category Section 1:</strong> Main featured categories (max 4) - displayed prominently at top</li>
+            <li>• <strong>Category Section 2:</strong> Secondary categories (max 4) - shown below main section</li>
+            <li>• <strong>Category Hub:</strong> Sidebar/hub categories (max 2) - for quick navigation</li>
+          </ul>
+        </div>
+      </div>
+      
+      {/* Category Selectors */}
+      <div className="grid gap-6">
+        <CategorySelector 
+          section="categorySection1"
+          title="Category Section 1"
+          description="Main featured categories - displayed prominently"
+          maxCount={4}
+          icon="📌"
+        />
+        
+        <CategorySelector 
+          section="categorySection2"
+          title="Category Section 2"
+          description="Secondary categories - shown below main section"
+          maxCount={4}
+          icon="📋"
+        />
+        
+        <CategorySelector 
+          section="categoryHub"
+          title="Category Hub"
+          description="Sidebar categories for quick navigation"
+          maxCount={2}
+          icon="🎯"
+        />
+      </div>
+      
+      {/* Save Button */}
+      <div className="flex items-center justify-between pt-4 border-t">
+        <div className="text-xs text-slate-500">
+          <span className="font-mono bg-slate-100 px-2 py-1 rounded">PUT /homepage/style1/smart</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-brand to-brand/90 text-white rounded-xl text-sm font-semibold hover:shadow-lg hover:shadow-brand/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {saving ? (
+            <>
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+              </svg>
+              Saving...
+            </>
+          ) : (
+            <>
+              <CheckIcon />
+              Save Smart Configuration
+            </>
+          )}
+        </button>
+      </div>
+      
+      {/* Preview Section */}
+      <div className="bg-slate-900 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-slate-800 border-b border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1.5">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <span className="text-xs text-slate-400 font-mono ml-2">Homepage Preview</span>
+          </div>
+        </div>
+        <div className="p-4 space-y-4">
+          {/* Section 1 Preview */}
+          <div className="space-y-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Category Section 1</div>
+            <div className="grid grid-cols-4 gap-2">
+              {(config.categorySection1.length > 0 ? config.categorySection1 : ['—', '—', '—', '—']).slice(0, 4).map((cat, i) => (
+                <div key={i} className={`h-16 rounded-lg ${cat !== '—' ? 'bg-gradient-to-br from-indigo-600 to-purple-600' : 'bg-slate-700'} flex items-center justify-center`}>
+                  <span className={`text-xs font-medium truncate px-2 ${cat !== '—' ? 'text-white' : 'text-slate-500'}`}>
+                    {categoryOptions.find(c => c.value === cat)?.label || cat}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Section 2 Preview */}
+          <div className="space-y-2">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Category Section 2</div>
+            <div className="grid grid-cols-4 gap-2">
+              {(config.categorySection2.length > 0 ? config.categorySection2 : ['—', '—', '—', '—']).slice(0, 4).map((cat, i) => (
+                <div key={i} className={`h-12 rounded-lg ${cat !== '—' ? 'bg-gradient-to-br from-emerald-600 to-teal-600' : 'bg-slate-700'} flex items-center justify-center`}>
+                  <span className={`text-xs font-medium truncate px-2 ${cat !== '—' ? 'text-white' : 'text-slate-500'}`}>
+                    {categoryOptions.find(c => c.value === cat)?.label || cat}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Hub Preview */}
+          <div className="flex gap-4">
+            <div className="flex-1 space-y-2">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">Main Content</div>
+              <div className="h-20 rounded-lg bg-slate-800 flex items-center justify-center">
+                <span className="text-xs text-slate-500">Latest Articles</span>
+              </div>
+            </div>
+            <div className="w-32 space-y-2">
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider">Category Hub</div>
+              <div className="space-y-2">
+                {(config.categoryHub.length > 0 ? config.categoryHub : ['—', '—']).slice(0, 2).map((cat, i) => (
+                  <div key={i} className={`h-8 rounded-lg ${cat !== '—' ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-slate-700'} flex items-center justify-center`}>
+                    <span className={`text-[10px] font-medium truncate px-2 ${cat !== '—' ? 'text-white' : 'text-slate-500'}`}>
+                      {categoryOptions.find(c => c.value === cat)?.label || cat}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Style1 Section Types
 const STYLE1_SECTION_TYPES = [
@@ -588,6 +1019,7 @@ export default function TenantHomepageTab({ tenantContext }) {
   const [sections, setSections] = useState([])
   const [showAddModal, setShowAddModal] = useState(false)
   const [activeStyle, setActiveStyle] = useState('style1') // 'style1' or 'style2'
+  const [configMode, setConfigMode] = useState('smart') // 'smart' or 'advanced' (only for style1)
   
   // Get section types based on active style
   const sectionTypes = activeStyle === 'style1' ? STYLE1_SECTION_TYPES : STYLE2_SECTION_TYPES
@@ -625,24 +1057,33 @@ export default function TenantHomepageTab({ tenantContext }) {
           'Content-Type': 'application/json'
         }
         
-        // Fetch config and categories in parallel
-        const [configRes, catsRes] = await Promise.allSettled([
-          fetch(getConfigUrl(), { headers }),
-          fetch(`${getApiBase()}/api/v1/tenants/${tenant.id}/categories`, { headers })
-        ])
-        
-        // Parse config
-        if (configRes.status === 'fulfilled' && configRes.value.ok) {
-          const data = await configRes.value.json()
-          setSections(data?.data?.sections || data?.sections || [])
+        // For smart mode, only fetch categories
+        if (activeStyle === 'style1' && configMode === 'smart') {
+          const catsRes = await fetch(`${getApiBase()}/api/v1/tenants/${tenant.id}/categories`, { headers })
+          if (catsRes.ok) {
+            const data = await catsRes.json()
+            setCategories(Array.isArray(data) ? data : (data?.data || []))
+          }
         } else {
-          setSections([])
-        }
-        
-        // Parse categories
-        if (catsRes.status === 'fulfilled' && catsRes.value.ok) {
-          const data = await catsRes.value.json()
-          setCategories(Array.isArray(data) ? data : (data?.data || []))
+          // Fetch config and categories in parallel for advanced mode
+          const [configRes, catsRes] = await Promise.allSettled([
+            fetch(getConfigUrl(), { headers }),
+            fetch(`${getApiBase()}/api/v1/tenants/${tenant.id}/categories`, { headers })
+          ])
+          
+          // Parse config
+          if (configRes.status === 'fulfilled' && configRes.value.ok) {
+            const data = await configRes.value.json()
+            setSections(data?.data?.sections || data?.sections || [])
+          } else {
+            setSections([])
+          }
+          
+          // Parse categories
+          if (catsRes.status === 'fulfilled' && catsRes.value.ok) {
+            const data = await catsRes.value.json()
+            setCategories(Array.isArray(data) ? data : (data?.data || []))
+          }
         }
       } catch (e) {
         console.error('Failed to load homepage config:', e)
@@ -654,7 +1095,7 @@ export default function TenantHomepageTab({ tenantContext }) {
     
     fetchData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant?.id, activeStyle])
+  }, [tenant?.id, activeStyle, configMode])
   
   // Save sections
   const handleSave = async () => {
@@ -765,68 +1206,110 @@ export default function TenantHomepageTab({ tenantContext }) {
           <p className="text-sm text-slate-500">Configure homepage sections and link categories</p>
         </div>
         
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleApplyDefault}
-            disabled={saving}
-            className="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <RefreshIcon />
-            Reset to Default
-          </button>
-          
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand/90 disabled:opacity-50"
-          >
-            {saving ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-              </svg>
-            ) : (
-              <CheckIcon />
-            )}
-            Save Configuration
-          </button>
-        </div>
+        {/* Only show save buttons for advanced mode */}
+        {(activeStyle !== 'style1' || configMode === 'advanced') && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleApplyDefault}
+              disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <RefreshIcon />
+              Reset to Default
+            </button>
+            
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-semibold hover:bg-brand/90 disabled:opacity-50"
+            >
+              {saving ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              ) : (
+                <CheckIcon />
+              )}
+              Save Configuration
+            </button>
+          </div>
+        )}
       </div>
       
       {/* Style Selector */}
       <div className="bg-white rounded-xl border p-4">
-        <div className="flex items-center gap-4 mb-3">
-          <span className="text-sm font-medium text-slate-700">Homepage Style:</span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setActiveStyle('style1')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeStyle === 'style1'
-                  ? 'bg-brand text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              🎨 Style 1
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveStyle('style2')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeStyle === 'style2'
-                  ? 'bg-brand text-white shadow-md'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              📰 Style 2 (TOI)
-            </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          {/* Style Selection */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-700">Homepage Style:</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveStyle('style1')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeStyle === 'style1'
+                    ? 'bg-brand text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                🎨 Style 1
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveStyle('style2')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeStyle === 'style2'
+                    ? 'bg-brand text-white shadow-md'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                📰 Style 2 (TOI)
+              </button>
+            </div>
           </div>
+          
+          {/* Smart/Advanced Mode Toggle (only for Style 1) */}
+          {activeStyle === 'style1' && (
+            <div className="flex items-center gap-3 sm:ml-auto sm:border-l sm:pl-4">
+              <span className="text-sm font-medium text-slate-700">Mode:</span>
+              <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+                <button
+                  type="button"
+                  onClick={() => setConfigMode('smart')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    configMode === 'smart'
+                      ? 'bg-white text-brand shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <SparklesIcon />
+                  Smart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfigMode('advanced')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    configMode === 'advanced'
+                      ? 'bg-white text-brand shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <GridIcon />
+                  Advanced
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-slate-500">
+        
+        <p className="text-xs text-slate-500 mt-3">
           {activeStyle === 'style1' 
-            ? 'Classic layout with category hub, highlights, and latest news sections'
+            ? configMode === 'smart'
+              ? 'Quick setup - Just select categories for predefined sections'
+              : 'Full control - Build custom sections with detailed configuration'
             : 'Times of India style layout with grid sections and sidebar widgets'
           }
         </p>
@@ -844,91 +1327,106 @@ export default function TenantHomepageTab({ tenantContext }) {
         </div>
       )}
       
-      {/* Main Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Sections List */}
-        <div className="xl:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900">
-              {activeStyle === 'style1' ? 'Style1' : 'Style2'} Sections ({sections.length})
-            </h3>
-            <button
-              type="button"
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90"
-            >
-              <PlusIcon />
-              Add Section
-            </button>
-          </div>
-          
-          {sections.length === 0 ? (
-            <div className="bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 p-8 text-center">
-              <div className="text-4xl mb-3">📦</div>
-              <h3 className="font-semibold text-slate-900 mb-1">No sections configured</h3>
-              <p className="text-sm text-slate-500 mb-4">Add sections to build your homepage layout</p>
+      {/* Smart Config Panel (Style 1 Smart Mode) */}
+      {activeStyle === 'style1' && configMode === 'smart' && (
+        <SmartConfigPanel
+          tenantId={tenant?.id}
+          categories={categories}
+          onSuccess={(msg) => {
+            setSuccess(msg)
+            setTimeout(() => setSuccess(''), 3000)
+          }}
+          onError={(msg) => setError(msg)}
+        />
+      )}
+      
+      {/* Advanced Config / Style 2 Layout */}
+      {(activeStyle === 'style2' || (activeStyle === 'style1' && configMode === 'advanced')) && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          {/* Sections List */}
+          <div className="xl:col-span-2 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-slate-900">
+                {activeStyle === 'style1' ? 'Style1' : 'Style2'} Sections ({sections.length})
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-brand text-white rounded-lg text-sm font-medium hover:bg-brand/90"
               >
                 <PlusIcon />
-                Add First Section
+                Add Section
               </button>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {sections.map((section, index) => (
-                <SectionCard
-                  key={`${section.key}-${index}`}
-                  section={section}
-                  index={index}
-                  categories={categories}
-                  sectionTypes={sectionTypes}
-                  onUpdate={(updated) => updateSection(index, updated)}
-                  onDelete={() => deleteSection(index)}
-                  onMoveUp={() => moveSection(index, -1)}
-                  onMoveDown={() => moveSection(index, 1)}
-                  isFirst={index === 0}
-                  isLast={index === sections.length - 1}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-        
-        {/* Preview Panel */}
-        <div className="space-y-4">
-          <h3 className="font-semibold text-slate-900">Preview</h3>
-          <HomepagePreview sections={sections} sectionTypes={sectionTypes} />
-          
-          {/* Quick Category List */}
-          <div className="bg-white rounded-xl border p-4">
-            <h4 className="font-medium text-slate-900 mb-3">Available Categories</h4>
-            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-              {categories.slice(0, 20).map(cat => (
-                <span key={cat.id || cat.slug} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full">
-                  {cat.name}
-                </span>
-              ))}
-              {categories.length > 20 && (
-                <span className="px-2 py-1 text-slate-400 text-xs">
-                  +{categories.length - 20} more
-                </span>
-              )}
-            </div>
+            
+            {sections.length === 0 ? (
+              <div className="bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 p-8 text-center">
+                <div className="text-4xl mb-3">📦</div>
+                <h3 className="font-semibold text-slate-900 mb-1">No sections configured</h3>
+                <p className="text-sm text-slate-500 mb-4">Add sections to build your homepage layout</p>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg text-sm font-medium"
+                >
+                  <PlusIcon />
+                  Add First Section
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {sections.map((section, index) => (
+                  <SectionCard
+                    key={`${section.key}-${index}`}
+                    section={section}
+                    index={index}
+                    categories={categories}
+                    sectionTypes={sectionTypes}
+                    onUpdate={(updated) => updateSection(index, updated)}
+                    onDelete={() => deleteSection(index)}
+                    onMoveUp={() => moveSection(index, -1)}
+                    onMoveDown={() => moveSection(index, 1)}
+                    isFirst={index === 0}
+                    isLast={index === sections.length - 1}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           
-          {/* API Info */}
-          <div className="bg-slate-50 rounded-xl border p-4 text-xs">
-            <h4 className="font-medium text-slate-700 mb-2">API Endpoints</h4>
-            <div className="space-y-1 text-slate-500 font-mono">
-              <div>GET: /homepage/{activeStyle}</div>
-              <div>PATCH: /homepage/{activeStyle}/sections</div>
+          {/* Preview Panel */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-slate-900">Preview</h3>
+            <HomepagePreview sections={sections} sectionTypes={sectionTypes} />
+            
+            {/* Quick Category List */}
+            <div className="bg-white rounded-xl border p-4">
+              <h4 className="font-medium text-slate-900 mb-3">Available Categories</h4>
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                {categories.slice(0, 20).map(cat => (
+                  <span key={cat.id || cat.slug} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-full">
+                    {cat.name}
+                  </span>
+                ))}
+                {categories.length > 20 && (
+                  <span className="px-2 py-1 text-slate-400 text-xs">
+                    +{categories.length - 20} more
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            {/* API Info */}
+            <div className="bg-slate-50 rounded-xl border p-4 text-xs">
+              <h4 className="font-medium text-slate-700 mb-2">API Endpoints</h4>
+              <div className="space-y-1 text-slate-500 font-mono">
+                <div>GET: /homepage/{activeStyle}</div>
+                <div>PATCH: /homepage/{activeStyle}/sections</div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
       
       {/* Add Section Modal */}
       <AddSectionModal
