@@ -62,6 +62,7 @@ export function StatusBadge({ status, className = '' }) {
     active: { variant: 'success', label: 'Active', dot: true },
     inactive: { variant: 'secondary', label: 'Inactive', dot: true },
     pending: { variant: 'warning', label: 'Pending', dot: true },
+    submitted: { variant: 'info', label: 'Submitted', dot: true },
     verified: { variant: 'success', label: 'Verified', dot: true },
     unverified: { variant: 'danger', label: 'Unverified', dot: true },
     draft: { variant: 'secondary', label: 'Draft', dot: true },

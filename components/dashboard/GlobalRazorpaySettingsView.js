@@ -37,9 +37,11 @@ export default function GlobalRazorpaySettingsView() {
         <div className="mt-4">
           <table className="text-sm">
             <tbody>
-              <tr><td className="pr-3 text-gray-600">Key ID</td><td>{config.keyId || '-'}</td></tr>
-              <tr><td className="pr-3 text-gray-600">Key Secret (masked)</td><td>{config.keySecretMasked || '-'}</td></tr>
-              <tr><td className="pr-3 text-gray-600">Active</td><td>{String(config.active)}</td></tr>
+              <tr><td className="pr-3 text-gray-600">ID</td><td className="font-mono text-xs">{config.id || '-'}</td></tr>
+              <tr><td className="pr-3 text-gray-600">Tenant ID</td><td>{config.tenantId || <span className="text-gray-400">Global (null)</span>}</td></tr>
+              <tr><td className="pr-3 text-gray-600">Key ID</td><td className="font-mono">{config.keyId || '-'}</td></tr>
+              <tr><td className="pr-3 text-gray-600">Key Secret (masked)</td><td className="font-mono">{config.keySecretMasked || '-'}</td></tr>
+              <tr><td className="pr-3 text-gray-600">Active</td><td>{config.active ? <span className="text-green-600 font-medium">✓ Active</span> : <span className="text-red-600">✗ Inactive</span>}</td></tr>
               <tr><td className="pr-3 text-gray-600">Created</td><td>{config.createdAt ? new Date(config.createdAt).toLocaleString() : '-'}</td></tr>
               <tr><td className="pr-3 text-gray-600">Updated</td><td>{config.updatedAt ? new Date(config.updatedAt).toLocaleString() : '-'}</td></tr>
             </tbody>

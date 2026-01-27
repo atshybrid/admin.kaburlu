@@ -6,8 +6,12 @@ import { useState, useEffect } from 'react'
 import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken } from '../../../utils/auth'
 
+// Use local proxy to avoid CORS
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+  if (typeof window !== 'undefined') {
+    return '/api/proxy'
+  }
+  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '') + '/api/v1'
 }
 
 function RazorpaySettingsContent() {
@@ -21,7 +25,7 @@ function RazorpaySettingsContent() {
     keySecret: '',
     webhookSecret: '',
     isLive: false,
-    enabled: true
+    active: true
   })
 
   const loadSettings = async () => {
@@ -29,26 +33,34 @@ function RazorpaySettingsContent() {
     setError('')
     try {
       const t = getToken()
-      const res = await fetch(`${getApiBase()}/api/v1/razorpay-settings`, {
+      const apiUrl = `${getApiBase()}/admin/razorpay-config/global`
+      console.log('🔍 Fetching Razorpay config from:', apiUrl)
+      const res = await fetch(apiUrl, {
         headers: { 'Authorization': `Bearer ${t?.token || ''}` }
       })
+      console.log('📥 Response status:', res.status)
       if (!res.ok) {
         if (res.status === 404) {
           setSettings(null)
+          setEditing(true) // Show form if no config exists
           return
         }
+        const errorText = await res.text()
+        console.error('❌ Error response:', errorText)
         throw new Error(`Request failed: ${res.status}`)
       }
       const data = await res.json()
+      console.log('✅ Razorpay config loaded:', data)
       setSettings(data)
       setForm({
         keyId: data.keyId || '',
-        keySecret: data.keySecret || '',
+        keySecret: '', // Don't pre-fill secret
         webhookSecret: data.webhookSecret || '',
-        isLive: data.isLive || false,
-        enabled: data.enabled !== false
+        isLive: data.keyId?.startsWith('rzp_live') || false,
+        active: data.active !== false
       })
     } catch (e) {
+      console.error('❌ Load settings error:', e)
       setError(e.message || 'Failed to load settings')
     } finally {
       setLoading(false)
@@ -62,22 +74,35 @@ function RazorpaySettingsContent() {
   const handleSave = async (e) => {
     e.preventDefault()
     setSaving(true)
+    setError('')
     try {
       const t = getToken()
-      const method = settings ? 'PUT' : 'POST'
-      const url = settings
-        ? `${getApiBase()}/api/v1/razorpay-settings/${settings.id}`
-        : `${getApiBase()}/api/v1/razorpay-settings`
+      // Always use POST for global config (creates or updates)
+      const payload = { 
+        keyId: form.keyId.trim(), 
+        active: form.active 
+      }
+      // Only send keySecret if provided (for update, can be optional)
+      if (form.keySecret.trim()) {
+        payload.keySecret = form.keySecret.trim()
+      }
+      if (form.webhookSecret.trim()) {
+        payload.webhookSecret = form.webhookSecret.trim()
+      }
       
-      const res = await fetch(url, {
-        method,
+      const res = await fetch(`${getApiBase()}/admin/razorpay-config/global`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${t?.token || ''}`
         },
-        body: JSON.stringify(form)
+        body: JSON.stringify(payload)
       })
-      if (!res.ok) throw new Error(`Failed: ${res.status}`)
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const msg = json?.message || json?.error || `Failed: ${res.status}`
+        throw new Error(msg)
+      }
       setEditing(false)
       loadSettings()
     } catch (e) {
@@ -129,15 +154,15 @@ function RazorpaySettingsContent() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Razorpay Key Secret
+                  Razorpay Key Secret {settings && <span className="text-slate-400 font-normal">(leave blank to keep existing)</span>}
                 </label>
                 <input
                   type="password"
                   value={form.keySecret}
                   onChange={e => setForm({...form, keySecret: e.target.value})}
-                  placeholder="••••••••••••••••"
+                  placeholder={settings ? "Leave blank to keep existing" : "Enter key secret"}
                   className="w-full px-3 py-2 border rounded-lg text-sm"
-                  required
+                  required={!settings}
                 />
               </div>
               <div>
@@ -165,14 +190,20 @@ function RazorpaySettingsContent() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={form.enabled}
-                    onChange={e => setForm({...form, enabled: e.target.checked})}
+                    checked={form.active}
+                    onChange={e => setForm({...form, active: e.target.checked})}
                     className="w-4 h-4 rounded border-slate-300"
                   />
                   <span className="text-sm text-slate-700">Enabled</span>
                 </label>
               </div>
             </div>
+            
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                {error}
+              </div>
+            )}
             
             <div className="flex items-center gap-3 pt-4 border-t">
               <button
@@ -197,34 +228,60 @@ function RazorpaySettingsContent() {
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">ID</div>
+                <div className="text-sm font-medium text-slate-900 font-mono">
+                  {settings.id}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Tenant</div>
+                <div className="text-sm font-medium text-slate-500">
+                  {settings.tenantId || 'Global (All Tenants)'}
+                </div>
+              </div>
+              <div>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Key ID</div>
                 <div className="text-sm font-medium text-slate-900 font-mono">
-                  {settings.keyId?.substring(0, 10)}...
+                  {settings.keyId}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Key Secret</div>
-                <div className="text-sm font-medium text-slate-900">••••••••••••</div>
+                <div className="text-sm font-medium text-slate-900 font-mono">
+                  {settings.keySecretMasked || '••••••••••••'}
+                </div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Mode</div>
                 <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                  settings.isLive
+                  settings.keyId?.startsWith('rzp_live')
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-yellow-50 text-yellow-700 border border-yellow-200'
                 }`}>
-                  {settings.isLive ? 'Live' : 'Test'}
+                  {settings.keyId?.startsWith('rzp_live') ? 'Live' : 'Test'}
                 </span>
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Status</div>
                 <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
-                  settings.enabled
+                  settings.active
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-red-50 text-red-700 border border-red-200'
                 }`}>
-                  {settings.enabled ? 'Enabled' : 'Disabled'}
+                  {settings.active ? 'Active' : 'Inactive'}
                 </span>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Created</div>
+                <div className="text-sm text-slate-600">
+                  {settings.createdAt ? new Date(settings.createdAt).toLocaleString() : '-'}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Updated</div>
+                <div className="text-sm text-slate-600">
+                  {settings.updatedAt ? new Date(settings.updatedAt).toLocaleString() : '-'}
+                </div>
               </div>
             </div>
 

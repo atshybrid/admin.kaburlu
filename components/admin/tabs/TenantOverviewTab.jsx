@@ -15,12 +15,31 @@ function StatusBadge({ status }) {
   const styles = {
     'VERIFIED': 'bg-green-50 text-green-700 border-green-200',
     'ACTIVE': 'bg-green-50 text-green-700 border-green-200',
-    'PENDING': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    'APPROVED': 'bg-green-50 text-green-700 border-green-200',
+    'SUBMITTED': 'bg-blue-50 text-blue-700 border-blue-200',
+    'PENDING': 'bg-amber-50 text-amber-700 border-amber-200',
+    'REJECTED': 'bg-red-50 text-red-700 border-red-200',
     'INACTIVE': 'bg-slate-50 text-slate-600 border-slate-200',
   }
+  const labels = {
+    'VERIFIED': 'Verified',
+    'ACTIVE': 'Active',
+    'APPROVED': 'Approved',
+    'SUBMITTED': 'Submitted',
+    'PENDING': 'Pending',
+    'REJECTED': 'Rejected',
+    'INACTIVE': 'Inactive',
+  }
+  const normalized = (status || '').toUpperCase()
   return (
-    <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${styles[status] || styles['PENDING']}`}>
-      {status || 'Unknown'}
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border ${styles[normalized] || styles['PENDING']}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${
+        normalized === 'VERIFIED' || normalized === 'ACTIVE' || normalized === 'APPROVED' ? 'bg-green-500' :
+        normalized === 'SUBMITTED' ? 'bg-blue-500' :
+        normalized === 'REJECTED' ? 'bg-red-500' :
+        normalized === 'PENDING' ? 'bg-amber-500' : 'bg-slate-400'
+      }`} />
+      {labels[normalized] || status || 'Unknown'}
     </span>
   )
 }
@@ -54,16 +73,66 @@ function isApprovedLike(record) {
 }
 
 export default function TenantOverviewTab({ tenantContext }) {
-  const { tenant, entity, domains = [], categories = [], razorpay, refreshTenant, refreshEntity } = tenantContext || {}
+  const { tenant, entity, domains = [], categories = [], razorpay, refreshTenant, refreshEntity, refreshDomains } = tenantContext || {}
 
   const tenantId = tenant?.id
   const [approving, setApproving] = useState({ tenant: false, entity: false })
+  const [verifyingDomain, setVerifyingDomain] = useState(null) // Track which domain is being verified
   
   const primaryDomain = domains.find(d => d.isPrimary)
-  const activeDomains = domains.filter(d => d.status === 'ACTIVE')
+  const activeDomains = domains.filter(d => d.status === 'ACTIVE' || d.status === 'VERIFIED')
 
   const tenantApproved = isApprovedLike(tenant)
   const entityApproved = isApprovedLike(entity)
+  
+  // Debug: Log tenant status
+  console.log('🔍 Tenant Overview Debug:', {
+    tenantId,
+    prgiStatus: tenant?.prgiStatus,
+    isApproved: tenant?.isApproved,
+    tenantApproved,
+  })
+  
+  // Check if domain is verified/active
+  const isDomainVerified = (domain) => {
+    if (!domain) return false
+    const status = String(domain.status || '').toUpperCase()
+    return status === 'VERIFIED' || status === 'ACTIVE'
+  }
+  
+  // Handle domain verification
+  const handleVerifyDomain = async (domainId) => {
+    if (!domainId) return
+    setVerifyingDomain(domainId)
+    try {
+      const t = getToken()
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${t?.token || ''}`,
+      }
+      
+      // POST /domains/:id/verify
+      const res = await fetch(`${getApiBase()}/domains/${domainId}/verify`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ method: 'MANUAL', force: false }),
+      })
+      
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || data.message || `Failed: ${res.status}`)
+      }
+      
+      // Refresh domains list
+      await refreshDomains?.()
+      // Best-effort second refresh
+      setTimeout(() => refreshDomains?.(), 800)
+    } catch (e) {
+      alert(e?.message || 'Failed to verify domain')
+    } finally {
+      setVerifyingDomain(null)
+    }
+  }
 
   const handleApproveTenant = async () => {
     if (!tenantId) return
@@ -71,29 +140,14 @@ export default function TenantOverviewTab({ tenantContext }) {
     setApproving(prev => ({ ...prev, tenant: true }))
     try {
       const t = getToken()
-      const url = `${getApiBase()}/tenants/${tenantId}/verify`
       const headers = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${t?.token || ''}`,
       }
-      const payload = { prgiStatus: 'VERIFIED', remark: '' }
 
-      // Keep consistent with Tenants list verification flow (PRGI status)
-      let res = await fetch(url, { method: 'PATCH', headers, body: JSON.stringify(payload) })
-
-      // Some deployments may only allow POST for /verify
-      if (!res.ok && (res.status === 404 || res.status === 405)) {
-        res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) })
-      }
-
-      // Fallback: some backends accept direct update on tenant
-      if (!res.ok && res.status === 404) {
-        res = await fetch(`${getApiBase()}/tenants/${tenantId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ prgiStatus: 'VERIFIED' }),
-        })
-      }
+      // Correct API: POST /prgi/{tenantId}/verify
+      const url = `${getApiBase()}/prgi/${tenantId}/verify`
+      const res = await fetch(url, { method: 'POST', headers })
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -107,6 +161,44 @@ export default function TenantOverviewTab({ tenantContext }) {
       alert(e?.message || 'Failed to approve tenant')
     } finally {
       setApproving(prev => ({ ...prev, tenant: false }))
+    }
+  }
+  
+  // Handle tenant rejection
+  const handleRejectTenant = async () => {
+    if (!tenantId) return
+    if (tenantApproved) return
+    
+    const reason = window.prompt('Enter rejection reason (optional):')
+    if (reason === null) return // User cancelled
+    
+    setApproving(prev => ({ ...prev, rejecting: true }))
+    try {
+      const t = getToken()
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${t?.token || ''}`,
+      }
+
+      // API: POST /prgi/{tenantId}/reject
+      const url = `${getApiBase()}/prgi/${tenantId}/reject`
+      const res = await fetch(url, { 
+        method: 'POST', 
+        headers,
+        body: JSON.stringify({ reason: reason || '' }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || data.message || `Failed: ${res.status}`)
+      }
+
+      await refreshTenant?.()
+      setTimeout(() => refreshTenant?.(), 800)
+    } catch (e) {
+      alert(e?.message || 'Failed to reject tenant')
+    } finally {
+      setApproving(prev => ({ ...prev, rejecting: false }))
     }
   }
   
@@ -149,13 +241,22 @@ export default function TenantOverviewTab({ tenantContext }) {
                 {tenantApproved ? 'Approved' : 'Pending'}
               </span>
               {!tenantApproved && (
-                <button
-                  onClick={handleApproveTenant}
-                  disabled={approving.tenant}
-                  className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  {approving.tenant ? 'Approving...' : 'Approve'}
-                </button>
+                <>
+                  <button
+                    onClick={handleApproveTenant}
+                    disabled={approving.tenant || approving.rejecting}
+                    className="px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {approving.tenant ? 'Approving...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={handleRejectTenant}
+                    disabled={approving.tenant || approving.rejecting}
+                    className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {approving.rejecting ? 'Rejecting...' : 'Reject'}
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -213,7 +314,19 @@ export default function TenantOverviewTab({ tenantContext }) {
                     <span className="text-[10px] px-1.5 py-0.5 bg-brand/10 text-brand rounded">Primary</span>
                   )}
                 </div>
-                <StatusBadge status={d.status} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={d.status} />
+                  {/* Show Verify button only if domain is NOT verified */}
+                  {!isDomainVerified(d) && (
+                    <button
+                      onClick={() => handleVerifyDomain(d.id)}
+                      disabled={verifyingDomain === d.id}
+                      className="px-2 py-1 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {verifyingDomain === d.id ? 'Verifying...' : 'Verify'}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             {domains.length > 3 && (

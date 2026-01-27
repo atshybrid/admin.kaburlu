@@ -199,7 +199,7 @@ function TenantFormModal({ open, onClose, onCreated }) {
             <input className="mt-1 w-full border rounded p-2" value={prgiNumber} onChange={e=>setPrgiNumber(e.target.value)} placeholder="PRGI-TS-2025-01987" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-gray-700 flex items-center gap-2">State {statesLoading && <Loader size={20} />}</label>
+            <label className="text-xs font-semibold text-gray-700 flex items-center gap-2">State {statesLoading && <Loader size={20} />}</label>
             <select className="mt-1 w-full border rounded p-2 bg-white" value={stateId} onChange={e=>setStateId(e.target.value)} required disabled={statesLoading || (!!statesError && states.length===0)}>
               <option value="">{statesLoading ? 'Loading states...' : (statesError ? 'Failed to load states' : 'Select a state')}</option>
               {states.map(s => {
@@ -461,8 +461,18 @@ export default function TenantsView() {
                     </td>
                     <td className="px-4 py-2">{languageName}</td>
                     <td className="px-4 py-2">
-                      <button onClick={() => setVerifyTarget(r)} className={`px-2 py-1 rounded text-xs border ${r.prgiStatus === 'VERIFIED' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-100'}`} title="Update status or add remark">
-                        {r.prgiStatus || '-'}
+                      <button onClick={() => setVerifyTarget(r)} className={`px-2 py-1 rounded text-xs border inline-flex items-center gap-1.5 ${
+                        r.prgiStatus === 'VERIFIED' || r.prgiStatus === 'ACTIVE' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' : 
+                        r.prgiStatus === 'SUBMITTED' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' :
+                        r.prgiStatus === 'REJECTED' ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' :
+                        'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                      }`} title="Update status or add remark">
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          r.prgiStatus === 'VERIFIED' || r.prgiStatus === 'ACTIVE' ? 'bg-green-500' :
+                          r.prgiStatus === 'SUBMITTED' ? 'bg-blue-500' :
+                          r.prgiStatus === 'REJECTED' ? 'bg-red-500' : 'bg-amber-500'
+                        }`} />
+                        {r.prgiStatus || 'Pending'}
                       </button>
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -1576,7 +1586,7 @@ function AddEntityModal({ tenant, onClose, onSaved }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 flex items-center gap-2">Language {loadingLangs && <Loader size={20} />}</label>
+            <label className="text-xs font-semibold text-gray-700 flex items-center gap-2">Language {loadingLangs && <Loader size={20} />}</label>
             <select className="mt-1 w-full border rounded p-2 bg-white" value={languageId} onChange={e=>setLanguageId(e.target.value)} required disabled={loadingLangs}>
               <option value="">{loadingLangs ? 'Loading languages...' : 'Select language'}</option>
               {!loadingLangs && languages.map(l => (

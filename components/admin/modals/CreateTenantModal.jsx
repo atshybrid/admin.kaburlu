@@ -103,6 +103,19 @@ export default function CreateTenantModal({ isOpen, onClose, onSuccess }) {
 
       const result = await tenantsApi.create(payload)
       
+      // Auto-submit PRGI after tenant creation
+      if (result?.id) {
+        try {
+          await fetch(`/api/proxy/prgi/${result.id}/submit`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          })
+          console.log('PRGI auto-submitted for tenant:', result.id)
+        } catch (submitErr) {
+          console.warn('PRGI auto-submit failed (non-blocking):', submitErr)
+        }
+      }
+      
       // Success callback
       if (onSuccess) {
         onSuccess(result)

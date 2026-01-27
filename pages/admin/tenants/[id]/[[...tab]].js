@@ -12,7 +12,6 @@ import {
   TenantCategoriesTab,
   TenantBrandingTab,
   TenantHomepageTab,
-  TenantSeoTab,
   TenantPaymentsTab,
   TenantSettingsTab,
   TenantIdCardsTab,
@@ -48,8 +47,6 @@ function TenantDetailContent() {
         return <TenantHomepageTab tenantContext={tenantContext} />
       case 'ads':
         return <TenantAdsTab tenantContext={tenantContext} />
-      case 'seo':
-        return <TenantSeoTab tenantContext={tenantContext} />
       case 'payments':
         return <TenantPaymentsTab tenantContext={tenantContext} />
       case 'settings':

@@ -28,8 +28,6 @@ const TENANT_TABS = [
   { id: 'categories', label: 'Categories', icon: 'folder', description: 'Content categories' },
   { id: 'homepage', label: 'Homepage', icon: 'layout', description: 'Homepage config' },
   { id: 'ads', label: 'Ads', icon: 'megaphone', description: 'Advertisement slots' },
-  { id: 'seo', label: 'SEO', icon: 'search', description: 'Meta & social' },
-  { id: 'epaper', label: 'ePaper Config', icon: 'file-text', description: 'PDF/BLOCK & multi-edition' },
   { id: 'editions', label: 'ePaper Editions', icon: 'layers', description: 'Editions & sub-editions' },
   { id: 'payments', label: 'Payments', icon: 'credit-card', description: 'Razorpay config' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'Feature flags' },

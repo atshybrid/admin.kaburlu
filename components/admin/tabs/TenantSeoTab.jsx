@@ -43,6 +43,12 @@ const XCircleIcon = () => (
   </svg>
 )
 
+const UploadIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+  </svg>
+)
+
 // Character counter with color feedback
 function CharCounter({ current, max, recommended }) {
   const percentage = (current / max) * 100
@@ -102,10 +108,132 @@ function InputField({ label, hint, children }) {
   )
 }
 
+// OG Image Uploader Component
+function OgImageUploader({ value, onChange, onUpload, uploading, tenantId }) {
+  const [dragActive, setDragActive] = useState(false)
+  const fileInputRef = useState(null)
+  
+  const handleDrag = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true)
+    } else if (e.type === 'dragleave') {
+      setDragActive(false)
+    }
+  }
+  
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragActive(false)
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      onUpload(e.dataTransfer.files[0])
+    }
+  }
+  
+  const handleChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      onUpload(e.target.files[0])
+    }
+  }
+  
+  const handleRemove = () => {
+    onChange('')
+  }
+  
+  return (
+    <div className="space-y-3">
+      {/* Upload Area */}
+      <div
+        className={`relative border-2 border-dashed rounded-xl p-6 transition-all text-center ${
+          dragActive 
+            ? 'border-brand bg-brand/5' 
+            : value 
+              ? 'border-green-300 bg-green-50/50'
+              : 'border-slate-200 hover:border-brand/50 bg-slate-50/50'
+        }`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2 py-4">
+            <div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-slate-600">Uploading...</span>
+          </div>
+        ) : value ? (
+          <div className="space-y-4">
+            <div className="relative inline-block">
+              <img 
+                src={value} 
+                alt="OG Image Preview"
+                className="max-h-40 rounded-lg border border-slate-200 shadow-sm"
+                onError={(e) => {
+                  e.target.style.display = 'none'
+                }}
+              />
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <label className="px-3 py-1.5 text-xs font-medium text-brand bg-brand/10 rounded-lg cursor-pointer hover:bg-brand/20 transition-colors">
+                Change Image
+                <input
+                  type="file"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleChange}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleRemove}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="cursor-pointer flex flex-col items-center gap-3 py-4">
+            <div className="w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center text-brand">
+              <UploadIcon />
+            </div>
+            <div>
+              <span className="text-sm font-medium text-slate-700">Drop image here or </span>
+              <span className="text-sm font-medium text-brand">browse</span>
+            </div>
+            <span className="text-xs text-slate-400">Recommended: 1200x630 pixels</span>
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleChange}
+            />
+          </label>
+        )}
+      </div>
+      
+      {/* URL Input as fallback */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-400">Or paste URL:</span>
+        <input
+          type="url"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://example.com/og-image.jpg"
+          className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function TenantSeoTab({ tenantContext }) {
   const { tenant, refreshTenant } = tenantContext
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState('meta')
@@ -185,6 +313,45 @@ export default function TenantSeoTab({ tenantContext }) {
       setError(e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Upload OG Image using media API
+  const uploadOgImage = async (file) => {
+    if (!file) return
+    
+    setUploading(true)
+    setError('')
+    
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('folder', `tenants/${tenant.id}/seo`)
+      
+      const response = await fetch('/api/admin/media/upload', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.message || 'Upload failed')
+      }
+      
+      const data = await response.json()
+      const imageUrl = data.url || data.fileUrl || data.path
+      
+      if (imageUrl) {
+        setForm(prev => ({ ...prev, ogImage: imageUrl }))
+        setSuccess('OG Image uploaded successfully')
+        setTimeout(() => setSuccess(''), 3000)
+      } else {
+        throw new Error('No URL returned from upload')
+      }
+    } catch (e) {
+      setError(`Upload failed: ${e.message}`)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -393,13 +560,13 @@ export default function TenantSeoTab({ tenantContext }) {
                   />
                 </InputField>
 
-                <InputField label="OG Image URL" hint="1200x630 recommended">
-                  <input
-                    type="url"
+                <InputField label="OG Image" hint="1200x630 recommended">
+                  <OgImageUploader
                     value={form.ogImage}
-                    onChange={e => setForm({...form, ogImage: e.target.value})}
-                    placeholder="https://example.com/og-image.jpg"
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
+                    onChange={(url) => setForm({...form, ogImage: url})}
+                    onUpload={uploadOgImage}
+                    uploading={uploading}
+                    tenantId={tenant?.id}
                   />
                 </InputField>
 

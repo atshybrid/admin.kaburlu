@@ -18,11 +18,23 @@ function StatusBadge({ status }) {
   const variants = {
     'VERIFIED': 'success',
     'ACTIVE': 'success',
+    'APPROVED': 'success',
+    'SUBMITTED': 'info',
     'PENDING': 'warning',
     'REJECTED': 'danger',
     'INACTIVE': 'default',
   }
-  return <Badge variant={variants[status] || 'default'}>{status || 'Unknown'}</Badge>
+  const labels = {
+    'VERIFIED': 'Verified',
+    'ACTIVE': 'Active',
+    'APPROVED': 'Approved',
+    'SUBMITTED': 'Submitted',
+    'PENDING': 'Pending',
+    'REJECTED': 'Rejected',
+    'INACTIVE': 'Inactive',
+  }
+  const normalized = (status || '').toUpperCase()
+  return <Badge variant={variants[normalized] || 'default'} dot>{labels[normalized] || status || 'Unknown'}</Badge>
 }
 
 // Format date helper
