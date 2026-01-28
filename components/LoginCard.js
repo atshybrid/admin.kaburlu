@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { saveToken } from '../utils/auth'
 import { useRouter } from 'next/router'
-import BrandLogo from './BrandLogo'
+import AnimatedKaburluLogo from './AnimatedKaburluLogo'
 
 export default function LoginCard() {
   const router = useRouter()
@@ -54,7 +54,7 @@ export default function LoginCard() {
     <div className={`relative z-10 w-full max-w-md bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 p-8 transition duration-700 ${mounted ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-6 scale-95'}`}>
       {/* Logo and Title */}
       <div className="text-center mb-8">
-        <BrandLogo className="justify-center mb-4" size={72} showText={false} />
+        <AnimatedKaburluLogo className="justify-center mb-4" size={120} interval={2500} />
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Welcome Back</h1>
         <p className="text-sm text-slate-500 mt-1">Sign in to your admin dashboard</p>
       </div>
