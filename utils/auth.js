@@ -2,6 +2,7 @@ export function saveToken(jwt, data) {
   const payload = {
     token: jwt,
     refreshToken: data.refreshToken || null,
+    sessionId: data.sessionId || null, // 🆕 Working hours tracking
     data,
     user: data.user || null,
     expiresIn: data.expiresIn || 86400, // Default 24 hours
@@ -9,6 +10,13 @@ export function saveToken(jwt, data) {
   }
   if (typeof window !== 'undefined') {
     localStorage.setItem('kab_admin_auth', JSON.stringify(payload))
+    
+    // Start session heartbeat if sessionId is present
+    if (data.sessionId) {
+      import('./sessionTracker').then(module => {
+        module.startSessionHeartbeat(data.sessionId)
+      }).catch(console.error)
+    }
   }
 }
 
@@ -83,6 +91,11 @@ export async function refreshTokenIfNeeded(authData) {
 
 export function logout() {
   if (typeof window !== 'undefined') {
+    // End session first (for working hours calculation)
+    import('./sessionTracker').then(module => {
+      module.endSession()
+    }).catch(console.error)
+    
     localStorage.removeItem('kab_admin_auth')
     // Best-effort: clear server-side httpOnly cookie
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})

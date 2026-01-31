@@ -294,6 +294,10 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
     printingMandalId: '',
     printingCityName: '',
     address: '',
+    // Contact Details
+    contactMobile: '',
+    contactEmail: '',
+    contactPerson: '',
   })
 
   useEffect(() => {
@@ -359,6 +363,10 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
           printingMandalId: form.printingMandalId || undefined,
           printingCityName: form.printingCityName || undefined,
           address: form.address || undefined,
+          // Contact Details
+          contactMobile: form.contactMobile || null,
+          contactEmail: form.contactEmail || null,
+          contactPerson: form.contactPerson || null,
         })
       })
       
@@ -595,6 +603,45 @@ function QuickSetupForm({ tenantId, tenant, onSuccess }) {
             </div>
           </div>
         </div>
+
+        {/* Contact Details Section */}
+        <div className="border-t pt-5">
+          <h4 className="text-sm font-semibold text-slate-900 mb-4">Contact Details</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Mobile</label>
+              <input
+                value={form.contactMobile}
+                onChange={e => setForm({...form, contactMobile: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="9876543210"
+                maxLength={10}
+              />
+              <p className="text-xs text-slate-500 mt-1">Primary contact number</p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Email</label>
+              <input
+                type="email"
+                value={form.contactEmail}
+                onChange={e => setForm({...form, contactEmail: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="contact@example.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Person</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm({...form, contactPerson: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="Person name"
+              />
+            </div>
+          </div>
+        </div>
         
         {error && (
           <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
@@ -634,6 +681,10 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
     printingPressName: entity?.printingPressName || '',
     printingCityName: entity?.printingCityName || '',
     address: entity?.address || '',
+    // Contact Details
+    contactMobile: entity?.contactMobile || '',
+    contactEmail: entity?.contactEmail || '',
+    contactPerson: entity?.contactPerson || '',
   })
   
   // PRGI number is immutable - shown read-only
@@ -680,6 +731,10 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
         printingPressName: form.printingPressName || undefined,
         printingCityName: form.printingCityName || undefined,
         address: form.address || undefined,
+        // Contact Details
+        contactMobile: form.contactMobile || null,
+        contactEmail: form.contactEmail || null,
+        contactPerson: form.contactPerson || null,
       }
       
       const res = await fetch(url, {
@@ -851,6 +906,44 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
             className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none resize-none"
           />
         </div>
+
+        {/* Contact Details Section */}
+        <div className="border-t pt-5 mt-5">
+          <h4 className="text-sm font-semibold text-slate-900 mb-4">Contact Details</h4>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Mobile</label>
+              <input
+                value={form.contactMobile}
+                onChange={e => setForm({...form, contactMobile: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="9876543210"
+                maxLength={10}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Email</label>
+              <input
+                type="email"
+                value={form.contactEmail}
+                onChange={e => setForm({...form, contactEmail: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="contact@example.com"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Contact Person</label>
+              <input
+                value={form.contactPerson}
+                onChange={e => setForm({...form, contactPerson: e.target.value})}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand/20 focus:border-brand outline-none"
+                placeholder="Contact person name"
+              />
+            </div>
+          </div>
+        </div>
         
         {error && (
           <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600">
@@ -920,6 +1013,11 @@ function EntityView({ entity, tenant, onEdit }) {
         <div className="md:col-span-2 lg:col-span-3">
           <Field label="Address" value={entity.address} />
         </div>
+        
+        {/* Contact Details */}
+        <Field label="Contact Mobile" value={entity.contactMobile} />
+        <Field label="Contact Email" value={entity.contactEmail} />
+        <Field label="Contact Person" value={entity.contactPerson} />
       </div>
     </div>
   )

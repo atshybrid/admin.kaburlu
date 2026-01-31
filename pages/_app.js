@@ -1,7 +1,8 @@
 import '../styles/globals.css'
-import { Component as ReactComponent } from 'react'
+import { Component as ReactComponent, useEffect } from 'react'
 import MpinReLoginModal from '../components/auth/MpinReLoginModal'
 import useSessionExpiry from '../hooks/useSessionExpiry'
+import { initSessionTracking } from '../utils/sessionTracker'
 
 class ErrorBoundary extends ReactComponent {
   constructor(props){
@@ -34,6 +35,12 @@ class ErrorBoundary extends ReactComponent {
 
 function AppContent({ Component, pageProps }) {
   const { showMpinModal, handleMpinSuccess, handleModalClose } = useSessionExpiry()
+
+  // Initialize session tracking for working hours
+  useEffect(() => {
+    const cleanup = initSessionTracking()
+    return cleanup
+  }, [])
 
   return (
     <>

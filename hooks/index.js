@@ -4,7 +4,7 @@
 
 export { useCrud, useSearch, usePagination, useSort } from './useCrud'
 export { useTenants } from './useTenants'
-export { useUsers } from './useUsers'
+export { useUsers, useUserLogs } from './useUsers'
 export { useStates, useDistricts, useMandals, useConstituencies } from './useLocations'
 
 // Common hook for async operations

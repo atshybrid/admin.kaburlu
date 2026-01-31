@@ -4,13 +4,15 @@
  */
 
 import { useState } from 'react'
+import { useRouter } from 'next/router'
 import { SearchInput, Button, Dropdown, Badge } from '../ui/primitives'
 
 export default function HeaderPro({ user, onOpenNav, onLogout }) {
   const [searchOpen, setSearchOpen] = useState(false)
+  const router = useRouter()
 
   const userMenuItems = [
-    { label: 'Profile Settings', onClick: () => {} },
+    { label: 'My Profile', onClick: () => router.push('/admin/profile') },
     { label: 'Account', onClick: () => {} },
     { label: 'Logout', onClick: onLogout, danger: true },
   ]

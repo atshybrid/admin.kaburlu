@@ -3,7 +3,7 @@
  * Business logic for Users management
  */
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { usersService } from '../lib/api/services/users'
 import { useCrud, useSearch } from './useCrud'
 
@@ -45,6 +45,59 @@ export function useUsers() {
     users: search.filteredData,
     updateRole,
     updateStatus
+  }
+}
+
+// Hook for User Logs/Activity
+export function useUserLogs(userId = null) {
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // Fetch logs for a specific user or all logs
+  const fetchLogs = useCallback(async (params = {}) => {
+    setLoading(true)
+    setError(null)
+    try {
+      let data
+      if (userId) {
+        data = await usersService.getLogs(userId, params)
+      } else {
+        data = await usersService.getAllLogs(params)
+      }
+      setLogs(data)
+      return { success: true, data }
+    } catch (err) {
+      setError(err.message)
+      return { success: false, error: err.message }
+    } finally {
+      setLoading(false)
+    }
+  }, [userId])
+
+  // Create a log entry for a user
+  const createLog = useCallback(async (targetUserId, payload) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await usersService.createLog(targetUserId || userId, payload)
+      await fetchLogs() // Refresh logs after creating
+      return { success: true, data }
+    } catch (err) {
+      setError(err.message)
+      return { success: false, error: err.message }
+    } finally {
+      setLoading(false)
+    }
+  }, [userId, fetchLogs])
+
+  return {
+    logs,
+    loading,
+    error,
+    fetchLogs,
+    createLog,
+    setLogs
   }
 }
 
