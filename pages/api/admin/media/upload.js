@@ -28,7 +28,18 @@ export default async function handler(req, res) {
   if (!jwt) return res.status(401).json({ error: 'UNAUTHENTICATED' })
 
   const base = getBackendApiBase()
-  const url = `${base}/media/upload`
+  
+  // Build URL with query parameters (e.g., tenantId)
+  const urlObj = new URL(`${base}/media/upload`)
+  if (req.query) {
+    Object.entries(req.query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        urlObj.searchParams.append(key, value)
+      }
+    })
+  }
+  
+  const url = urlObj.toString()
 
   try {
     const upstream = await axios({

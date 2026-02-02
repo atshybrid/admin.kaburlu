@@ -17,7 +17,18 @@ export default async function handler(req, res) {
   }
 
   const backendBase = getBackendApiBase()
-  const uploadUrl = `${backendBase}/media/upload`
+  
+  // Build URL with query parameters (e.g., tenantId)
+  const urlObj = new URL(`${backendBase}/media/upload`)
+  if (req.query) {
+    Object.entries(req.query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        urlObj.searchParams.append(key, value)
+      }
+    })
+  }
+  
+  const uploadUrl = urlObj.toString()
 
   return res.status(200).json({
     uploadUrl,
