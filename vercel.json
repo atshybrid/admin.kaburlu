@@ -4,6 +4,12 @@
       "maxDuration": 60
     }
   },
+  "rewrites": [
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/proxy/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
