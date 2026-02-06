@@ -1970,7 +1970,7 @@ function AddEntityModal({ tenant, onClose, onSaved }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 flex items-center gap-2">Language {loadingLangs && <Loader size={20} />}</label>
+            <label className="flex items-center gap-2 text-xs font-semibold text-gray-700">Language {loadingLangs && <Loader size={20} />}</label>
             <select className="mt-1 w-full border rounded p-2 bg-white" value={languageId} onChange={e => setLanguageId(e.target.value)} required disabled={loadingLangs}>
               <option value="">{loadingLangs ? 'Loading languages...' : 'Select language'}</option>
               {!loadingLangs && languages.map(l => (

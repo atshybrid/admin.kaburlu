@@ -31,6 +31,7 @@ const TENANT_TABS = [
   { id: 'editions', label: 'ePaper Editions', icon: 'layers', description: 'Editions & sub-editions' },
   { id: 'payments', label: 'Payments', icon: 'credit-card', description: 'Razorpay config' },
   { id: 'settings', label: 'Settings', icon: 'settings', description: 'Feature flags' },
+  { id: 'admins', label: 'Admins', icon: 'users', description: 'Tenant admin users' },
   { id: 'id-cards', label: 'ID Cards', icon: 'id-card', description: 'Reporter cards' },
   { id: 'pages', label: 'Legal Pages', icon: 'file-text', description: 'Static pages' },
   { id: 'reporters', label: 'Reporters', icon: 'users', description: 'Journalists' },
