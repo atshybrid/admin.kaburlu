@@ -387,3 +387,145 @@
 
 /* ===== Slate Extensions ===== */
 .bg-slate-25 { background-color: #fcfcfd; }
+/* ===== E-Paper Article Block Styles ===== */
+.epaper-block {
+  max-width: 768px; /* 8 inches at 96 DPI */
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px;
+  font-family: 'Noto Sans Telugu', 'Hind', sans-serif;
+  background: white;
+  box-sizing: border-box;
+}
+
+.epaper-title {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 auto 12px;
+  padding: 0 48px;
+  color: #000000; /* Pure black for newspaper */
+  text-align: center;
+  max-width: 672px; /* 7 inches at 96 DPI */
+  width: 100%;
+}
+
+.epaper-subtitle {
+  font-size: 18px;
+  font-weight: 600; /* Semi-bold */
+  line-height: 1.3;
+  margin: 0 auto 20px;
+  padding: 0 48px;
+  color: #333333; /* Newspaper-stable dark gray */
+  text-align: center;
+  max-width: 672px; /* 7 inches */
+}
+
+/* ===== Multi-Column Article Flow (Newspaper Style) ===== */
+.article-columns {
+  column-count: 3;
+  column-gap: 3px;
+  max-width: 672px; /* 7 inches */
+  margin: 0 auto;
+  
+  font-family: 'Mandali', 'Noto Sans Telugu', sans-serif;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: justify;
+  color: #000;
+  
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -moz-hyphens: auto;
+}
+
+/* Anchored elements - prevent breaking across columns */
+.article-columns .highlight-box,
+.article-columns .article-image {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Highlight box styling */
+.article-columns .highlight-box {
+  background: #fffbf0;
+  border-left: 3px solid #333;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  box-sizing: border-box;
+}
+
+.article-columns .highlight-box ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.article-columns .highlight-box li {
+  font-size: 12px;
+  line-height: 16px;
+  padding: 4px 0;
+  text-align: left;
+  padding-left: 20px;
+  text-indent: -20px;
+}
+
+.article-columns .highlight-box li:before {
+  content: "▸ ";
+  color: #000;
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+/* Article images */
+.article-columns .article-image {
+  margin: 0 0 12px 0;
+  border: 1px solid #e0e0e0;
+}
+
+/* Force images to start new columns (col2/col3 anchoring) */
+.article-columns .article-image--break {
+  break-before: column;
+  -webkit-column-break-before: always;
+}
+
+.article-columns .article-image-img {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  object-fit: cover !important;
+  aspect-ratio: 16/9;
+}
+
+.article-columns .article-image .caption {
+  padding: 6px 8px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #666;
+  background: #f5f5f5;
+}
+
+/* Article text flow */
+.article-columns .article-text {
+  /* Text flows naturally in columns */
+}
+
+.article-columns .article-text h3 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 18px;
+  margin: 12px 0 6px;
+  color: #000;
+  break-after: avoid;
+}
+
+.article-columns .article-text p {
+  margin-bottom: 10px;
+}
+
+.article-columns .dateline-inline {
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 16px;
+}
