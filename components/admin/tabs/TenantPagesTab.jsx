@@ -31,7 +31,10 @@ export default function TenantPagesTab({ tenantContext }) {
     { slug: 'terms-of-service', title: 'Terms of Service', icon: '📜' },
     { slug: 'about-us', title: 'About Us', icon: '👥' },
     { slug: 'contact', title: 'Contact', icon: '📧' },
-    { slug: 'refund-policy', title: 'Refund Policy', icon: '💰' }
+    { slug: 'refund-policy', title: 'Refund Policy', icon: '💰' },
+    { slug: 'disclaimer', title: 'Disclaimer', icon: '⚠️' },
+    { slug: 'editorial-policy', title: 'Editorial Policy', icon: '✍️' },
+    { slug: 'ai-policy', title: 'AI Policy', icon: '🤖' }
   ]
 
   const loadPages = useCallback(async () => {

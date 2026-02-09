@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const { path } = req.query
   const pathString = Array.isArray(path) ? path.join('/') : path || ''
   
-  const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://app.kaburlumedia.com'
+  const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.kaburlumedia.com'
   const backendBase = String(rawBackendUrl || '')
     .replace(/\/+$/, '')
     .replace(/(\/api\/v1)+$/, '')
