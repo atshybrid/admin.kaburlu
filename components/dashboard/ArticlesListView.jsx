@@ -57,17 +57,16 @@ export default function ArticlesListView() {
       setUser(userData);
       
       if (isSuperAdmin(userData)) {
-        // Super admin: Always fetch tenants from API (not in login response)
+        // Super admin: Fetch tenants from API
         fetchTenantsFromApi();
       } else {
-        // Non-admin: Use tenants from login response
+        // Reporter/Tenant Admin/Desk Editor: Use tenant directly from login response
         const loginResponse = tokenData.data?.loginResponse || userData.loginResponse;
         const userTenants = loginResponse?.tenants || [];
         
-        const userTenant = userTenants?.[0];
-        if (userTenant) {
-          setTenants([userTenant]);
-          setSelectedTenant(userTenant);
+        if (userTenants.length > 0) {
+          setTenants(userTenants);
+          setSelectedTenant(userTenants[0]);
         }
       }
     }

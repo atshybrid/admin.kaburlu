@@ -19,7 +19,8 @@ import {
   IconKey,
   IconCreditCard,
   IconShield,
-  IconLogout
+  IconLogout,
+  IconNewspaper
 } from '../ui/icons'
 
 const navigation = [
@@ -42,6 +43,9 @@ const navigation = [
     { key: 'tenant-idcard-settings', href: '/dashboard/tenant-idcard-settings', label: 'ID Card Settings', icon: IconKey },
     { key: 'tenant-razorpay-settings', href: '/dashboard/tenant-razorpay-settings', label: 'Razorpay', icon: IconCreditCard },
     { key: 'tenant-domain-settings', href: '/dashboard/tenant-domain-settings', label: 'Domains', icon: IconGlobe },
+  ]},
+  { section: 'Journalist Union', items: [
+    { key: 'journalist-union', href: '/admin/journalist-union', label: 'Journalist Union', icon: IconNewspaper },
   ]},
   { section: 'Settings', items: [
     { key: 'roles', href: '/dashboard/roles', label: 'Roles', icon: IconShield },

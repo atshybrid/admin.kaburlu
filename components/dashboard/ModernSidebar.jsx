@@ -39,6 +39,7 @@ const navigation = {
   ],
   epaper: [
     { key: 'epaper-overview', href: '/admin/epaper', label: 'ePaper Overview', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
+    { key: 'epaper-design', href: '/admin/epaper/design', label: 'Epaper Design', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
     { key: 'epaper-editions', href: '/admin/epaper/editions', label: 'Editions', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
     { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload Issues', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
     { key: 'epaper-issues', href: '/admin/epaper/issues', label: 'Issues', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
@@ -51,6 +52,9 @@ const navigation = {
   ],
   tenants: [
     { key: 'tenants', href: '/admin/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+  ],
+  journalist: [
+    { key: 'journalist-union', href: '/admin/journalist-union', label: 'Journalist Union', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
   ],
   settings: [
     { key: 'global-razorpay', href: '/admin/settings/razorpay', label: 'Global Razorpay', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
@@ -130,6 +134,7 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
     epaper: navigation.epaper.filter(item => hasAccess(item, userRole)),
     location: navigation.location.filter(item => hasAccess(item, userRole)),
     tenants: navigation.tenants.filter(item => hasAccess(item, userRole)),
+    journalist: navigation.journalist.filter(item => hasAccess(item, userRole)),
     settings: navigation.settings.filter(item => hasAccess(item, userRole))
   }
 
@@ -182,6 +187,15 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
             currentTab={currentTab}
             collapsed={collapsed.tenants}
             onToggle={() => toggleSection('tenants')}
+          />
+        )}
+        {filteredNavigation.journalist.length > 0 && (
+          <NavGroup
+            title="Journalist Union"
+            items={filteredNavigation.journalist}
+            currentTab={currentTab}
+            collapsed={collapsed.journalist}
+            onToggle={() => toggleSection('journalist')}
           />
         )}
         {filteredNavigation.settings.length > 0 && (

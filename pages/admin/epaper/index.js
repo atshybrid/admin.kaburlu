@@ -7,6 +7,17 @@ import { toast } from '../../../components/ui/Toast.jsx'
 import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
 import { Trash } from 'lucide-react'
 
+const BLOCK_DEMO_LINKS = [
+  { label: 'All Blocks Demo', href: '/epaper/blocks-demo' },
+  { label: '2in · 1col', href: '/epaper/block-2in-1col-demo' },
+  { label: '3in · 1col', href: '/epaper/block-3in-1col-demo' },
+  { label: '4in · 2col', href: '/epaper/block-4in-2col-demo' },
+  { label: '6in · 2col', href: '/epaper/block-6in-2col-demo' },
+  { label: '9in · 3col', href: '/epaper/block-9in-3col-demo' },
+  { label: '12in · 4col', href: '/epaper/block-12in-4col-demo' },
+  { label: 'Classic Block', href: '/epaper/classic-article-demo' },
+]
+
 function todayYmd() {
   const d = new Date()
   const yyyy = d.getFullYear()
@@ -36,8 +47,8 @@ export default function EPaperIndex() {
     setError('')
     setSuccess('')
     try {
-      const token = getToken()
-      if (!token) {
+      const tokenData = getToken()
+      if (!tokenData?.token) {
         logout()
         router.push('/')
         return
@@ -47,7 +58,7 @@ export default function EPaperIndex() {
         `/api/admin/proxy/epaper/issues/all-by-date?issueDate=${issueDate}&includePages=true&page=${page}&limit=${limit}`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${tokenData.token}`,
             'Content-Type': 'application/json',
           },
         }
@@ -167,15 +178,27 @@ export default function EPaperIndex() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">ePaper Management</h1>
                 <p className="text-gray-600">View and manage all ePaper editions</p>
               </div>
-              <button
-                onClick={() => router.push('/admin/epaper/upload')}
-                className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors shadow-md"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Upload Epaper
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push('/admin/epaper/auto-assign')}
+                  className="flex items-center gap-2 px-5 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m3 6V7m3 10v-3M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  Auto Assign Blocks
+                </button>
+
+                <button
+                  onClick={() => router.push('/admin/epaper/upload')}
+                  className="flex items-center gap-2 px-6 py-3 bg-orange-500 text-white rounded-lg font-medium hover:bg-orange-600 transition-colors shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Upload Epaper
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -219,6 +242,25 @@ export default function EPaperIndex() {
               <li>To replace, delete the old issue then upload new PDF.</li>
               <li>Max PDF size is 100MB; large files are uploaded directly to storage.</li>
             </ul>
+          </div>
+
+          {/* Block demo links */}
+          <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+            <div className="font-semibold text-gray-900">Block Demo Links (Testing)</div>
+            <p className="text-sm text-gray-600 mt-1">Open any block demo in a new tab for quick layout testing.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {BLOCK_DEMO_LINKS.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
           </div>
 
           {/* Share banner (after successful upload) */}

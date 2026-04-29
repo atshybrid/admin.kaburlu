@@ -69,15 +69,6 @@ const LEGAL_PAGE_PRESETS = [
     contentHtml: '<h2>About {{BRAND_NAME}}</h2><p>{{BRAND_NAME}} is a multi-language digital news platform delivering reliable and timely news updates.</p><p>We focus on local, state, and national news and aim to provide factual and verified information.</p><h3>Contact</h3><p>Email: {{SUPPORT_EMAIL}}<br/>Website: {{WEBSITE_URL}}</p>'
   },
   {
-    slug: 'contact-us',
-    title: 'Contact Us',
-    meta: {
-      seoTitle: 'Contact {{BRAND_NAME}}',
-      seoDescription: 'Get in touch with {{BRAND_NAME}} for support, feedback, or news tips.'
-    },
-    contentHtml: '<h2>Contact {{BRAND_NAME}}</h2><p>If you have any questions, feedback, or news tips, please contact us.</p><p><strong>Email:</strong> {{SUPPORT_EMAIL}}</p>'
-  },
-  {
     slug: 'privacy-policy',
     title: 'Privacy Policy',
     meta: {

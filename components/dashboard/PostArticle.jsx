@@ -86,44 +86,49 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     extraImagesRef.current = extraImages
   }, [extraImages])
 
-  // Get user on mount or from props
+  // Get user on mount or from props and load tenant data
   useEffect(() => {
+    const tokenData = getToken()
+    let userData = null
+    
     if (propUser) {
       setUser(propUser)
-      
-      if (!isSuperAdmin(propUser)) {
-        const userTenantId = propUser.tenantId || propUser.tenant?.id
-        if (userTenantId) {
-          setSelectedTenant(userTenantId)
-        }
-      }
-    } else {
-      const tokenData = getToken()
-      if (tokenData?.user || tokenData?.data?.user) {
-        const userData = tokenData.user || tokenData.data?.user
-        setUser(userData)
+      userData = propUser
+    } else if (tokenData?.user || tokenData?.data?.user) {
+      userData = tokenData.user || tokenData.data?.user
+      setUser(userData)
+    }
+    
+    // Load tenant data immediately
+    if (userData) {
+      if (isSuperAdmin(userData)) {
+        loadTenants()
+      } else {
+        // Reporter/Tenant Admin/Desk Editor: Use tenant from login response directly
+        const loginResponse = tokenData?.data?.loginResponse || userData.loginResponse
+        const userTenants = loginResponse?.tenants || []
         
-        if (!isSuperAdmin(userData)) {
-          const userTenantId = userData.tenantId || userData.tenant?.id
-          if (userTenantId) {
-            setSelectedTenant(userTenantId)
+        if (userTenants.length > 0) {
+          setTenants(userTenants)
+          const firstTenant = userTenants[0]
+          const tenantId = firstTenant.id || firstTenant.tenantId
+          
+          if (tenantId) {
+            setSelectedTenant(tenantId)
+            // Set tenant data directly from login response
+            setTenantData(firstTenant)
+            // Load categories and languages
+            loadCategoriesAndLanguages(tenantId, firstTenant)
           }
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propUser])
 
-  // Load tenants for super admin
+  // Load tenant data when selected (only for super admin changing tenant)
   useEffect(() => {
-    if (user && isSuperAdmin(user)) {
-      loadTenants()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user])
-
-  // Load tenant data when selected
-  useEffect(() => {
-    if (selectedTenant) {
+    if (selectedTenant && isSuperAdmin(user) && !tenantData) {
       loadTenantData(selectedTenant)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

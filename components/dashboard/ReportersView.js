@@ -85,7 +85,7 @@ export default function ReportersView() {
         </div>
         <div className="flex items-center gap-2 min-w-[260px]">
           <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-700 flex items-center gap-2">Tenant {tenantLoading && <Loader size={18} />}</label>
+            <label className="text-xs font-semibold text-gray-700 flex items-center gap-2">Tenant {tenantLoading && <Loader size={18} />}</label>
             <select className="mt-1 w-full border rounded p-2 bg-white" value={tenantSel} onChange={e=>{setTenantSel(e.target.value); loadReporters(e.target.value)}} disabled={tenantLoading || !!tenantErr}>
               <option value="">{tenantLoading ? 'Loading tenants...' : (tenantErr ? 'Failed to load tenants' : 'Select tenant')}</option>
               {tenantList.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}

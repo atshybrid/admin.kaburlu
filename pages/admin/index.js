@@ -2,11 +2,13 @@
  * Admin Dashboard - Main entry point
  * /admin route
  * DESK_EDITOR users are redirected to ePaper section
+ * REPORTER users are redirected to Articles section
  */
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
+import { isReporter } from '../../utils/roleUtils'
 
 // Check if user is DESK_EDITOR only
 function isDeskEditorOnly(user) {
@@ -45,6 +47,7 @@ function OverviewContent() {
             <ActionButton href="/admin/categories" label="Categories" icon="folder" />
             <ActionButton href="/admin/languages" label="Languages" icon="globe" />
             <ActionButton href="/admin/users" label="Users" icon="users" />
+            <ActionButton href="/admin/epaper" label="Block Demos" icon="layout" />
           </div>
         </div>
 
@@ -93,6 +96,7 @@ function ActionButton({ href, label, icon }) {
     folder: <path strokeLinecap="round" strokeLinejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />,
     globe: <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />,
     users: <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
+    layout: <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10-1h6v6h-6v-6z" />,
   }
   
   return (
@@ -136,6 +140,13 @@ export default function AdminDashboard() {
       router.replace('/admin/epaper/editions')
       return
     }
+    
+    // Redirect REPORTER to Articles section
+    if (isReporter(user)) {
+      router.replace('/admin/articles')
+      return
+    }
+    
     setChecking(false)
   }, [router])
 

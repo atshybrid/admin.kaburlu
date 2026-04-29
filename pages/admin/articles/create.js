@@ -7,9 +7,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { getToken } from '../../../utils/auth'
-import { hasArticleAccess } from '../../../utils/roleUtils'
+import { hasArticleAccess, isReporter } from '../../../utils/roleUtils'
 import PostArticle from '../../../components/dashboard/PostArticle'
 import DashboardLayout from '../../../components/dashboard/DashboardLayout'
+import ReporterLayout from '../../../components/dashboard/ReporterLayout'
 
 export default function CreateArticlePage() {
   const router = useRouter()
@@ -62,13 +63,16 @@ export default function CreateArticlePage() {
     )
   }
 
+  // Use ReporterLayout for reporters, DashboardLayout for others
+  const Layout = isReporter(user) ? ReporterLayout : DashboardLayout
+
   return (
-    <DashboardLayout title="Create Article">
+    <Layout title="Create Article" user={user}>
       <PostArticle 
         user={user}
         onSuccess={handleSuccess}
         onCancel={handleCancel}
       />
-    </DashboardLayout>
+    </Layout>
   )
 }

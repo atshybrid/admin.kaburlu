@@ -1,0 +1,128 @@
+.articleBlock {
+  width: 76.2mm;
+  margin: 0 auto;
+  background: white;
+  padding: 5px;
+  box-sizing: border-box;
+  border: 0.5px solid #ccc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  font-family: 'Mandali', sans-serif;
+}
+
+.titleWrap {
+  margin-bottom: 5px;
+}
+
+.title {
+  max-width: 100%;
+  margin: 0 auto 3px;
+  padding: 0;
+  font-family: 'Mandali', sans-serif;
+  font-weight: 700;
+  line-height: 1.28;
+  padding-bottom: 2px;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  letter-spacing: 0.01em;
+}
+
+.subtitle {
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Mandali', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.articleImage {
+  margin: 0 0 6px 0;
+  border: 0.5px solid #ddd;
+}
+
+.articleImage img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.articleImage figcaption {
+  font-size: 9px;
+  line-height: 12px;
+  color: #555;
+  padding: 2px 4px;
+  font-style: italic;
+  text-align: center;
+  background: #f9f9f9;
+  border-top: 0.5px solid #ddd;
+}
+
+.highlightBox {
+  background: #fbf6e8;
+  padding: 6px 7px;
+  border: 1px solid #c8b97a;
+  border-left: 3px solid #d35400;
+  margin-bottom: 6px;
+}
+
+.highlightBox ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.highlightBox li {
+  position: relative;
+  padding-left: 13px;
+  margin-bottom: 2px;
+  font-size: 10px;
+  line-height: 13px;
+  text-align: left;
+}
+
+.highlightBox li::before {
+  content: '\25A0';
+  position: absolute;
+  left: 0;
+  color: #d35400;
+  font-size: 7px;
+  line-height: 14px;
+  font-weight: bold;
+}
+
+.articleContent {
+  font-size: 11px;
+  line-height: 15px;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.articleContent p {
+  margin: 0 0 5px 0;
+}
+
+.articleContent h3 {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  margin: 8px 0 3px;
+}
+
+.dateline {
+  display: inline;
+  font-weight: 700;
+}
+
+@media print {
+  .articleBlock {
+    width: 100%;
+    padding: 0;
+    box-shadow: none;
+    border: none;
+  }
+}

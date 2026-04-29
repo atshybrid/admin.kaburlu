@@ -1,5 +1,5 @@
 .articleBlock {
-  width: 203.2mm;
+  width: 228.6mm;
   margin: 0 auto;
   background: white;
   padding: 5px;
@@ -33,21 +33,14 @@
   font-weight: 600;
   line-height: 1.3;
   text-align: center;
-  /* Color applied dynamically via inline style */
 }
 
-/* Columns layout */
 .articleColumns {
   width: 100%;
   margin: 0;
-  border-top: none;
-  padding-top: 6px;
-
-  /* Table layout for equal-height columns */
   display: table;
   table-layout: fixed;
   border-spacing: 0;
-
   font-family: 'Mandali', sans-serif;
   font-size: 13px;
   line-height: 18px;
@@ -56,43 +49,33 @@
   -webkit-hyphens: auto;
 }
 
-/* Individual columns with vertical rule separator */
 .column {
   display: table-cell;
   width: 33.333%;
   vertical-align: top;
-  padding: 0 5px; /* 5px each side = 10px gap between columns */
+  padding: 0 5px;
 }
 
-.column:first-child {
-  padding-left: 0;
-}
+.column:first-child { padding-left: 0; }
+.column:last-child { padding-right: 0; }
 
-.column:last-child {
-  padding-right: 0;
-}
-
-/* Dateline - inline semi bold before first para */
 .dateline {
   display: inline;
   font-weight: 700;
 }
 
-/* First paragraph after dateline */
 .firstPara {
   margin: 0 0 6px 0;
-  text-indent: 0;
 }
 
-/* Anchored elements */
-.highlightBox,
-.articleImage,
 .column p,
-.column h3 {
+.column h3,
+.articleImage,
+.articleImageInline,
+.highlightBox {
   margin-bottom: 6px;
 }
 
-/* Highlight - stays in column 1 */
 .highlightBox {
   background: #fbf6e8;
   padding: 8px 10px;
@@ -117,7 +100,7 @@
 }
 
 .highlightBox li::before {
-  content: '\25A0'; /* filled square — classic paper bullet */
+  content: '\25A0';
   position: absolute;
   left: 0;
   color: #d35400;
@@ -126,20 +109,20 @@
   font-weight: bold;
 }
 
-/* Images */
-.articleImage {
-  margin: 0 0 6px 0;
+.articleImage,
+.articleImageInline {
   border: 0.5px solid #ddd;
 }
 
-.articleImage img {
+.articleImage img,
+.articleImageInline img {
   width: 100%;
-  max-width: 100%;
   height: auto;
   display: block;
 }
 
-.articleImage figcaption {
+.articleImage figcaption,
+.articleImageInline figcaption {
   font-size: 10px;
   line-height: 13px;
   color: #555;
@@ -150,7 +133,6 @@
   border-top: 0.5px solid #ddd;
 }
 
-/* Inner headings */
 .column h3 {
   font-size: 13.5px;
   font-weight: 700;
@@ -159,20 +141,15 @@
   margin-bottom: 4px;
 }
 
-/* Paragraphs */
 .column p {
   margin: 0 0 6px 0;
 }
 
-/* ── Print / PDF styles ──────────────────────────── */
 @media print {
   .articleBlock {
     width: 100%;
     padding: 0;
     box-shadow: none;
     border: none;
-  }
-  .noprint {
-    display: none !important;
   }
 }

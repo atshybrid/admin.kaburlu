@@ -6,19 +6,9 @@ export default async function handler(req, res) {
     const jwt = getAdminJwtFromRequest(req)
     if (!jwt) return res.status(401).json({ error: 'UNAUTHENTICATED' })
 
-    const { tenantId, issueDate, issueId } = req.query
-
-    // Build query params
-    const params = new URLSearchParams()
-    if (tenantId) params.set('tenantId', tenantId)
-    if (issueDate) params.set('issueDate', issueDate)
-    if (issueId) params.set('issueId', issueId)
-
-    const queryString = params.toString() ? `?${params.toString()}` : ''
-
-    // Forward request to backend
+    // Forward all query params to backend via forwardJson (handles editionId, subEditionId, tenantId, issueDate, etc.)
     return await forwardJson(req, res, {
-      path: `/epaper/pdf-issues${queryString}`,
+      path: `/epaper/pdf-issues`,
       authorization: `Bearer ${jwt}`,
     })
   } catch (e) {

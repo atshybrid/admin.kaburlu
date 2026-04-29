@@ -28,6 +28,34 @@ const STYLE2_SLOTS = [
   { id: 'footer_banner', name: 'Footer Banner', desc: 'Pre-footer (970x90)' },
 ]
 
+const DEFAULT_SLOT_FORM = {
+  enabled: true,
+  code: '',
+  type: 'adsense',
+  imageUrl: '',
+  linkUrl: '',
+  altText: '',
+}
+
+function normalizeSlot(slot = {}) {
+  return {
+    enabled: slot.enabled ?? DEFAULT_SLOT_FORM.enabled,
+    code: slot.code || DEFAULT_SLOT_FORM.code,
+    type: slot.type || DEFAULT_SLOT_FORM.type,
+    imageUrl: slot.imageUrl || DEFAULT_SLOT_FORM.imageUrl,
+    linkUrl: slot.linkUrl || DEFAULT_SLOT_FORM.linkUrl,
+    altText: slot.altText || DEFAULT_SLOT_FORM.altText,
+  }
+}
+
+function normalizeSlotsMap(slots) {
+  if (!slots || typeof slots !== 'object' || Array.isArray(slots)) return {}
+
+  return Object.fromEntries(
+    Object.entries(slots).map(([slotId, slot]) => [slotId, normalizeSlot(slot)])
+  )
+}
+
 export default function TenantAdsTab({ tenantContext }) {
   const { tenant } = tenantContext
   const [loading, setLoading] = useState(true)
@@ -42,14 +70,7 @@ export default function TenantAdsTab({ tenantContext }) {
   
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingSlot, setEditingSlot] = useState(null)
-  const [slotForm, setSlotForm] = useState({
-    enabled: true,
-    code: '',
-    type: 'adsense', // adsense | custom | image
-    imageUrl: '',
-    linkUrl: '',
-    altText: '',
-  })
+  const [slotForm, setSlotForm] = useState(DEFAULT_SLOT_FORM)
 
   const fetchAds = useCallback(async () => {
     if (!tenant?.id) return
@@ -63,8 +84,8 @@ export default function TenantAdsTab({ tenantContext }) {
         adsApi.list(tenant.id).catch(() => []),
       ])
       
-      setStyle1Ads(s1.slots || s1 || {})
-      setStyle2Ads(s2.slots || s2 || {})
+      setStyle1Ads(normalizeSlotsMap(s1.slots || s1 || {}))
+      setStyle2Ads(normalizeSlotsMap(s2.slots || s2 || {}))
       setCustomAds(Array.isArray(custom) ? custom : custom.ads || [])
     } catch (e) {
       setError(e.message)
@@ -79,17 +100,10 @@ export default function TenantAdsTab({ tenantContext }) {
 
   const handleSlotClick = (slotId, style) => {
     const ads = style === 'style1' ? style1Ads : style2Ads
-    const existing = ads[slotId] || {}
+    const existing = normalizeSlot(ads[slotId])
     
     setEditingSlot({ id: slotId, style })
-    setSlotForm({
-      enabled: existing.enabled ?? true,
-      code: existing.code || '',
-      type: existing.type || 'adsense',
-      imageUrl: existing.imageUrl || '',
-      linkUrl: existing.linkUrl || '',
-      altText: existing.altText || '',
-    })
+    setSlotForm(existing)
     setShowAddModal(true)
   }
 
@@ -100,9 +114,9 @@ export default function TenantAdsTab({ tenantContext }) {
     
     try {
       const { id: slotId, style } = editingSlot
-      const currentAds = style === 'style1' ? { ...style1Ads } : { ...style2Ads }
+      const currentAds = normalizeSlotsMap(style === 'style1' ? style1Ads : style2Ads)
       
-      currentAds[slotId] = { ...slotForm }
+      currentAds[slotId] = normalizeSlot(slotForm)
       
       if (style === 'style1') {
         await adsApi.style1.patch(tenant.id, { slots: currentAds })

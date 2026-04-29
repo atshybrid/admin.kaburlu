@@ -29,7 +29,7 @@ export default function ClassicArticleBlock({
   useEffect(() => {
     if (!titleRef.current || !title) return
 
-    const maxWidth = 203.2 // 8 inch in mm
+    const maxWidth = 200.5 // 203.2mm - 5px left - 5px right (≈1.35mm each)
     const minSize = 28
     const maxSize = 42
     let currentSize = minSize
@@ -63,7 +63,7 @@ export default function ClassicArticleBlock({
   useEffect(() => {
     if (!subtitleRef.current || !subtitle) return
 
-    const maxWidth = 203.2 // 8 inch in mm
+    const maxWidth = 200.5 // 203.2mm - 5px left - 5px right (≈1.35mm each)
     const minSize = 16
     const maxSize = 22 // Smaller than title max
     let currentSize = minSize
@@ -91,86 +91,96 @@ export default function ClassicArticleBlock({
     setSubtitleFontSize(currentSize)
   }, [subtitle])
 
-  // QuarkXPress-style distribution with heading consideration
   const totalParas = paragraphs.length
-  
-  const hasHighlights = highlights.length > 0
-  const hasImage1 = images && images.length > 0
-  const hasImage2 = images && images.length > 1
-  
-  // Count headings in paragraphs (they take more vertical space)
-  const headingCount = paragraphs.filter(p => p.type === 'heading').length
-  const regularParaCount = totalParas - headingCount
-  
-  // Define fixed height ratios
-  const PARA_HEIGHT = 16       // Regular paragraph
-  const HEADING_HEIGHT = 24    // Heading (larger)
-  const HIGHLIGHT_HEIGHT = 85  // Highlight box
-  const IMAGE_HEIGHT = 65      // Image + caption
-  
-  // Calculate total content height
-  const totalParaHeight = (regularParaCount * PARA_HEIGHT) + (headingCount * HEADING_HEIGHT)
-  const totalFixedHeight = 
-    (hasHighlights ? HIGHLIGHT_HEIGHT : 0) +
-    (hasImage1 ? IMAGE_HEIGHT : 0) +
-    (hasImage2 ? IMAGE_HEIGHT : 0)
-  
-  // Target height per column
-  const targetColumnHeight = (totalParaHeight + totalFixedHeight) / 3
-  
-  // Calculate available space for text content per column
-  const col1AvailableHeight = targetColumnHeight - (hasHighlights ? HIGHLIGHT_HEIGHT : 0)
-  const col2AvailableHeight = targetColumnHeight - (hasImage1 ? IMAGE_HEIGHT : 0)
-  const col3AvailableHeight = targetColumnHeight - (hasImage2 ? IMAGE_HEIGHT : 0)
-  
-  // Simple approach: count items needed per column
-  // Approximate by treating all content as average height
-  const avgItemHeight = totalParaHeight / totalParas
-  
-  let col1Items = Math.round(col1AvailableHeight / avgItemHeight)
-  let col2Items = Math.round(col2AvailableHeight / avgItemHeight)
-  let col3Items = totalParas - col1Items - col2Items
-  
-  // Ensure positive values
-  col1Items = Math.max(col1Items, 1)
-  col2Items = Math.max(col2Items, 1)
-  col3Items = Math.max(col3Items, 1)
-  
-  // Adjust for total mismatch
-  const totalDistributed = col1Items + col2Items + col3Items
-  if (totalDistributed !== totalParas) {
-    col3Items += (totalParas - totalDistributed)
-  }
-  
-  const col1End = col1Items
-  const col2End = col1End + col2Items
+
+  // Initial balanced split
+  const initialCol1End = Math.ceil(totalParas / 3)
+  const initialCol2End = Math.ceil(totalParas * 2 / 3)
+
+  const [col1End, setCol1End] = useState(initialCol1End)
+  const [col2End, setCol2End] = useState(initialCol2End)
+
+  const col1Ref = useRef(null)
+  const col2Ref = useRef(null)
+  const col3Ref = useRef(null)
+  const balanceRound = useRef(0)
+
+  // Reset breaks when paragraphs change
+  useEffect(() => {
+    balanceRound.current = 0
+    setCol1End(Math.ceil(totalParas / 3))
+    setCol2End(Math.ceil(totalParas * 2 / 3))
+  }, [paragraphs, images, highlights, totalParas])
+
+  // After each render, measure actual column heights and rebalance
+  useEffect(() => {
+    if (!col1Ref.current || !col2Ref.current || !col3Ref.current) return
+    if (balanceRound.current >= 8) return // max iterations
+
+    const h1 = col1Ref.current.scrollHeight
+    const h2 = col2Ref.current.scrollHeight
+    const h3 = col3Ref.current.scrollHeight
+
+    // Subtract image heights so only text portions are compared
+    const img2 = col2Ref.current.querySelector('figure')
+    const img3 = col3Ref.current.querySelector('figure')
+    const effectiveH2 = h2 - (img2 ? img2.offsetHeight : 0)
+    const effectiveH3 = h3 - (img3 ? img3.offsetHeight : 0)
+
+    const maxH = Math.max(h1, effectiveH2, effectiveH3)
+    const minH = Math.min(h1, effectiveH2, effectiveH3)
+
+    if (maxH - minH <= 18) {
+      balanceRound.current = 0
+      return
+    }
+
+    balanceRound.current++
+
+    let c1 = col1End
+    let c2 = col2End
+
+    if (h1 >= effectiveH2 && h1 >= effectiveH3) {
+      c1 = Math.max(1, c1 - 1)
+    } else if (effectiveH3 >= h1 && effectiveH3 >= effectiveH2) {
+      c2 = Math.max(c1 + 1, c2 - 1)
+    } else {
+      c1 = Math.min(totalParas - 2, c1 + 1)
+    }
+
+    c2 = Math.max(c1 + 1, Math.min(totalParas - 1, c2))
+    setCol1End(c1)
+    setCol2End(c2)
+  }, [col1End, col2End, totalParas])
   return (
     <div className={styles.articleBlock}>
-      <h1 
-        ref={titleRef}
-        className={styles.title}
-        style={{ fontSize: `${titleFontSize}px` }}
-      >
-        {title}
-      </h1>
-      {subtitle && (
-        <h2 
-          ref={subtitleRef}
-          className={styles.subtitle}
-          style={{ 
-            fontSize: `${subtitleFontSize}px`,
-            color: subtitleColor 
-          }}
+      <div className={styles.titleWrap}>
+        <h1 
+          ref={titleRef}
+          className={styles.title}
+          style={{ fontSize: `${titleFontSize}px` }}
         >
-          {subtitle}
-        </h2>
-      )}
+          {title}
+        </h1>
+        {subtitle && (
+          <h2 
+            ref={subtitleRef}
+            className={styles.subtitle}
+            style={{ 
+              fontSize: `${subtitleFontSize}px`,
+              color: subtitleColor 
+            }}
+          >
+            {subtitle}
+          </h2>
+        )}
+      </div>
 
       <div className={styles.articleColumns}>
         
         {/* COLUMN 1 */}
-        <div className={styles.column}>
-          {/* Highlight OR Dateline at top */}
+        <div className={styles.column} ref={col1Ref}>
+          {/* Highlight OR Dateline+first para at top */}
           {highlights.length > 0 ? (
             <div className={styles.highlightBox}>
               <ul>
@@ -179,15 +189,18 @@ export default function ClassicArticleBlock({
                 ))}
               </ul>
             </div>
-          ) : dateline ? (
-            <p className={styles.dateline}>{dateline}</p>
           ) : null}
           
-          {/* Column 1 text */}
-          {!highlights.length && dateline && (
-            <p className={styles.firstPara}>{paragraphs[0]?.content || paragraphs[0]}</p>
+          {/* Column 1 text — dateline inline at start of first para */}
+          {!highlights.length && paragraphs.length > 0 && (
+            <p className={styles.firstPara}>
+              {dateline && (
+                <span className={styles.dateline}>{dateline} </span>
+              )}
+              {paragraphs[0]?.content || paragraphs[0]}
+            </p>
           )}
-          {paragraphs.slice(highlights.length > 0 || dateline ? 1 : 0, col1End).map((item, idx) => {
+          {paragraphs.slice(!highlights.length ? 1 : 0, col1End).map((item, idx) => {
             if (item.type === 'heading') {
               return <h3 key={`c1-${idx}`}>{item.content}</h3>
             }
@@ -196,10 +209,11 @@ export default function ClassicArticleBlock({
         </div>
 
         {/* COLUMN 2 */}
-        <div className={styles.column}>
+        <div className={styles.column} ref={col2Ref}>
           {/* Image 1 at top (if exists) */}
           {images && images.length > 0 && images[0] && (
             <figure className={styles.articleImage}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={images[0].src} alt={images[0].alt || ''} />
               {images[0].caption && <figcaption>{images[0].caption}</figcaption>}
             </figure>
@@ -215,10 +229,11 @@ export default function ClassicArticleBlock({
         </div>
 
         {/* COLUMN 3 */}
-        <div className={styles.column}>
+        <div className={styles.column} ref={col3Ref}>
           {/* Image 2 at top (if exists) */}
           {images && images.length > 1 && images[1] && (
             <figure className={styles.articleImage}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={images[1].src} alt={images[1].alt || ''} />
               {images[1].caption && <figcaption>{images[1].caption}</figcaption>}
             </figure>

@@ -1,6 +1,6 @@
 import React from 'react'
 import Head from 'next/head'
-import ClassicArticleBlock from '../../components/epaper/ClassicArticleBlock'
+import ArticleBlock9in3col from '../../components/epaper/ArticleBlock9in3col'
 import { DEFAULT_EPAPER_DEMO_ARTICLE_ID, fetchEpaperDemoArticle } from '../../lib/server/epaperDemo'
 
 const ARTICLE_ID = DEFAULT_EPAPER_DEMO_ARTICLE_ID
@@ -14,6 +14,7 @@ function mapArticleToBlock(data) {
 
   const images = (data.mediaUrls || [])
     .filter(Boolean)
+    .slice(0, 4)
     .map(url => ({ src: url, alt: data.title || '', caption: '' }))
 
   return {
@@ -27,23 +28,14 @@ function mapArticleToBlock(data) {
   }
 }
 
-export default function ClassicArticleDemo({ articleProps, error }) {
-  if (error) {
-    return (
-      <div style={{ padding: 40, color: 'red', fontFamily: 'sans-serif' }}>
-        <b>API Error:</b> {error}
-      </div>
-    )
-  }
+export default function Demo({ articleProps, error }) {
+  if (error) return <div style={{ padding: 40, color: 'red' }}><b>Error:</b> {error}</div>
 
   return (
     <>
-      <Head>
-        <title>Classic Article Block Demo</title>
-      </Head>
-
+      <Head><title>9in 3col Block Demo</title></Head>
       <div style={{ minHeight: '100vh', background: '#f5f5f5', padding: '20px 0' }}>
-        <ClassicArticleBlock {...articleProps} />
+        <ArticleBlock9in3col {...articleProps} />
       </div>
     </>
   )
@@ -52,15 +44,10 @@ export default function ClassicArticleDemo({ articleProps, error }) {
 export async function getServerSideProps({ req }) {
   try {
     const result = await fetchEpaperDemoArticle(req, ARTICLE_ID)
-    if (!result.ok) {
-      return { props: { articleProps: null, error: result.error } }
-    }
-
+    if (!result.ok) return { props: { articleProps: null, error: result.error } }
     const data = result.data
-    const articleProps = mapArticleToBlock(data)
-
-    return { props: { articleProps, error: null } }
+    return { props: { articleProps: mapArticleToBlock(data), error: null } }
   } catch (err) {
-    return { props: { articleProps: null, error: err.message || 'Unknown error' } }
+    return { props: { articleProps: null, error: err.message } }
   }
 }
