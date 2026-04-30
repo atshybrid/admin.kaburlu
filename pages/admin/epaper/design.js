@@ -1875,24 +1875,19 @@ export default function EPaperDesignPage() {
 
               <div className="h-7 w-px bg-slate-200 hidden sm:block" />
 
-              {/* Live stats */}
-              <div className="flex items-center gap-3 text-[11px]">
-                <div className="text-center">
-                  <div className="text-[10px] text-slate-500">Pages</div>
-                  <div className="font-bold text-slate-900">{pages.length}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-slate-500">Articles</div>
-                  <div className="font-bold text-slate-900">{articles.length}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-slate-500">Placed</div>
-                  <div className="font-bold text-emerald-700">{usedArticleIds.size}</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-[10px] text-slate-500">Left</div>
-                  <div className="font-bold text-amber-700">{unplacedArticles.length}</div>
-                </div>
+              {/* Live stats — pill style */}
+              <div className="flex items-center gap-1.5">
+                {[
+                  { label: 'Pages', value: pages.length, cls: 'text-slate-900' },
+                  { label: 'Articles', value: articles.length, cls: 'text-slate-900' },
+                  { label: 'Placed', value: usedArticleIds.size, cls: 'text-emerald-700' },
+                  { label: 'Left', value: unplacedArticles.length, cls: 'text-amber-700' },
+                ].map(({ label, value, cls }) => (
+                  <div key={label} className="flex flex-col items-center px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200 min-w-[40px]">
+                    <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">{label}</div>
+                    <div className={`font-bold text-sm leading-tight ${cls}`}>{value}</div>
+                  </div>
+                ))}
               </div>
 
               {/* Action buttons */}
@@ -2089,40 +2084,70 @@ export default function EPaperDesignPage() {
               {!isMobile ? (
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div>
-                  <div className="text-sm font-bold text-slate-800">Page Arrange Canvas</div>
-                  <div className="text-xs text-slate-500">{pageMeta.label} · {pageMeta.widthCm}cm × {pageMeta.heightCm}cm · safe zone +{extraSafeZoneCm}cm</div>
+                  <div className="text-sm font-bold text-slate-900">Newspaper Canvas</div>
+                  <div className="text-[11px] text-slate-500">{pageMeta.label} · {pageMeta.widthCm} × {pageMeta.heightCm} cm</div>
                 </div>
-                <div className="text-xs text-slate-500">Active blocks: {activePlacements.length} · Slots: {activePageUsedSlots}/{maxSlotsPerPage}</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-center px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Blocks</div>
+                    <div className="font-bold text-slate-900 text-sm leading-tight">{activePlacements.length}</div>
+                  </div>
+                  <div className="flex flex-col items-center px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-[9px] text-slate-500 uppercase tracking-wide leading-none">Slots</div>
+                    <div className={`font-bold text-sm leading-tight ${
+                      activePageUsedSlots >= maxSlotsPerPage ? 'text-red-600' :
+                      activePageUsedSlots > maxSlotsPerPage * 0.75 ? 'text-amber-600' : 'text-emerald-700'
+                    }`}>{activePageUsedSlots}/{maxSlotsPerPage}</div>
+                  </div>
+                </div>
               </div>
               ) : null}
 
               {!isMobile ? (
-              <div className="flex flex-wrap gap-2 mb-3">
-                <button onClick={addSelectedToPage} disabled={!selectedArticle} className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60">Add Selected</button>
-                <button onClick={autoFillActivePage} disabled={!unplacedArticles.length} className="px-3 py-2 rounded-lg bg-orange-600 text-white text-xs font-semibold hover:bg-orange-700 disabled:opacity-60">Auto Fill Page</button>
-                <button onClick={districtWiseArrange} disabled={!articles.length} className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60">District Wise Arrange</button>
-                <button onClick={autoPaginateAll} disabled={!articles.length} className="px-3 py-2 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 disabled:opacity-60">Auto Paginate All</button>
-                <button onClick={addNewPage} className="px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-slate-50">+ New Page</button>
+              <div className="flex flex-wrap items-center gap-2 mb-3 bg-slate-50 rounded-xl px-3 py-2 border border-slate-200">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide shrink-0">Actions</span>
+                <div className="w-px h-4 bg-slate-300" />
+                <button onClick={addSelectedToPage} disabled={!selectedArticle} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">+ Add Selected</button>
+                <button onClick={autoFillActivePage} disabled={!unplacedArticles.length} className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Auto Fill Page</button>
+                <button onClick={autoPaginateAll} disabled={!articles.length} className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-[11px] font-semibold hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Paginate All</button>
+                <button onClick={districtWiseArrange} disabled={!articles.length} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[11px] font-semibold hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">District Wise</button>
+                <button onClick={addNewPage} className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors">+ Page</button>
               </div>
               ) : null}
 
               {!isMobile ? (
-              <div className="flex flex-wrap gap-2 mb-3">
+              <div className="flex flex-wrap gap-1.5 mb-3">
                 {pages.map((pageItem, index) => {
                   const isActive = pageItem.id === activePageId
+                  const artCount = pageItem.placements.length
+                  const slotsUsed = pageItem.placements.reduce((s, pl) => s + estimateSlots(pl.blockCode), 0)
+                  const slotPct = Math.min(100, Math.round((slotsUsed / maxSlotsPerPage) * 100))
+                  const isFull = slotsUsed >= maxSlotsPerPage
                   return (
                     <div key={pageItem.id} className="flex items-center gap-1">
                       <button
-                        onClick={() => {
-                          setActivePageId(pageItem.id)
-                          setSelectedPlacementId(null)
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${isActive ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+                        onClick={() => { setActivePageId(pageItem.id); setSelectedPlacementId(null) }}
+                        className={`relative flex flex-col items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold border min-w-[52px] overflow-hidden transition-colors ${
+                          isActive ? 'bg-blue-600 text-white border-blue-600' :
+                          isFull ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' :
+                          'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
                       >
-                        Page {index + 1}
+                        <span className="leading-tight">P{index + 1}</span>
+                        <span className={`text-[9px] font-normal leading-none ${
+                          isActive ? 'text-blue-100' : isFull ? 'text-emerald-600' : 'text-slate-400'
+                        }`}>{artCount > 0 ? `${artCount}art` : '—'}</span>
+                        {artCount > 0 && (
+                          <span
+                            className={`absolute bottom-0 left-0 h-[3px] ${
+                              isActive ? 'bg-white/40' : isFull ? 'bg-emerald-500' : 'bg-blue-400'
+                            }`}
+                            style={{ width: `${slotPct}%` }}
+                          />
+                        )}
                       </button>
                       {pages.length > 1 ? (
-                        <button onClick={(e) => { e.stopPropagation(); removePage(pageItem.id) }} className="px-2 py-1.5 rounded border border-red-200 text-red-600 text-xs hover:bg-red-50">×</button>
+                        <button onClick={(e) => { e.stopPropagation(); removePage(pageItem.id) }} className="px-1.5 py-1.5 rounded border border-red-200 text-red-400 text-[10px] hover:bg-red-50 hover:text-red-600 leading-none transition-colors">×</button>
                       ) : null}
                     </div>
                   )
@@ -2131,11 +2156,11 @@ export default function EPaperDesignPage() {
               ) : null}
 
               <div
-                className={`${isMobile ? 'bg-slate-100 rounded-none p-0' : 'bg-slate-200 rounded-lg p-2 sm:p-3 xl:p-4'} min-h-[460px] sm:min-h-[620px] xl:min-h-[790px] flex items-start justify-center overflow-auto`}
+                className={`${isMobile ? 'bg-slate-200 rounded-none p-0' : 'bg-[#1e1e22] rounded-xl p-3 sm:p-4 xl:p-6'} min-h-[460px] sm:min-h-[620px] xl:min-h-[790px] flex items-start justify-center overflow-auto`}
                 style={isMobile ? { minHeight: 'calc(100vh - 160px)' } : undefined}
               >
                 <div
-                  className={`bg-white border relative ${isMobile ? 'shadow-md border-slate-300' : 'shadow-2xl border-blue-300 ring-8 ring-blue-100/80'}`}
+                  className={`bg-white border relative ${isMobile ? 'shadow-md border-slate-300' : 'shadow-[0_8px_40px_rgba(0,0,0,0.55)] border-slate-400/60'}`}
                   style={{ width: `${canvasWidth}px`, height: `${canvasHeight}px`, overflow: 'hidden' }}
                 >
                   <div
@@ -2329,8 +2354,18 @@ export default function EPaperDesignPage() {
                           </div>
                         )
                       })() : (
-                        <div className="flex items-center justify-center py-12 text-xs text-slate-400 text-center">
-                          Right panel నుంచి articles add చేయండి లేదా Auto Fill చేయండి
+                        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="3" width="18" height="18" rx="2" />
+                              <line x1="3" y1="9" x2="21" y2="9" />
+                              <line x1="9" y1="21" x2="9" y2="9" />
+                            </svg>
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-semibold text-slate-500">Page Empty</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">Auto Fill చేయండి లేదా article select చేసి add చేయండి</div>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2364,18 +2399,36 @@ export default function EPaperDesignPage() {
             </div>
 
             <div className={`bg-white rounded-xl border border-slate-200 shadow-sm p-3 xl:h-[calc(100vh-210px)] overflow-y-auto ${mobilePanel !== 'articles' ? 'hidden xl:block' : ''}`}>
-              <div className="text-sm font-bold text-slate-800 mb-2">Article List + Editor</div>
-              <div className="text-xs text-slate-500 mb-3">Select article, place on canvas, edit selected block</div>
-
-              <div className="grid grid-cols-3 gap-2 mb-3 sticky top-0 bg-white z-10 pb-2">
-                <button onClick={() => setRightTab('articles')} className={`py-1.5 rounded border text-xs font-semibold ${rightTab === 'articles' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 text-slate-700'}`}>Articles</button>
-                <button onClick={() => setRightTab('editor')} className={`py-1.5 rounded border text-xs font-semibold ${rightTab === 'editor' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 text-slate-700'}`}>Editor</button>
-                <button onClick={() => setRightTab('mapping')} className={`py-1.5 rounded border text-xs font-semibold ${rightTab === 'mapping' ? 'bg-blue-600 text-white border-blue-600' : 'border-slate-300 text-slate-700'}`}>Mapping</button>
+              <div className="sticky top-0 bg-white z-10 pb-2 border-b border-slate-100 mb-3">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div>
+                    <div className="text-sm font-bold text-slate-900">Design Panel</div>
+                    <div className="text-[10px] text-slate-500">{articles.length} total · {usedArticleIds.size} placed · {unplacedArticles.length} unplaced</div>
+                  </div>
+                  <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    layoutSaved
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {layoutSaved ? '✓ Saved' : '● Unsaved'}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => setRightTab('articles')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                    rightTab === 'articles' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>Articles</button>
+                  <button onClick={() => setRightTab('editor')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                    rightTab === 'editor' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>Editor</button>
+                  <button onClick={() => setRightTab('mapping')} className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                    rightTab === 'mapping' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}>Block Map</button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <button onClick={syncBlockLinks} disabled={saving || !pages.length} className="px-2 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60">{saving ? 'Syncing...' : 'Sync Block Links'}</button>
-                <button onClick={prepareLayoutPayload} disabled={!pages.length} className="px-2 py-2 rounded-lg border text-xs font-semibold hover:bg-slate-50">Prepare Layout Payload</button>
+                <button onClick={copyPayload} disabled={!pages.length} className="px-2 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">Copy JSON</button>
               </div>
 
               {rightTab === 'mapping' ? (
@@ -2620,18 +2673,7 @@ export default function EPaperDesignPage() {
                 </>
               ) : null}
 
-              {showPayloadPreview && payloadPreview ? (
-                <div className="mt-4 rounded-lg border p-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-semibold text-slate-700">Layout Payload Preview</div>
-                    <div className="flex gap-2">
-                      <button onClick={copyPayload} className="text-[11px] px-2 py-1 rounded border hover:bg-slate-50">Copy</button>
-                      <button onClick={() => setShowPayloadPreview(false)} className="text-[11px] px-2 py-1 rounded border hover:bg-slate-50">Hide</button>
-                    </div>
-                  </div>
-                  <pre className="text-[11px] bg-slate-50 border rounded p-2 overflow-auto max-h-56">{payloadPreview}</pre>
-                </div>
-              ) : null}
+
             </div>
           </div>
 
