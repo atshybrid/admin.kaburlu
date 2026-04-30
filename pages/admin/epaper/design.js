@@ -673,185 +673,36 @@ function stripHtmlForPreview(str) {
 }
 
 /**
- * CanvasBlockPreview — renders one article block on the design canvas.
- *
- * ELEMENT ORDER (per user spec + Telugu Prabha PDF analysis):
- *
- *  1-col (BLOCK-02A / BLOCK-03A) — small article:
- *    [headline] → [subtitle?] → [image full-width?] → [dateline + body]
- *
- *  2-col (BLOCK-04A / BLOCK-06A) — medium article:
- *    [headline full-width] → [subtitle full-width]
- *    → LEFT col: dateline + body text
- *    → RIGHT col: image at top → body text
- *
- *  3-col (BLOCK-08A / BLOCK-09A) — large article:
- *    [headline full-width] → [subtitle full-width]
- *    → col1: dateline + body  |  col2: body  |  col3: image top + body
- *
- *  4-col (BLOCK-12A) — lead story:
- *    [headline full-width] → [subtitle full-width]
- *    → [image full-width ~38% height]
- *    → 4 text cols with dateline in col1
+ * CanvasBlockPreview — renders the ACTUAL ArticleBlock component scaled to fit
+ * the canvas cell. Same technique as the right-panel preview.
+ * This guarantees the canvas looks identical to the final newspaper output.
  */
 function CanvasBlockPreview({ placement, article, cellW, cellH }) {
-  const blockCode = placement.blockCode
-  const meta      = BLOCK_META[blockCode] || BLOCK_META['BLOCK-04A']
-  const cols      = meta.cols                                       // 1 / 2 / 2 / 3 / 4
-  const title     = placement.title || article?.title || ''
-  const district  = placement.district || ''
-
-  // ── Collect images (deduplicated) ──────────────────────────────────────
-  const imgs    = []
-  const seenImg = new Set()
-  const addImg  = (u) => { if (u && !seenImg.has(u) && imgs.length < 2) { seenImg.add(u); imgs.push(u) } }
-  if (article?.featuredImageUrl) addImg(article.featuredImageUrl)
-  if (Array.isArray(article?.media)) article.media.forEach(m => addImg(m?.url || m?.imageUrl || m?.src || ''))
-  const hasImg = imgs.length > 0
-
-  // ── Body text (strip HTML) ─────────────────────────────────────────────
-  const bodyText = (() => {
-    const raw = article?.content || article?.body || ''
-    if (typeof raw === 'string' && raw.trim()) return stripHtmlForPreview(raw)
-    if (Array.isArray(article?.paragraphs))
-      return stripHtmlForPreview(article.paragraphs.map(p => (typeof p === 'string' ? p : p?.content || '')).join(' '))
-    return stripHtmlForPreview(article?.excerpt || article?.description || '')
-  })()
-
-  const subtitle = stripHtmlForPreview(article?.subtitle || article?.subTitle || article?.subHeading || '')
-
-  // ── Scale-aware sizes ──────────────────────────────────────────────────
-  const pad       = Math.max(2, Math.round(cellW * 0.013))
-  const titleSz   = Math.max(8, Math.min(16, Math.round(cellW * 0.038)))
-  const subSz     = Math.max(6, Math.min(9,  Math.round(cellW * 0.022)))
-  const bodySz    = Math.max(6, Math.min(9,  Math.round(cellW * 0.022)))
-  const lineH     = bodySz * 1.55
-  const colPad    = Math.max(2, Math.round(cellW * 0.010))
-
-  // ── Block type flags ───────────────────────────────────────────────────
-  const isSingle = cols === 1          // BLOCK-02A / BLOCK-03A
-  const isLead   = cols >= 4           // BLOCK-12A
-
-  // ── Image heights ──────────────────────────────────────────────────────
-  // Single-col: image is 4:3, constrained to top 45% of block
-  const singleImgH = isSingle && hasImg && cellH
-    ? Math.round(Math.min(cellH * 0.45, cellW * 0.75)) : 0
-  // Lead (4-col): full-width image = 38% of block height
-  const leadImgH = isLead && hasImg && cellH
-    ? Math.round(cellH * 0.38) : 0
-  // Multi-col image: fills rightmost column, 4:3 ratio based on col width
-  const colW      = Math.round(cellW / cols)
-  const multiImgH = !isSingle && !isLead && hasImg && cellH
-    ? Math.round(Math.min(cellH * 0.50, colW * 0.75)) : 0
-
-  // ── Distribute body text across columns ───────────────────────────────
-  // Rightmost col has image so it gets less text (60% weight)
-  const words = bodyText.split(/\s+/).filter(Boolean)
-  const colWeights = Array.from({ length: cols }, (_, i) =>
-    (i === cols - 1 && hasImg && !isSingle && !isLead) ? 0.6 : 1
-  )
-  const weightTotal = colWeights.reduce((s, w) => s + w, 0)
-  let wCursor = 0
-  const colTexts = colWeights.map((w) => {
-    const n     = Math.round((w / weightTotal) * words.length)
-    const slice = words.slice(wCursor, wCursor + n).join(' ')
-    wCursor    += n
-    return slice
-  })
-
-  // ── Common header styles ───────────────────────────────────────────────
-  const headlineStyle = {
-    fontWeight: 700, fontSize: titleSz, lineHeight: 1.25,
-    textAlign: 'center', borderBottom: '1.5px solid #111',
-    paddingBottom: Math.round(pad * 0.5), marginBottom: Math.round(pad * 0.4),
-    wordBreak: 'break-word', letterSpacing: '0.01em', flexShrink: 0,
+  const blockCode  = placement.blockCode
+  const Comp       = BLOCK_COMPONENT_MAP[blockCode]
+  const nativeW    = BLOCK_NATIVE_WIDTH_PX[blockCode] || 384
+  const sc         = cellW / nativeW
+  const blockProps = article ? articleToBlockProps(article) : {
+    title: placement.title || '', subtitle: '', category: 'general',
+    dateline: placement.district || '', highlights: [], images: [], paragraphs: [],
   }
-  const subtitleStyle = {
-    fontSize: subSz, color: '#555', textAlign: 'center',
-    fontStyle: 'italic', marginBottom: Math.round(pad * 0.4),
-    wordBreak: 'break-word', lineHeight: 1.3, flexShrink: 0,
-  }
-  const imgStyle = (h) => ({
-    width: '100%', height: h, objectFit: 'cover',
-    objectPosition: 'center center', display: 'block',
-    flexShrink: 0, marginBottom: Math.round(pad * 0.4),
-  })
-  const bodyStyle = {
-    fontSize: bodySz, lineHeight: `${lineH}px`, color: '#111',
-    textAlign: 'justify', overflow: 'hidden', wordBreak: 'break-word', flex: 1,
+
+  if (!Comp) {
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: '#888' }}>
+        {placement.title || blockCode}
+      </div>
+    )
   }
 
   return (
-    <div style={{
-      width: '100%', height: '100%', overflow: 'hidden',
-      padding: pad, boxSizing: 'border-box',
-      fontFamily: 'Mandali, sans-serif', backgroundColor: '#fff',
-      display: 'flex', flexDirection: 'column',
-    }}>
-
-      {/* 1. Headline — always full width at top */}
-      <div style={headlineStyle}>
-        {district ? <span style={{ fontWeight: 900 }}>{district}: </span> : null}
-        {title}
-      </div>
-
-      {/* 2. Subtitle / kicker — full width, if exists */}
-      {subtitle ? <div style={subtitleStyle}>{subtitle}</div> : null}
-
-      {/* 3a. SINGLE-COL: image full-width then body */}
-      {isSingle && hasImg && singleImgH > 0 ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgs[0]} alt="" style={imgStyle(singleImgH)}
-          onError={(e) => { e.currentTarget.style.display = 'none' }} />
-      ) : null}
-
-      {/* 3b. LEAD (4-col): full-width image then text cols */}
-      {isLead && hasImg && leadImgH > 0 ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imgs[0]} alt="" style={imgStyle(leadImgH)}
-          onError={(e) => { e.currentTarget.style.display = 'none' }} />
-      ) : null}
-
-      {/* 4. Body — columns: last col gets image at top for 2-3 col blocks */}
-      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        {Array.from({ length: cols }).map((_, ci) => {
-          const isLast      = ci === cols - 1
-          const isImgCol    = isLast && hasImg && !isSingle && !isLead
-          return (
-            <React.Fragment key={ci}>
-              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: `0 ${colPad}px`, display: 'flex', flexDirection: 'column' }}>
-
-                {/* Image: top of the rightmost column (2-col & 3-col blocks) */}
-                {isImgCol && multiImgH > 0 ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imgs[0]} alt="" style={imgStyle(multiImgH)}
-                    onError={(e) => { e.currentTarget.style.display = 'none' }} />
-                ) : null}
-
-                {/* Body text — dateline bold at start of first column */}
-                <div style={bodyStyle}>
-                  {ci === 0 && district ? (
-                    <span style={{ fontWeight: 800, marginRight: 3 }}>{district}: </span>
-                  ) : null}
-                  {colTexts[ci]}
-                </div>
-              </div>
-
-              {/* Hairline column rule */}
-              {!isLast ? (
-                <div style={{ width: 1, background: '#bbb', alignSelf: 'stretch', flexShrink: 0 }} />
-              ) : null}
-            </React.Fragment>
-          )
-        })}
+    <div style={{ width: cellW, height: cellH, overflow: 'hidden', position: 'relative', backgroundColor: '#fff' }}>
+      <div style={{ transform: `scale(${sc})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0, width: nativeW, pointerEvents: 'none' }}>
+        <Comp {...blockProps} />
       </div>
     </div>
   )
 }
-
-
-
-
 
 // ── Newspaper layout constants ───────────────────────────────────────────────
 const MAX_EPAPER_PAGES = 8    // Hard cap: never exceed 8 pages
