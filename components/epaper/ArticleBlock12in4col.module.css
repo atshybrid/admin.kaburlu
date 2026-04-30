@@ -4,8 +4,8 @@
   background: white;
   padding: 5px;
   box-sizing: border-box;
-  border: 0.5px solid #ccc;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border: none;
+  box-shadow: none;
 }
 
 .titleWrap {
@@ -19,7 +19,8 @@
   font-family: 'Mandali', sans-serif;
   font-weight: 700;
   line-height: 1.28;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
+  border-bottom: 1.5px solid #111;
   text-align: center;
   white-space: nowrap;
   letter-spacing: 0.01em;
@@ -55,9 +56,10 @@
   width: 25%;
   vertical-align: top;
   padding: 0 5px;
+  border-right: 0.5px solid #aaa;
 }
 .column:first-child { padding-left: 0; }
-.column:last-child  { padding-right: 0; }
+.column:last-child  { padding-right: 0; border-right: none; }
 
 .dateline {
   display: inline;

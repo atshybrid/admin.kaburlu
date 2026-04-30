@@ -77,11 +77,17 @@ const BLOCK_NATIVE_WIDTH_PX = {
 // Convert article API data to block component props
 function articleToBlockProps(article) {
   const images = []
-  if (article?.featuredImageUrl) images.push({ src: article.featuredImageUrl, alt: article.title || '', caption: '' })
+  const seenImageUrls = new Set()
+  const pushImage = (src, alt, caption) => {
+    if (!src || seenImageUrls.has(src) || images.length >= 4) return
+    seenImageUrls.add(src)
+    images.push({ src, alt: alt || '', caption: caption || '' })
+  }
+  if (article?.featuredImageUrl) pushImage(article.featuredImageUrl, article.title || '', '')
   if (Array.isArray(article?.media)) {
     article.media.forEach((m) => {
       const url = m?.url || m?.imageUrl || m?.src || ''
-      if (url && images.length < 4) images.push({ src: url, alt: m?.alt || m?.title || article?.title || '', caption: m?.caption || m?.description || '' })
+      pushImage(url, m?.alt || m?.title || article?.title || '', m?.caption || m?.description || '')
     })
   }
 
@@ -753,7 +759,7 @@ function CanvasBlockPreview({ placement, article, cellW }) {
       ) : null}
 
       {/* ── Content columns with hairline dividers ── */}
-      <div style={{ display: 'flex', gap: 0, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
         {Array.from({ length: cols }).map((_, ci) => {
           // Multi-col: image in column 1 (ci=1) → imgs[0],
           //            column 2 (ci=2) → imgs[1], etc.
