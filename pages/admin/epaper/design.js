@@ -907,6 +907,11 @@ export default function EPaperDesignPage() {
   const [selectedTenantId, setSelectedTenantId] = useState('')
   const [showTenantPicker, setShowTenantPicker] = useState(true)
 
+  // Edition selector
+  const [editionList, setEditionList] = useState([])
+  const [selectedEditionId, setSelectedEditionId] = useState('')
+  const [editionsLoading, setEditionsLoading] = useState(false)
+
   const [fromDate, setFromDate] = useState(todayYmd())
   const [status, setStatus] = useState('PUBLISHED')
   const [preset, setPreset] = useState('TABLOID')
@@ -933,6 +938,8 @@ export default function EPaperDesignPage() {
 
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [layoutSaved, setLayoutSaved] = useState(false)
+  const [layoutId, setLayoutId] = useState(null)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [payloadPreview, setPayloadPreview] = useState('')
@@ -1160,7 +1167,32 @@ export default function EPaperDesignPage() {
     if (typeof window === 'undefined') return
     if (!selectedTenantId) return
     window.localStorage.setItem(TENANT_STORAGE_KEY, selectedTenantId)
-  }, [selectedTenantId])
+
+    // Load editions whenever tenant changes
+    let cancelled = false
+    async function loadEditions() {
+      setEditionsLoading(true)
+      try {
+        const token = getToken()?.token
+        const params = new URLSearchParams({ tenantId: selectedTenantId, includeSubEditions: 'false' })
+        const res = await fetch(`/api/admin/epaper/publication-editions?${params.toString()}`, {
+          headers: { accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        })
+        if (res.status === 401) { logout(); router.replace('/'); return }
+        const json = await res.json().catch(() => null)
+        const items = json?.items || json?.data?.items || json?.data || []
+        if (!cancelled) {
+          const list = Array.isArray(items) ? items : []
+          setEditionList(list)
+          setSelectedEditionId(prev => (prev && list.some(e => e.id === prev)) ? prev : (list[0]?.id || ''))
+        }
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setEditionsLoading(false)
+      }
+    }
+    loadEditions()
+    return () => { cancelled = true }
+  }, [selectedTenantId, router])
 
   const loadWorkspace = useCallback(async (tenantOverride = '') => {
     const tenantId = tenantOverride || selectedTenantId
@@ -1173,6 +1205,8 @@ export default function EPaperDesignPage() {
     setError('')
     setInfo('')
     setPayloadPreview('')
+    setLayoutSaved(false)
+    setLayoutId(null)
 
     try {
       const token = getToken()?.token
@@ -1189,6 +1223,7 @@ export default function EPaperDesignPage() {
         limit: '200',
         includeArticles: 'true',
       })
+      if (selectedEditionId) smartParams.set('editionId', selectedEditionId)
 
       const smartRes = await fetch(`/api/admin/epaper/designer/sections/smart?${smartParams.toString()}`, {
         headers: {
@@ -1229,6 +1264,7 @@ export default function EPaperDesignPage() {
             pageSize: '100',
           })
           if (fromDate) articlesParams.set('fromDate', fromDate)
+          if (selectedEditionId) articlesParams.set('editionId', selectedEditionId)
 
           const articlesRes = await fetch(`/api/admin/epaper/designer/articles?${articlesParams.toString()}`, {
             headers: {
@@ -1382,7 +1418,46 @@ export default function EPaperDesignPage() {
       const nextHeader = extractHeaderConfig(cfg)
       setHeaderConfig(nextHeader)
 
-      const nextPages = paginateFromSecondPage(uniqueArticles, nextHeader.numberOfPages, maxSlotsPerPage)
+      // ── Try to restore a previously saved layout for this date + edition ──
+      let restoredPages = null
+      try {
+        const layoutParams = new URLSearchParams({ tenantId, issueDate: fromDate })
+        if (selectedEditionId) layoutParams.set('editionId', selectedEditionId)
+        const layoutRes = await fetch(`/api/admin/epaper/layout?${layoutParams.toString()}`, {
+          headers: { accept: 'application/json', Authorization: `Bearer ${token}` },
+        })
+        if (layoutRes.ok) {
+          const layoutJson = await layoutRes.json().catch(() => null)
+          if (layoutJson?.found && Array.isArray(layoutJson?.pages) && layoutJson.pages.length) {
+            // Rebuild pages from saved layout, hydrating placement metadata from articles
+            const articleMap = new Map(uniqueArticles.map(a => [a.id, a]))
+            const restored = layoutJson.pages.map((savedPage, idx) => ({
+              id: idx + 1,
+              placements: (savedPage.placements || [])
+                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+                .map(p => {
+                  const art = articleMap.get(p.articleId) || null
+                  return {
+                    id: p.articleId,
+                    articleId: p.articleId,
+                    title: art?.title || p.articleId,
+                    wordCount: Number(art?.wordCount || 0),
+                    imageCount: Array.isArray(art?.media) ? art.media.length : 0,
+                    district: extractDistrict(art || {}),
+                    blockCode: normalizeBlockCode(p.blockCode) || resolveArticleBlockCode(art || {}),
+                    templateBlockId: p.templateBlockId || resolveArticleTemplateId(art || {}),
+                    x: 0, y: 0, fontSize: 11, color: '#111827',
+                  }
+                }),
+            }))
+            restoredPages = restored
+            setLayoutId(layoutJson.layoutId || null)
+            setLayoutSaved(true)
+          }
+        }
+      } catch { /* ignore layout load errors — fall back to auto-arrange */ }
+
+      const nextPages = restoredPages || paginateFromSecondPage(uniqueArticles, nextHeader.numberOfPages, maxSlotsPerPage)
       setPages(nextPages)
       setActivePageId(nextPages[1]?.id || nextPages[0]?.id || 1)
       setSelectedPlacementId(null)
@@ -1390,9 +1465,11 @@ export default function EPaperDesignPage() {
       setShowTenantPicker(false)
 
       if (!uniqueArticles.length) {
-        setInfo(`No articles found for ${fromDate} (${status}) in ${sourceLabel}. Date లేదా status మార్చి reload చేయండి.`)
+        setInfo(`No articles found for ${fromDate} (${status}). Date లేదా status మార్చి reload చేయండి.`)
+      } else if (restoredPages) {
+        setInfo(`Loaded ${uniqueArticles.length} articles · Restored saved layout (${restoredPages.length} pages).`)
       } else {
-        setInfo(`Loaded ${uniqueArticles.length} articles from ${sourceLabel}. Each article mapped to suitable block/template and auto-arranged from page 2. Page size ${resolvedSpec.preset}, initialized ${nextPages.length} pages from design config`)
+        setInfo(`Loaded ${uniqueArticles.length} articles from ${sourceLabel}. Auto-arranged across ${nextPages.length} pages.`)
       }
     } catch (e) {
       setError(e?.message || 'Failed to load workspace')
@@ -1402,7 +1479,7 @@ export default function EPaperDesignPage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedTenantId, status, fromDate, preset, router, maxSlotsPerPage])
+  }, [selectedTenantId, selectedEditionId, status, fromDate, preset, router, maxSlotsPerPage])
 
   const confirmTenantAndLoad = async () => {
     if (!selectedTenantId) {
@@ -1630,56 +1707,73 @@ export default function EPaperDesignPage() {
     }
   }
 
-  const prepareLayoutPayload = () => {
-    const payload = {
-      tenantId: selectedTenantId,
-      issueDate: fromDate,
-      pagePreset: preset,
-      extraSafeZoneCm,
-      printSpec: {
-        widthCm: pageMeta.widthCm,
-        heightCm: pageMeta.heightCm,
-        bleedMm: pageMeta.bleedMm,
-        marginsCm: pageMeta.marginsCm,
-        columns: pageMeta.columns,
-        gutterCm: pageMeta.gutterCm,
-        columnWidthCm: gridMeta.colWidthCm,
-        headerHeightCm: pageMeta.headerHeightCm,
-        topInfoStripCm: pageMeta.topInfoStripCm,
-        footerHeightCm: pageMeta.footerHeightCm,
-      },
-      numberOfPages: pages.length,
-      headerConfig,
-      pages: pages.map((pageItem, idx) => ({
-        pageNumber: idx + 1,
-        headerMode: idx === 0 ? 'MAIN' : (idx === 1 ? 'SECOND' : 'INNER'),
-        footerMode: idx === pages.length - 1 ? 'LAST_PAGE' : 'INNER_STYLE',
-        placements: pageItem.placements.map(placement => ({
-          articleId: placement.articleId,
-          blockCode: placement.blockCode,
-          templateBlockId: placement.templateBlockId || templateMap[placement.blockCode] || null,
-          district: placement.district,
-          x: Number(placement.x || 0),
-          y: Number(placement.y || 0),
-          fontSize: Number(placement.fontSize || 11),
-          color: placement.color || '#111827',
-        })),
-      })),
-    }
+  const saveLayout = async () => {
+    const token = getToken()?.token
+    if (!token) { logout(); router.push('/'); return }
+    if (!selectedTenantId) { setError('Tenant select చేయండి'); return }
+    if (!pages.length) { setError('Layout empty — arrange articles first'); return }
 
-    const text = JSON.stringify(payload, null, 2)
-    setPayloadPreview(text)
-    setShowPayloadPreview(true)
-    setInfo('Layout payload prepared. Backend API వచ్చిన వెంటనే ఇదే payload ని POST చేయచ్చు.')
+    setSaving(true)
+    setError('')
+    setInfo('')
+
+    try {
+      const payload = {
+        tenantId: selectedTenantId,
+        issueDate: fromDate,
+        ...(selectedEditionId ? { editionId: selectedEditionId } : {}),
+        pages: pages.map((pageItem, idx) => ({
+          pageNumber: idx + 1,
+          placements: pageItem.placements.map((placement, pos) => ({
+            articleId: placement.articleId,
+            blockCode: placement.blockCode,
+            position: pos,
+            templateBlockId: placement.templateBlockId || templateMap[placement.blockCode] || null,
+          })),
+        })),
+      }
+
+      const res = await fetch('/api/admin/epaper/layout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.status === 401) { logout(); router.push('/'); return }
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.message || json?.error || `Save failed: ${res.status}`)
+
+      setLayoutId(json?.layoutId || null)
+      setLayoutSaved(true)
+      setInfo(`Layout saved ✓  (${pages.length} pages · ${payload.pages.reduce((s, p) => s + p.placements.length, 0)} articles)${json?.layoutId ? `  ID: ${json.layoutId}` : ''}`)
+    } catch (e) {
+      setError(e?.message || 'Layout save failed')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const copyPayload = async () => {
-    if (!payloadPreview) return
+    // Keep for debugging — copies a JSON preview to clipboard
     try {
-      await navigator.clipboard.writeText(payloadPreview)
+      const payload = {
+        tenantId: selectedTenantId,
+        issueDate: fromDate,
+        editionId: selectedEditionId || null,
+        pages: pages.map((pageItem, idx) => ({
+          pageNumber: idx + 1,
+          placements: pageItem.placements.map((p, pos) => ({
+            articleId: p.articleId, blockCode: p.blockCode, position: pos,
+          })),
+        })),
+      }
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2))
       setInfo('Payload copied to clipboard')
     } catch {
-      setInfo('Copy failed. Manually copy from preview')
+      setInfo('Copy failed')
     }
   }
 
@@ -1730,9 +1824,26 @@ export default function EPaperDesignPage() {
                   <input
                     type="date"
                     value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
+                    onChange={(e) => { setFromDate(e.target.value); setLayoutSaved(false) }}
                     className="border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 leading-none mb-0.5">Edition</div>
+                  <select
+                    value={selectedEditionId}
+                    onChange={(e) => { setSelectedEditionId(e.target.value); setLayoutSaved(false) }}
+                    disabled={editionsLoading || !editionList.length}
+                    className="border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[140px]"
+                  >
+                    {!editionList.length ? (
+                      <option value="">{editionsLoading ? 'Loading…' : 'No editions'}</option>
+                    ) : (
+                      editionList.map(ed => (
+                        <option key={ed.id} value={ed.id}>{ed.name || ed.id}</option>
+                      ))
+                    )}
+                  </select>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500 leading-none mb-0.5">Status</div>
@@ -1800,6 +1911,13 @@ export default function EPaperDesignPage() {
                   className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   {showSetup ? 'Hide Setup' : 'Setup'}
+                </button>
+                <button
+                  onClick={saveLayout}
+                  disabled={saving || !selectedTenantId || !pages.length}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold disabled:opacity-60 ${layoutSaved ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-violet-600 hover:bg-violet-700 text-white'}`}
+                >
+                  {saving ? 'Saving…' : layoutSaved ? 'Saved ✓' : 'Save Layout'}
                 </button>
                 <button
                   onClick={() => loadWorkspace(selectedTenantId)}
