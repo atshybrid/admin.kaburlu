@@ -667,23 +667,19 @@ function stripHtmlForPreview(str) {
     .trim()
 }
 
-function CanvasBlockPreview({ placement, article, cellW }) {
+function CanvasBlockPreview({ placement, article, cellW, cellH }) {
   const blockCode = placement.blockCode
   const meta = BLOCK_META[blockCode] || BLOCK_META['BLOCK-04A']
   const cols = meta.cols
   const title = placement.title || article?.title || ''
   const district = placement.district || ''
 
-  // ── Images ──────────────────────────────────────────────────────────────
-  // Collect: featured image first, then any extra media images
+  // ── Images — deduplicated ────────────────────────────────────────────────
   const imgs = []
-  if (article?.featuredImageUrl) imgs.push(article.featuredImageUrl)
-  if (Array.isArray(article?.media)) {
-    article.media.forEach((m) => {
-      const u = m?.url || m?.imageUrl || m?.src || ''
-      if (u && imgs.length < 4) imgs.push(u)
-    })
-  }
+  const seenUrls = new Set()
+  const pushImg = (u) => { if (u && !seenUrls.has(u) && imgs.length < 4) { seenUrls.add(u); imgs.push(u) } }
+  if (article?.featuredImageUrl) pushImg(article.featuredImageUrl)
+  if (Array.isArray(article?.media)) article.media.forEach(m => pushImg(m?.url || m?.imageUrl || m?.src || ''))
 
   // ── Body text ────────────────────────────────────────────────────────────
   // article.content is often rich-text HTML — strip tags before displaying
@@ -702,13 +698,16 @@ function CanvasBlockPreview({ placement, article, cellW }) {
   )
 
   // ── Sizes: cellW-proportional → readable at every canvas zoom level ──────
-  const pad       = Math.max(4, Math.round(cellW * 0.018))
-  const titleSize = Math.max(10, Math.min(22, Math.round(cellW * 0.048)))
-  const subSize   = Math.max(8,  Math.min(14, Math.round(cellW * 0.032)))
-  const bodySize  = Math.max(8,  Math.min(12, Math.round(cellW * 0.028)))
-  const lineH     = bodySize * 1.55
-  const imgH      = Math.max(48, Math.round(cellW * 0.22))
-  const colPadH   = Math.max(3,  Math.round(cellW * 0.01))
+  const pad       = Math.max(3, Math.round(cellW * 0.015))
+  const titleSize = Math.max(9, Math.min(20, Math.round(cellW * 0.044)))
+  const subSize   = Math.max(7, Math.min(12, Math.round(cellW * 0.028)))
+  const bodySize  = Math.max(7, Math.min(11, Math.round(cellW * 0.026)))
+  const lineH     = bodySize * 1.5
+  // Image height: cap at 40% of block height (if known) so text still has room
+  const imgH      = cellH
+    ? Math.min(Math.round(cellH * 0.40), Math.round(cellW * 0.22))
+    : Math.max(40, Math.round(cellW * 0.22))
+  const colPadH   = Math.max(2,  Math.round(cellW * 0.008))
   const dividerW  = Math.max(1,  Math.round(cellW * 0.002))
 
   // ── Split body text evenly across columns ────────────────────────────────
@@ -727,6 +726,8 @@ function CanvasBlockPreview({ placement, article, cellW }) {
       overflow: 'hidden',
       padding: pad,
       boxSizing: 'border-box',
+      display: 'flex',
+      flexDirection: 'column',
     }}>
       {/* ── Title ── */}
       <div style={{
@@ -739,6 +740,7 @@ function CanvasBlockPreview({ placement, article, cellW }) {
         marginBottom: Math.round(pad * 0.4),
         wordBreak: 'break-word',
         letterSpacing: '0.01em',
+        flexShrink: 0,
       }}>
         {title}
       </div>
@@ -753,13 +755,14 @@ function CanvasBlockPreview({ placement, article, cellW }) {
           marginBottom: Math.round(pad * 0.4),
           wordBreak: 'break-word',
           lineHeight: 1.3,
+          flexShrink: 0,
         }}>
           {subtitle}
         </div>
       ) : null}
 
-      {/* ── Content columns with hairline dividers ── */}
-      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
+      {/* ── Content columns — flex:1 fills remaining height ── */}
+      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flex: 1, overflow: 'hidden' }}>
         {Array.from({ length: cols }).map((_, ci) => {
           // Multi-col: image in column 1 (ci=1) → imgs[0],
           //            column 2 (ci=2) → imgs[1], etc.
@@ -2292,29 +2295,34 @@ export default function EPaperDesignPage() {
                         }
                         if (curRow.length > 0) canvasRows.push({ placements: curRow, totalInches: curInches })
 
+                        // ── Calculate how many px are available for article rows ──────────
+                        // Everything below header + strips, above footer (includes small margins)
+                        const hdrPx    = Math.round(pageMeta.headerHeightCm * scale) + 8   // border-b + mb-2
+                        const ftrPx    = Math.round(pageMeta.footerHeightCm * scale) + 14  // pt-1.5 + mt-2
+                        const stripsPx = activePageIndex === 0
+                          ? infoStripHeightPx + 8 + 26   // info strip + mb-2 + PRGI line + mb-2
+                          : subHeaderHeightPx + 8 + 26   // sub-header + flex + PRGI line + mb-2
+                        const articleAreaH = Math.max(120,
+                          canvasHeight - safeTopPx - safeBottomPx - hdrPx - ftrPx - stripsPx
+                        )
+                        const numRows = canvasRows.length || 1
+                        // Each row gets an equal share — guaranteed to fit on page
+                        const rowH = Math.max(60, Math.floor((articleAreaH - (numRows - 1) * gutterPx) / numRows))
+
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: gutterPx }}>
                             {canvasRows.map((rowData, rowIdx) => {
                               const rowTotalInches = rowData.totalInches || 12
                               const rowCount = rowData.placements.length
                               return (
-                                <div key={rowIdx} style={{ display: 'flex', gap: gutterPx, alignItems: 'flex-start' }}>
+                                <div key={rowIdx} style={{ display: 'flex', gap: gutterPx, alignItems: 'stretch', height: rowH }}>
                                   {rowData.placements.map((placement) => {
                                     const inches      = BLOCK_META[placement.blockCode]?.inches || 4
-                                    const nativeW     = BLOCK_NATIVE_WIDTH_PX[placement.blockCode] || 384
-                                    const nativeH     = BLOCK_NATIVE_HEIGHT_PX[placement.blockCode] || 300
-                                    // Approximate rendered cell width accounting for gutters in this row
                                     const approxCellW = Math.round(
                                       (totalWidthPx - (rowCount - 1) * gutterPx) * (inches / rowTotalInches)
                                     )
-                                    const sc          = approxCellW / nativeW
-                                    const containerH  = Math.round(nativeH * sc)
-                                    const article     = articles.find(a => a.id === placement.articleId)
-                                    const BlockComp   = BLOCK_COMPONENT_MAP[placement.blockCode]
-                                    const blockProps  = article
-                                      ? articleToBlockProps(article)
-                                      : { title: placement.title || '', subtitle: '', category: 'general', dateline: placement.district || '', highlights: [], images: [], paragraphs: [{ content: placement.title || '' }] }
-                                    const isActive    = selectedPlacementId === placement.id
+                                    const article  = articles.find(a => a.id === placement.articleId)
+                                    const isActive = selectedPlacementId === placement.id
                                     return (
                                       <div
                                         key={placement.id}
@@ -2326,27 +2334,15 @@ export default function EPaperDesignPage() {
                                           outlineOffset: isActive ? 1 : 0,
                                           overflow: 'hidden',
                                           backgroundColor: '#fff',
-                                          height: containerH,
                                         }}
                                         onClick={() => setSelectedPlacementId(placement.id)}
                                       >
-                                        {/* Actual block component, scaled with transform:scale.
-                                            transform does NOT affect offsetHeight inside, so column
-                                            balancing loops converge normally without flickering. */}
-                                        <div style={{
-                                          width: nativeW,
-                                          transform: `scale(${sc})`,
-                                          transformOrigin: 'top left',
-                                          position: 'absolute',
-                                          top: 0,
-                                          left: 0,
-                                          pointerEvents: 'none',
-                                        }}>
-                                          {BlockComp
-                                            ? <BlockComp {...blockProps} />
-                                            : <div style={{ padding: 6, fontFamily: 'Mandali,sans-serif', fontSize: 13, fontWeight: 700 }}>{placement.title}</div>
-                                          }
-                                        </div>
+                                        <CanvasBlockPreview
+                                          placement={placement}
+                                          article={article}
+                                          cellW={approxCellW}
+                                          cellH={rowH}
+                                        />
                                         <button
                                           style={{ position: 'absolute', top: 3, right: 3, zIndex: 10, background: 'rgba(239,68,68,0.85)', color: '#fff', border: 'none', borderRadius: 3, fontSize: 9, padding: '2px 5px', cursor: 'pointer', lineHeight: 1.4, fontWeight: 700, pointerEvents: 'auto' }}
                                           onClick={(e) => { e.stopPropagation(); removePlacement(placement.id) }}

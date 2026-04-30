@@ -63,15 +63,15 @@ export function clearSessionId() {
  */
 async function sendHeartbeat(sessionId) {
   if (!sessionId) return
-  
   try {
-    await fetch(`${getApiBase()}/api/v1/auth/session/heartbeat`, {
+    const res = await fetch(`${getApiBase()}/api/v1/auth/session/heartbeat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId })
     })
-  } catch (e) {
-    console.error('Heartbeat failed:', e)
+    if (!res.ok) return  // silent — non-critical
+  } catch {
+    // Network error — heartbeat is non-critical, never surface as unhandled rejection
   }
 }
 
