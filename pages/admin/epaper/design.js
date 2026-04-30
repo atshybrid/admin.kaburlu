@@ -667,6 +667,18 @@ function stripHtmlForPreview(str) {
     .trim()
 }
 
+/**
+ * CanvasBlockPreview — renders a single article block on the design canvas.
+ *
+ * Layout mirrors real newspaper style (analysed from Telugu Prabha PDFs):
+ *   • Headline full-width at top (bold, border-bottom rule)
+ *   • Subtitle/kicker below headline (italic, small)
+ *   • Content area = image LEFT (1-col wide) + body text RIGHT (remaining cols)
+ *   • Single-col blocks: image at top (4:3 ratio), body text below
+ *   • Large blocks (4 cols): image spans top 35% full width, text in columns below
+ *   • Image: objectFit cover, objectPosition top-center (no letterbox)
+ *   • Column dividers: 0.5px solid hairlines
+ */
 function CanvasBlockPreview({ placement, article, cellW, cellH }) {
   const blockCode = placement.blockCode
   const meta = BLOCK_META[blockCode] || BLOCK_META['BLOCK-04A']
@@ -677,12 +689,12 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
   // ── Images — deduplicated ────────────────────────────────────────────────
   const imgs = []
   const seenUrls = new Set()
-  const pushImg = (u) => { if (u && !seenUrls.has(u) && imgs.length < 4) { seenUrls.add(u); imgs.push(u) } }
+  const pushImg = (u) => { if (u && !seenUrls.has(u) && imgs.length < 2) { seenUrls.add(u); imgs.push(u) } }
   if (article?.featuredImageUrl) pushImg(article.featuredImageUrl)
   if (Array.isArray(article?.media)) article.media.forEach(m => pushImg(m?.url || m?.imageUrl || m?.src || ''))
+  const hasImage = imgs.length > 0
 
   // ── Body text ────────────────────────────────────────────────────────────
-  // article.content is often rich-text HTML — strip tags before displaying
   const bodyText = (() => {
     const raw = article?.content || article?.body || ''
     if (typeof raw === 'string' && raw.trim()) return stripHtmlForPreview(raw)
@@ -697,23 +709,38 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
     article?.subtitle || article?.subTitle || article?.subHeading || ''
   )
 
-  // ── Sizes: cellW-proportional → readable at every canvas zoom level ──────
-  const pad       = Math.max(3, Math.round(cellW * 0.015))
-  const titleSize = Math.max(9, Math.min(20, Math.round(cellW * 0.044)))
-  const subSize   = Math.max(7, Math.min(12, Math.round(cellW * 0.028)))
-  const bodySize  = Math.max(7, Math.min(11, Math.round(cellW * 0.026)))
-  const lineH     = bodySize * 1.5
-  // Image height: cap at 40% of block height (if known) so text still has room
-  const imgH      = cellH
-    ? Math.min(Math.round(cellH * 0.40), Math.round(cellW * 0.22))
-    : Math.max(40, Math.round(cellW * 0.22))
-  const colPadH   = Math.max(2,  Math.round(cellW * 0.008))
-  const dividerW  = Math.max(1,  Math.round(cellW * 0.002))
+  // ── Sizes ────────────────────────────────────────────────────────────────
+  const pad        = Math.max(2, Math.round(cellW * 0.012))
+  const titleSize  = Math.max(8, Math.min(18, Math.round(cellW * 0.040)))
+  const subSize    = Math.max(6, Math.min(10, Math.round(cellW * 0.024)))
+  const bodySize   = Math.max(6, Math.min(10, Math.round(cellW * 0.024)))
+  const lineH      = bodySize * 1.55
+  const dividerW   = 1  // hairline
+  const colPad     = Math.max(2, Math.round(cellW * 0.008))
 
-  // ── Split body text evenly across columns ────────────────────────────────
+  // ── Layout strategy (matches real newspaper from PDF analysis) ───────────
+  // Large (4 col): image full-width top ~35%, cols of text below
+  // Medium (2-3 col) with image: image fills leftmost col, text in rest
+  // Single col with image: image top (4:3), text below
+  // No image: headline + text in cols
+  const isLarge = cols >= 4  // BLOCK-12A
+  const isSingle = cols === 1
+
+  // Image dimensions
+  // Large block: full width, 35% of cellH
+  // Medium: leftmost col width (cellW / cols), full content height
+  // Single: full width, 4:3 ratio
+  const imgColW   = hasImage && !isLarge && !isSingle ? Math.round(cellW / cols) : 0
+  const imgTopH   = hasImage && isLarge && cellH ? Math.round(cellH * 0.38) : 0
+  const imgSingleH = hasImage && isSingle && cellH ? Math.round(Math.min(cellH * 0.45, cellW * 0.75)) : 0
+
+  // Text cols: for medium blocks with image, image takes 1 col so text has (cols-1) cols
+  const textCols  = hasImage && !isLarge && !isSingle ? cols - 1 : cols
+
+  // Split body text across text columns
   const words = bodyText.split(/\s+/).filter(Boolean)
-  const wordsPerCol = Math.ceil(words.length / Math.max(1, cols))
-  const colTexts = Array.from({ length: cols }, (_, ci) =>
+  const wordsPerCol = Math.ceil(words.length / Math.max(1, textCols))
+  const colTexts = Array.from({ length: textCols }, (_, ci) =>
     words.slice(ci * wordsPerCol, (ci + 1) * wordsPerCol).join(' ')
   )
 
@@ -729,19 +756,21 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      {/* ── Title ── */}
+
+      {/* ── Headline ── */}
       <div style={{
         fontWeight: 700,
         fontSize: titleSize,
-        lineHeight: 1.28,
+        lineHeight: 1.25,
         textAlign: 'center',
-        borderBottom: `${titleSize > 14 ? 2 : 1}px solid #111`,
-        paddingBottom: Math.round(pad * 0.4),
+        borderBottom: '1.5px solid #111',
+        paddingBottom: Math.round(pad * 0.5),
         marginBottom: Math.round(pad * 0.4),
         wordBreak: 'break-word',
         letterSpacing: '0.01em',
         flexShrink: 0,
       }}>
+        {district ? <span style={{ fontWeight: 900 }}>{district}: </span> : null}
         {title}
       </div>
 
@@ -749,7 +778,7 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
       {subtitle ? (
         <div style={{
           fontSize: subSize,
-          color: '#444',
+          color: '#555',
           textAlign: 'center',
           fontStyle: 'italic',
           marginBottom: Math.round(pad * 0.4),
@@ -761,32 +790,76 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
         </div>
       ) : null}
 
-      {/* ── Content columns — flex:1 fills remaining height ── */}
-      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flex: 1, overflow: 'hidden' }}>
-        {Array.from({ length: cols }).map((_, ci) => {
-          // Multi-col: image in column 1 (ci=1) → imgs[0],
-          //            column 2 (ci=2) → imgs[1], etc.
-          // Single-col: image in column 0 → imgs[0]
-          const imgSrc = cols === 1 ? imgs[0] : (ci > 0 ? imgs[ci - 1] : null)
-          const isLast = ci === cols - 1
+      {/* ── Large block (4col): full-width image on top ── */}
+      {isLarge && hasImage && imgTopH > 0 ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imgs[0]}
+          alt=""
+          style={{
+            width: '100%',
+            height: imgTopH,
+            objectFit: 'cover',
+            objectPosition: 'top center',
+            display: 'block',
+            flexShrink: 0,
+            marginBottom: Math.round(pad * 0.5),
+          }}
+          onError={(e) => { e.currentTarget.style.display = 'none' }}
+        />
+      ) : null}
+
+      {/* ── Single-col: full-width image on top ── */}
+      {isSingle && hasImage && imgSingleH > 0 ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imgs[0]}
+          alt=""
+          style={{
+            width: '100%',
+            height: imgSingleH,
+            objectFit: 'cover',
+            objectPosition: 'top center',
+            display: 'block',
+            flexShrink: 0,
+            marginBottom: Math.round(pad * 0.5),
+          }}
+          onError={(e) => { e.currentTarget.style.display = 'none' }}
+        />
+      ) : null}
+
+      {/* ── Content area: flex:1, image LEFT + text columns RIGHT ── */}
+      <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+        {/* Image column (medium blocks only — left side, 1 col wide) */}
+        {!isLarge && !isSingle && hasImage ? (
+          <>
+            <div style={{ width: imgColW, flexShrink: 0, overflow: 'hidden', paddingRight: colPad }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imgs[0]}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'top center',
+                  display: 'block',
+                }}
+                onError={(e) => { e.currentTarget.style.display = 'none' }}
+              />
+            </div>
+            {/* hairline between image col and text cols */}
+            <div style={{ width: dividerW, background: '#bbb', flexShrink: 0 }} />
+          </>
+        ) : null}
+
+        {/* Text columns */}
+        {Array.from({ length: textCols }).map((_, ci) => {
+          const isLast = ci === textCols - 1
           return (
             <React.Fragment key={ci}>
-              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: `0 ${colPadH}px` }}>
-                {imgSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={imgSrc}
-                    alt=""
-                    style={{
-                      width: '100%',
-                      height: imgH,
-                      objectFit: 'cover',
-                      display: 'block',
-                      marginBottom: Math.round(colPadH * 0.6),
-                    }}
-                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                  />
-                ) : null}
+              <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', padding: `0 ${colPad}px` }}>
                 <div style={{
                   fontSize: bodySize,
                   lineHeight: `${lineH}px`,
@@ -794,8 +867,9 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
                   textAlign: 'justify',
                   overflow: 'hidden',
                   wordBreak: 'break-word',
+                  height: '100%',
                 }}>
-                  {ci === 0 && district ? (
+                  {ci === 0 && district && !title ? (
                     <span style={{ fontWeight: 800, marginRight: 3 }}>{district}: </span>
                   ) : null}
                   {colTexts[ci]}
@@ -812,6 +886,8 @@ function CanvasBlockPreview({ placement, article, cellW, cellH }) {
     </div>
   )
 }
+
+
 
 // ── Newspaper layout constants ───────────────────────────────────────────────
 const MAX_EPAPER_PAGES = 8    // Hard cap: never exceed 8 pages
