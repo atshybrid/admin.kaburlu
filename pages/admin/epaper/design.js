@@ -751,6 +751,41 @@ function buildInchRows(articleList) {
   return rows
 }
 
+/**
+ * Same greedy look-ahead packing as buildInchRows, but takes already-resolved
+ * placement objects (which already have a .blockCode) instead of raw articles.
+ * Sort placements by inches desc BEFORE calling so the heaviest blocks anchor rows.
+ */
+function buildRowsFromPlacements(placements) {
+  const items = placements.map(p => ({
+    placement: p,
+    inches: BLOCK_META[p.blockCode]?.inches || 4,
+    used: false,
+  }))
+  // Sort heaviest first so the greedy algorithm fills rows optimally
+  items.sort((a, b) => b.inches - a.inches)
+
+  const rows = []
+  for (let i = 0; i < items.length; i++) {
+    if (items[i].used) continue
+    items[i].used = true
+
+    const row     = [items[i].placement]
+    let remaining = 12 - items[i].inches
+
+    for (let j = i + 1; j < items.length && remaining > 0; j++) {
+      if (!items[j].used && items[j].inches <= remaining) {
+        row.push(items[j].placement)
+        remaining -= items[j].inches
+        items[j].used = true
+      }
+    }
+
+    rows.push({ placements: row, totalInches: 12 - remaining })
+  }
+  return rows
+}
+
 function paginateFromSecondPage(articles, initialPageCount) {
   // Deduplicate articles by ID so the same article never appears twice
   const seen = new Set()
@@ -817,11 +852,17 @@ function paginateFromSecondPage(articles, initialPageCount) {
       if (!promote.has(p.id)) promote.set(p.id, 'BLOCK-03A')
     })
 
-    page.placements = ps.map(p => {
+    const promoted = ps.map(p => {
       const newCode = promote.get(p.id)
       if (!newCode) return p
       return { ...p, blockCode: newCode }
     })
+    // Sort by block-inches desc so the lead (BLOCK-12A) is always first,
+    // allowing the canvas look-ahead packer to fill rows to 12in perfectly.
+    promoted.sort(
+      (a, b) => (BLOCK_META[b.blockCode]?.inches || 4) - (BLOCK_META[a.blockCode]?.inches || 4)
+    )
+    page.placements = promoted
   })
 
   return result.slice(0, MAX_EPAPER_PAGES)
@@ -2204,22 +2245,8 @@ export default function EPaperDesignPage() {
                         const gutterPx = Math.round(pageMeta.gutterCm * scale)
                         const totalWidthPx = Math.round(gridMeta.usableWidthCm * scale)
 
-                        // Group placements into ≤12-inch rows for rendering
-                        const canvasRows = []
-                        let curRow = []
-                        let curInches = 0
-                        for (const p of activePlacements) {
-                          const inches = BLOCK_META[p.blockCode]?.inches || 4
-                          if (curInches + inches > 12 && curRow.length > 0) {
-                            canvasRows.push({ placements: curRow, totalInches: curInches })
-                            curRow = [p]
-                            curInches = inches
-                          } else {
-                            curRow.push(p)
-                            curInches += inches
-                          }
-                        }
-                        if (curRow.length > 0) canvasRows.push({ placements: curRow, totalInches: curInches })
+                        // Group placements into ≤12-inch rows using look-ahead greedy packing
+                        const canvasRows = buildRowsFromPlacements(activePlacements)
 
                         // ── Calculate how many px are available for article rows ──────────
                         // Everything below header + strips, above footer (includes small margins)
