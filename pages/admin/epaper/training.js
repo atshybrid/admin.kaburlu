@@ -313,8 +313,11 @@ function TrainingContent() {
 
     updateItemStatus(item.id, { progress: 70 })
 
-    // Step 3: register as training sample
+    // Step 3: register as training sample on live backend
     const authToken = getToken()?.token
+    const apiBase = process.env.NEXT_PUBLIC_BACKEND_URL
+      ? String(process.env.NEXT_PUBLIC_BACKEND_URL).replace(/\/$/, '')
+      : 'https://app.kaburlumedia.com/api/v1'
     const payload = {
       pdfUrl,
       issueDate: item.meta.issueDate,
@@ -325,7 +328,7 @@ function TrainingContent() {
       ...(tenantId ? { tenantId } : {}),
     }
 
-    const registerRes = await fetch('/api/admin/epaper/training-upload', {
+    const registerRes = await fetch(`${apiBase}/epaper/ml-training/samples`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -335,8 +338,8 @@ function TrainingContent() {
     })
 
     if (registerRes.status === 401) { logout(); router.replace('/'); throw new Error('Unauthorized') }
-    // 404 / not-yet-implemented → still mark done (PDF is stored, metadata registration pending backend)
-    if (!registerRes.ok && registerRes.status !== 404 && registerRes.status !== 501) {
+    if (registerRes.status === 409) throw new Error('This PDF has already been registered as a training sample')
+    if (!registerRes.ok) {
       const errTxt = await registerRes.text()
       throw new Error(errTxt || `Registration failed: ${registerRes.status}`)
     }
