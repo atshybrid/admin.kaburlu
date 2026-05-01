@@ -789,6 +789,41 @@ function paginateFromSecondPage(articles, initialPageCount) {
     rowsOnPage += 1
   }
 
+  // ── Per-page layout promotion ─────────────────────────────────────────────
+  // Every inner page gets a newspaper-style visual hierarchy:
+  //   rank-1  article → BLOCK-12A  (full-width page lead)
+  //   rank-2  article → BLOCK-09A  (secondary 9in/3col story)
+  //   rank 3–4         → BLOCK-06A  (half-page standard stories)
+  //   rank 5+          → word-count based (unchanged)
+  //   bottom ~20%      → BLOCK-03A  (brief fillers that pair with 9in rows → 9+3=12)
+  // This guarantees variety in block sizes so proportional row heights work.
+  result.forEach((page, pageIdx) => {
+    if (pageIdx === 0) return          // front page manages its own layout
+    const ps = page.placements
+    if (ps.length < 3) return          // too few articles to rebalance
+
+    // rank by word count descending (proxy for importance)
+    const ranked = [...ps].sort((a, b) => (b.wordCount || 0) - (a.wordCount || 0))
+    const promote = new Map()
+
+    promote.set(ranked[0].id, 'BLOCK-12A')
+    if (ranked[1]) promote.set(ranked[1].id, 'BLOCK-09A')
+    if (ranked[2]) promote.set(ranked[2].id, 'BLOCK-06A')
+    if (ranked[3]) promote.set(ranked[3].id, 'BLOCK-06A')
+
+    // bottom 20 % (min 1) become brief fillers so the 9in row fills to 12
+    const nBrief = Math.max(1, Math.floor(ps.length * 0.2))
+    ranked.slice(-nBrief).forEach(p => {
+      if (!promote.has(p.id)) promote.set(p.id, 'BLOCK-03A')
+    })
+
+    page.placements = ps.map(p => {
+      const newCode = promote.get(p.id)
+      if (!newCode) return p
+      return { ...p, blockCode: newCode }
+    })
+  })
+
   return result.slice(0, MAX_EPAPER_PAGES)
 }
 
