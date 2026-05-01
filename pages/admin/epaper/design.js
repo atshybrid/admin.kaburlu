@@ -2197,14 +2197,21 @@ export default function EPaperDesignPage() {
                           canvasHeight - safeTopPx - safeBottomPx - hdrPx - ftrPx - stripsPx
                         )
                         const numRows = canvasRows.length || 1
-                        // Each row gets an equal share — guaranteed to fit on page
-                        const rowH = Math.max(60, Math.floor((articleAreaH - (numRows - 1) * gutterPx) / numRows))
+                        // Proportional row heights: wider/more-important blocks get more vertical space
+                        // height weight = max(inches) of any block in that row
+                        const rowWeights = canvasRows.map(rowData =>
+                          Math.max(...rowData.placements.map(p => BLOCK_META[p.blockCode]?.inches || 4))
+                        )
+                        const totalWeight   = rowWeights.reduce((s, w) => s + w, 0) || 1
+                        const usableH       = Math.max(120, articleAreaH - (numRows - 1) * gutterPx)
+                        const rowHeights    = rowWeights.map(w => Math.max(50, Math.round((w / totalWeight) * usableH)))
 
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: gutterPx }}>
                             {canvasRows.map((rowData, rowIdx) => {
+                              const rowH           = rowHeights[rowIdx]
                               const rowTotalInches = rowData.totalInches || 12
-                              const rowCount = rowData.placements.length
+                              const rowCount       = rowData.placements.length
                               return (
                                 <div key={rowIdx} style={{ display: 'flex', gap: gutterPx, alignItems: 'stretch', height: rowH }}>
                                   {rowData.placements.map((placement) => {
