@@ -75,9 +75,13 @@ export default function InsuranceTab() {
     if (!assignTarget) return
     setAssigning(true)
     try {
-      await journalistApi.assignInsurance(assignTarget.journalistProfileId, {
-        ...assignForm,
+      await journalistApi.assignMemberInsurance(assignTarget.journalistProfileId, {
+        type: assignForm.type || 'ACCIDENTAL',
+        policyNumber: assignForm.policyNumber,
+        insurer: assignForm.insurer,
         coverAmount: Number(assignForm.coverAmount) || 0,
+        validFrom: assignForm.validFrom,
+        validTo: assignForm.validTo,
       })
       toast.success('Insurance assigned')
       setAssignTarget(null)

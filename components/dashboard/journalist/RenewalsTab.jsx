@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { normalizePagedList } from '../../../lib/journalist/apiNormalize'
+import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
 import {
   DataTable,
   StatusBadge,
@@ -31,10 +33,17 @@ export default function RenewalsTab() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await journalistApi.listRenewals()
-      setItems(Array.isArray(data) ? data : data?.renewals ?? data?.data ?? [])
+      let parsed
+      try {
+        const data = await journalistApi.listCardsRenewalDue({ expiringDays: 30 })
+        parsed = normalizePagedList(data)
+      } catch {
+        const data = await journalistApi.listRenewals()
+        parsed = normalizePagedList(data)
+      }
+      setItems(parsed.items)
     } catch (err) {
-      toast.error(err.message || 'Failed to load renewals')
+      toast.error(formatJournalistApiError(err, 'Failed to load renewals'))
     } finally {
       setLoading(false)
     }
@@ -46,7 +55,11 @@ export default function RenewalsTab() {
     if (!confirm) return
     setApproving(true)
     try {
-      await journalistApi.approveRenewal(confirm.cardId)
+      try {
+        await journalistApi.renewPressCard(confirm.profileId || confirm.cardId)
+      } catch {
+        await journalistApi.approveRenewal(confirm.cardId)
+      }
       toast.success('Renewal approved — card extended by 1 year')
       setConfirm(null)
       load()

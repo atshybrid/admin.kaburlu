@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ePaper Headers — Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f1f5f9; }
+    header { background: #0f766e; color: #fff; padding: 14px 20px; }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 6px 0 0; font-size: 12px; opacity: 0.9; }
+    main { display: grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 56px); }
+    .form { padding: 16px; background: #fff; border-right: 1px solid #cbd5e1; overflow-y: auto; max-height: calc(100vh - 56px); }
+    label { display: block; font-size: 11px; font-weight: 600; margin: 10px 0 4px; color: #334155; }
+    select, input, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+    textarea { min-height: 72px; resize: vertical; font-family: inherit; }
+    .row-check { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .row-check input { width: auto; }
+    .row-check label { margin: 0; font-weight: 500; }
+    button { margin-top: 12px; width: 100%; padding: 10px; background: #0d9488; color: #fff; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    .preview { padding: 16px; overflow: auto; }
+    iframe { width: 100%; min-height: 90vh; border: 0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    .meta { font-size: 11px; color: #64748b; margin-top: 8px; }
+    .urls a { color: #0f766e; font-size: 11px; word-break: break-all; }
+    .catalog-err { color: #b91c1c; font-size: 11px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ePaper Headers — Page 1 Main · Page 2+ Sub</h1>
+    <p>Styles from media backend catalog · HTML from this engine</p>
+  </header>
+  <main>
+    <div class="form">
+      <label>Paper preset</label>
+      <select id="preset">
+        <option value="broadsheet">Broadsheet — 12×3″ main · 12×1″ sub</option>
+        <option value="tabloid">Tabloid — 11×2.5″ main · 11×0.7″ sub</option>
+      </select>
+      <label>Main header style (page 1)</label>
+      <select id="mainStyle" disabled><option>Loading catalog…</option></select>
+      <label>Sub header style (page 2+)</label>
+      <select id="subStyle" disabled><option>Loading catalog…</option></select>
+      <div id="catalogErr" class="catalog-err"></div>
+      <div class="row-check">
+        <input type="checkbox" id="useDemoLogo" checked />
+        <label for="useDemoLogo">Center demo logo (picsum)</label>
+      </div>
+      <label>Custom logo URL (optional)</label>
+      <input id="headerLogoUrl" placeholder="https://…" />
+      <label>Running comment (one line per row)</label>
+      <textarea id="runningCommentText">జర్నలిజం పడలు
+ప్రారంభించిన అమెరికా
+అనుకూల భాషనే
+పెట్టిన పలక</textarea>
+      <label>Comment author</label>
+      <input id="runningCommentAuthor" value="- సి.ఎన్.రంగనాథ్" />
+      <label>Right article title</label>
+      <input id="rightArticleTitle" value="కరోనా విజృంభణపై కేంద్ర అప్రమత్తం" />
+      <label>Right points (2–3 lines, one per row)</label>
+      <textarea id="rightArticlePoints">నిశితంగా గమనిస్తున్నామని
+కేంద్ర ఆరోగ్య శాఖ
+దేశంలో కరోనా పెరుగుదల</textarea>
+      <label>Page number (sub)</label>
+      <input id="pageNumber" value="2" />
+      <label>Paper name</label>
+      <input id="paperName" value="భారత్ దర్శన్" />
+      <label>Date</label>
+      <input id="date" value="1 జూన్ 2026, ఆదివారం" />
+      <button type="button" id="renderBtn">Render headers</button>
+      <div class="meta" id="meta"></div>
+      <div class="urls">
+        <strong>URLs</strong><br />
+        <a id="linkCatalog" href="#">Catalog (backend)</a><br />
+        <a id="linkPreview" href="#">Preview</a><br />
+        <a id="linkHealth" href="#">Health</a>
+      </div>
+    </div>
+    <div class="preview">
+      <iframe id="frame" title="Header preview"></iframe>
+    </div>
+  </main>
+  <script>
+    const API = window.location.origin
+    document.getElementById('linkHealth').href = API + '/health'
+    document.getElementById('linkCatalog').href = API + '/layout/epaper-header/catalog'
+
+    let catalogReady = false
+
+    function fillStyleSelect(el, rows, recommended) {
+      el.innerHTML = ''
+      for (const row of rows) {
+        const opt = document.createElement('option')
+        opt.value = String(row.number)
+        const tag = row.htmlRenderer === 'generic' ? ' (generic)' : ''
+        opt.textContent = `${row.number} — ${row.name}${tag}`
+        if (Number(row.number) === Number(recommended)) opt.selected = true
+        el.appendChild(opt)
+      }
+      el.disabled = false
+    }
+
+    async function loadCatalog() {
+      const errEl = document.getElementById('catalogErr')
+      errEl.textContent = ''
+      try {
+        const res = await fetch(API + '/layout/epaper-header/catalog')
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Catalog failed')
+        const rec = data.renderEngine?.recommended || { page1Main: 2, page2PlusSub: 2 }
+        fillStyleSelect(document.getElementById('mainStyle'), data.mainHeaders || [], rec.page1Main)
+        fillStyleSelect(document.getElementById('subStyle'), data.subHeaders || [], rec.page2PlusSub)
+        catalogReady = true
+        document.getElementById('meta').textContent =
+          `Catalog: ${data.source || 'backend'} · ${(data.mainHeaders || []).length} main · ${(data.subHeaders || []).length} sub`
+      } catch (e) {
+        errEl.textContent = 'Could not load backend catalog: ' + (e.message || e)
+        document.getElementById('mainStyle').disabled = true
+        document.getElementById('subStyle').disabled = true
+      }
+    }
+
+    async function render() {
+      if (!catalogReady) return
+      const body = {
+        preset: document.getElementById('preset').value,
+        headerStyleNumber: Number(document.getElementById('mainStyle').value),
+        subHeaderStyleNumber: Number(document.getElementById('subStyle').value),
+        settings: {
+          paperName: document.getElementById('paperName').value,
+          date: document.getElementById('date').value,
+          pageNumber: document.getElementById('pageNumber').value,
+          volume: '21',
+          issue: '106',
+          price: '₹6.00',
+          publishedAreas: 'Hyderabad • Warangal • Karimnagar',
+          accentColor: '#dc2626',
+          sectionName: 'రాజకీయాలు',
+          runningCommentText: document.getElementById('runningCommentText').value,
+          runningCommentAuthor: document.getElementById('runningCommentAuthor').value,
+          rightArticleTitle: document.getElementById('rightArticleTitle').value,
+          rightArticlePoints: document.getElementById('rightArticlePoints').value,
+          headerLogoUrl: document.getElementById('headerLogoUrl').value.trim(),
+          useDemoLogo: document.getElementById('useDemoLogo').checked,
+        },
+      }
+      document.getElementById('meta').textContent = 'Rendering…'
+      const res = await fetch(API + '/layout/epaper-header/render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!data.valid) {
+        document.getElementById('meta').textContent = data.error || 'Error'
+        return
+      }
+      document.getElementById('meta').textContent =
+        `${data.engineVersion} · main ${data.main.styleKey} · sub ${data.sub.styleKey} · full width`
+      const css = data.main.css + '\n' + data.sub.css
+      const doc = `<!DOCTYPE html><html lang="te"><head><meta charset="utf-8"><style>
+        body{margin:0;padding:16px;background:#e2e8f0;font-family:system-ui}
+        h2{font-size:13px;color:#334155;margin:16px 0 8px}
+        .wrap{width:100%;margin-bottom:8px}
+        ${css}</style></head><body>
+        <h2>పేజీ 1 — Main (full width)</h2><div class="wrap ep-header-preview-wrap">${data.main.html}</div>
+        <h2>పేజీ 2+ — Sub (full width)</h2><div class="wrap ep-header-preview-wrap">${data.sub.html}</div></body></html>`
+      document.getElementById('frame').srcdoc = doc
+      const q = new URLSearchParams({
+        preset: body.preset,
+        mainStyle: body.headerStyleNumber,
+        subStyle: body.subHeaderStyleNumber,
+        page: body.settings.pageNumber,
+      })
+      document.getElementById('linkPreview').href = API + '/layout/epaper-header/preview?' + q
+    }
+
+    document.getElementById('renderBtn').addEventListener('click', render)
+    ;['preset','mainStyle','subStyle','useDemoLogo'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', render)
+    })
+
+    loadCatalog().then(() => render())
+  </script>
+</body>
+</html>

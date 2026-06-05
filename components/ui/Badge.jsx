@@ -56,7 +56,23 @@ export default function Badge({
 }
 
 // Status badge helper for common statuses
-export function StatusBadge({ status, className = '' }) {
+export function StatusBadge({ status, label, color, className = '' }) {
+  if (label != null && label !== '') {
+    const colorMap = {
+      green: 'success',
+      yellow: 'warning',
+      red: 'danger',
+      gray: 'secondary',
+      blue: 'info',
+      purple: 'purple',
+    }
+    return (
+      <Badge variant={colorMap[color] || 'default'} dot className={className}>
+        {label}
+      </Badge>
+    )
+  }
+
   const statusMap = {
     // Generic statuses
     active: { variant: 'success', label: 'Active', dot: true },

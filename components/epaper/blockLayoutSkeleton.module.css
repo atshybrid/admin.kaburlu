@@ -1,0 +1,117 @@
+/* Shared column / rail skeleton until threaded layout settles */
+
+.columnGridWrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.columnGridLoading {
+  min-height: 260px;
+}
+
+.columnGridLoading .columnGrid {
+  opacity: 0.02;
+  pointer-events: none;
+}
+
+.layoutSkeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  width: 100%;
+  min-height: 260px;
+  padding: 0;
+  box-sizing: border-box;
+  background: #fffef9;
+}
+
+.layoutSkeletonCols2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--col-gap, 16px);
+}
+
+.layoutSkeletonCols3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: var(--col-gap, 16px);
+}
+
+.skeletonColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skeletonLine {
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #ebe6dc 0%, #f5f2ea 42%, #ebe6dc 84%);
+  background-size: 220% 100%;
+  animation: blockLayoutSkeletonShimmer 1.15s ease-in-out infinite;
+}
+
+.skeletonLine:nth-child(1) { width: 92%; }
+.skeletonLine:nth-child(2) { width: 100%; }
+.skeletonLine:nth-child(3) { width: 88%; }
+.skeletonLine:nth-child(4) { width: 96%; }
+.skeletonLine:nth-child(5) { width: 72%; }
+.skeletonLine:nth-child(6) { width: 90%; }
+.skeletonLine:nth-child(7) { width: 65%; }
+
+.skeletonBlock {
+  height: 140px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e8e3d8 0%, #f3efe6 42%, #e8e3d8 84%);
+  background-size: 220% 100%;
+  animation: blockLayoutSkeletonShimmer 1.15s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.skeletonBlockTall {
+  height: 180px;
+}
+
+/* BLOCK-04A single rail */
+.railWrap {
+  position: relative;
+  width: 100%;
+}
+
+.railLoading {
+  min-height: 200px;
+}
+
+.railLoading .railContent {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.railSkeleton {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-height: 200px;
+  padding: 4px 0 8px;
+  box-sizing: border-box;
+  background: #fffef9;
+}
+
+.railSkeletonImage {
+  width: 100%;
+  height: 0;
+  padding-bottom: 72%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #e8e3d8 0%, #f3efe6 42%, #e8e3d8 84%);
+  background-size: 220% 100%;
+  animation: blockLayoutSkeletonShimmer 1.15s ease-in-out infinite;
+}
+
+@keyframes blockLayoutSkeletonShimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}

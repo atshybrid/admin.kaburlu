@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken, logout } from '../../../utils/auth'
+import { ACTIVE_BLOCK_CODES } from '../../../lib/epaper/epaperActiveBlocks'
 
 function todayYmd() {
   const d = new Date()
@@ -11,18 +12,10 @@ function todayYmd() {
   return `${yyyy}-${mm}-${dd}`
 }
 
-const blockKeys = ['BLOCK-02A', 'BLOCK-03A', 'BLOCK-04A', 'BLOCK-06A', 'BLOCK-08A', 'BLOCK-09A', 'BLOCK-12A']
+const blockKeys = ACTIVE_BLOCK_CODES
 
 function defaultTemplateMap() {
-  return {
-    'BLOCK-02A': '',
-    'BLOCK-03A': '',
-    'BLOCK-04A': '',
-    'BLOCK-06A': '',
-    'BLOCK-08A': '',
-    'BLOCK-09A': '',
-    'BLOCK-12A': '',
-  }
+  return Object.fromEntries(ACTIVE_BLOCK_CODES.map((code) => [code, '']))
 }
 
 export default function EPaperAutoAssignPage() {

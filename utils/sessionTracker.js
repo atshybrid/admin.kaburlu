@@ -4,11 +4,15 @@
  * - Ends session on logout or browser close
  */
 
+import { getApiBase } from '../lib/api/utils'
+
 let heartbeatInterval = null
 const HEARTBEAT_INTERVAL = 2 * 60 * 1000 // 2 minutes
 
-function getApiBase() {
-  return (process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE || 'https://app.kaburlumedia.com').replace(/\/$/, '')
+function sessionEndpoint(subpath) {
+  const clean = String(subpath || '').replace(/^\//, '')
+  const base = getApiBase()
+  return `${base.replace(/\/$/, '')}/${clean}`
 }
 
 /**
@@ -61,18 +65,21 @@ export function clearSessionId() {
 /**
  * Send heartbeat to backend to track active time
  */
-async function sendHeartbeat(sessionId) {
+function sendHeartbeat(sessionId) {
   if (!sessionId) return
-  try {
-    const res = await fetch(`${getApiBase()}/api/v1/auth/session/heartbeat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId })
+  fetch(sessionEndpoint('auth/session/heartbeat'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId })
+  })
+    .then((res) => {
+      if (!res.ok) {
+        /* silent — non-critical */
+      }
     })
-    if (!res.ok) return  // silent — non-critical
-  } catch {
-    // Network error — heartbeat is non-critical, never surface as unhandled rejection
-  }
+    .catch(() => {
+      /* proxy/network failure — never surface to Next.js overlay */
+    })
 }
 
 /**
@@ -132,8 +139,8 @@ export async function endSession() {
   stopSessionHeartbeat()
   
   try {
-    // Use sendBeacon for reliability during page unload
-    const url = `${getApiBase()}/api/v1/auth/session/end`
+    // Use sendBeacon for reliability during page unload (same-origin via /api/proxy in browser)
+    const url = sessionEndpoint('auth/session/end')
     const data = JSON.stringify({ sessionId })
     
     if (typeof navigator !== 'undefined' && navigator.sendBeacon) {

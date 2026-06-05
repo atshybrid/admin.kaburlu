@@ -5,76 +5,12 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import {
-  IconHome,
-  IconFileText,
-  IconUsers,
-  IconUser,
-  IconFolder,
-  IconGlobe,
-  IconMapPin,
-  IconBuilding,
-  IconSettings,
-  IconKey,
-  IconCreditCard,
-  IconShield,
-  IconLogout,
-  IconLayers,
-  IconChevronDown,
-  IconNewspaper
-} from '../ui/icons'
+import { IconLogout, IconChevronDown } from '../ui/icons'
 import { useState } from 'react'
+import { getFilteredAdminNavigation, isNavHrefActive } from './dashboardNavConfig'
 
-const navigation = {
-  main: [
-    { key: 'overview', href: '/admin', label: 'Overview', icon: IconHome, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'articles', href: '/admin/articles', label: 'All Articles', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
-    { key: 'create-article', href: '/admin/articles/create', label: 'Create Article', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
-    { key: 'users', href: '/admin/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'desk-editors', href: '/admin/desk-editors', label: 'Desk Editor Analytics', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'roles', href: '/admin/roles', label: 'Roles', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
-  ],
-  epaper: [
-    { key: 'epaper-overview', href: '/admin/epaper', label: 'ePaper Overview', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
-    { key: 'epaper-design', href: '/admin/epaper/design', label: 'Epaper Design', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
-    { key: 'epaper-editions', href: '/admin/epaper/editions', label: 'Editions', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
-    { key: 'epaper-upload', href: '/admin/epaper/upload', label: 'Upload Issues', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
-    { key: 'epaper-issues', href: '/admin/epaper/issues', label: 'Issues', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR'] },
-    { key: 'epaper-training', href: '/admin/epaper/training', label: 'ML Training Data', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-  ],
-  location: [
-    { key: 'states', href: '/admin/locations/states', label: 'States', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'districts', href: '/admin/locations/districts', label: 'Districts', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'assembly', href: '/admin/locations/constituencies', label: 'Assembly Constituencies', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-    { key: 'mandals', href: '/admin/locations/mandals', label: 'Mandals', icon: IconMapPin, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-  ],
-  tenants: [
-    { key: 'tenants', href: '/admin/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-  ],
-  journalist: [
-    { key: 'journalist-union', href: '/admin/journalist-union', label: 'Journalist Union', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
-  ],
-  settings: [
-    { key: 'global-razorpay', href: '/admin/settings/razorpay', label: 'Global Razorpay', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-  ]
-}
-
-function normalizeRole(user) {
-  const role = user?.role || user?.roleName || user?.userRole || user?.role?.name || ''
-  const roleName = typeof role === 'string' ? role : (role?.name || '')
-  return String(roleName).toUpperCase().replace(/[_\s-]/g, '')
-}
-
-function hasAccess(item, userRole) {
-  if (!item.roles || item.roles.length === 0) return true
-  const normalizedRole = normalizeRole({ role: userRole })
-  return item.roles.some(role => role.replace(/[_\s-]/g, '').toUpperCase() === normalizedRole)
-}
-
-function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
+function NavGroup({ title, items, collapsed, onToggle }) {
+  const router = useRouter()
   const isExpanded = !collapsed
 
   return (
@@ -90,22 +26,22 @@ function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
         <div className="mt-1 space-y-0.5">
           {items.map((item) => {
             const Icon = item.icon
-            const isActive = currentTab === item.key
+            const isActive = isNavHrefActive(router.pathname, item.href)
             return (
-              <Link key={item.key} href={item.href} legacyBehavior>
-                <a
-                  className={`
-                    group flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm font-medium
-                    transition-all duration-150
-                    ${isActive
-                      ? 'bg-gradient-to-r from-brand to-brand/90 text-white shadow-md shadow-brand/25'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }
-                  `}
-                >
-                  <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                  <span className="truncate">{item.label}</span>
-                </a>
+              <Link
+                key={item.key}
+                href={item.href}
+                className={`
+                  group flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm font-medium
+                  transition-all duration-150
+                  ${isActive
+                    ? 'bg-gradient-to-r from-brand to-brand/90 text-white shadow-md shadow-brand/25'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }
+                `}
+              >
+                <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                <span className="truncate">{item.label}</span>
               </Link>
             )
           })}
@@ -115,29 +51,22 @@ function NavGroup({ title, items, currentTab, collapsed, onToggle }) {
   )
 }
 
-export default function ModernSidebar({ user, onLogout, currentTab = 'overview' }) {
+export default function ModernSidebar({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState({
     main: false,
     epaper: false,
     location: false,
     tenants: false,
-    settings: false
+    journalist: false,
+    political: false,
+    settings: false,
   })
 
   const toggleSection = (section) => {
     setCollapsed(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
-  // Filter navigation based on user role
-  const userRole = normalizeRole(user)
-  const filteredNavigation = {
-    main: navigation.main.filter(item => hasAccess(item, userRole)),
-    epaper: navigation.epaper.filter(item => hasAccess(item, userRole)),
-    location: navigation.location.filter(item => hasAccess(item, userRole)),
-    tenants: navigation.tenants.filter(item => hasAccess(item, userRole)),
-    journalist: navigation.journalist.filter(item => hasAccess(item, userRole)),
-    settings: navigation.settings.filter(item => hasAccess(item, userRole))
-  }
+  const filteredNavigation = getFilteredAdminNavigation(user)
 
   return (
     <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 h-screen bg-white border-r border-gray-200">
@@ -158,7 +87,6 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           <NavGroup
             title="Main Menu"
             items={filteredNavigation.main}
-            currentTab={currentTab}
             collapsed={collapsed.main}
             onToggle={() => toggleSection('main')}
           />
@@ -167,7 +95,6 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           <NavGroup
             title="ePaper (PDF)"
             items={filteredNavigation.epaper}
-            currentTab={currentTab}
             collapsed={collapsed.epaper}
             onToggle={() => toggleSection('epaper')}
           />
@@ -176,7 +103,6 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           <NavGroup
             title="Locations"
             items={filteredNavigation.location}
-            currentTab={currentTab}
             collapsed={collapsed.location}
             onToggle={() => toggleSection('location')}
           />
@@ -185,7 +111,6 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           <NavGroup
             title="Tenant Management"
             items={filteredNavigation.tenants}
-            currentTab={currentTab}
             collapsed={collapsed.tenants}
             onToggle={() => toggleSection('tenants')}
           />
@@ -194,16 +119,22 @@ export default function ModernSidebar({ user, onLogout, currentTab = 'overview' 
           <NavGroup
             title="Journalist Union"
             items={filteredNavigation.journalist}
-            currentTab={currentTab}
             collapsed={collapsed.journalist}
             onToggle={() => toggleSection('journalist')}
+          />
+        )}
+        {filteredNavigation.political.length > 0 && (
+          <NavGroup
+            title="India Political Parties"
+            items={filteredNavigation.political}
+            collapsed={collapsed.political}
+            onToggle={() => toggleSection('political')}
           />
         )}
         {filteredNavigation.settings.length > 0 && (
           <NavGroup
             title="Settings"
             items={filteredNavigation.settings}
-            currentTab={currentTab}
             collapsed={collapsed.settings}
             onToggle={() => toggleSection('settings')}
           />

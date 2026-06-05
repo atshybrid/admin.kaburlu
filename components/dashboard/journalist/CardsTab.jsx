@@ -5,6 +5,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { fetchMemberDirectory } from '../../../lib/journalist/fetchMemberLists'
+import { memberName, pressCard, pressIdDisplay } from '../../../lib/journalist/memberDisplay'
+import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
+import { useUnionSettings } from './useUnionSettings'
 import {
   DataTable,
   StatusBadge,
@@ -33,6 +37,7 @@ function fmt(v) {
 }
 
 export default function CardsTab() {
+  const { unionName } = useUnionSettings()
   const [members, setMembers]   = useState([])
   const [loading, setLoading]   = useState(false)
   const [selected, setSelected] = useState(null)
@@ -54,14 +59,24 @@ export default function CardsTab() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await journalistApi.listMembers()
-      setMembers(Array.isArray(data) ? data : data?.members ?? data?.data ?? [])
+      const parsed = await fetchMemberDirectory({
+        unionName,
+        page: 1,
+        limit: 100,
+        membershipStatus: 'APPROVED',
+      })
+      setMembers(
+        parsed.items.map((m) => ({
+          ...m,
+          card: pressCard(m),
+        }))
+      )
     } catch (err) {
-      toast.error(err.message || 'Failed to load members')
+      toast.error(formatJournalistApiError(err, 'Failed to load members'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [unionName])
 
   useEffect(() => { load() }, [load])
 
@@ -69,7 +84,10 @@ export default function CardsTab() {
     if (!genTarget) return
     setGenLoading(true)
     try {
-      await journalistApi.generateCard(genTarget.id, genForm)
+      await journalistApi.generatePressCard({
+        profileId: genTarget.id,
+        expiryDate: genForm.expiryDate || undefined,
+      })
       toast.success('Press card generated')
       setGenTarget(null)
       load()
@@ -80,10 +98,10 @@ export default function CardsTab() {
     }
   }
 
-  const handleRegenerate = async (cardId) => {
-    setRegenId(cardId)
+  const handleRegenerate = async (profileId) => {
+    setRegenId(profileId)
     try {
-      await journalistApi.regenerateCard(cardId)
+      await journalistApi.regenerateMemberPdf(profileId)
       toast.success('PDF regenerated')
       load()
     } catch (err) {
@@ -97,7 +115,7 @@ export default function CardsTab() {
     if (!editTarget) return
     setEditLoading(true)
     try {
-      await journalistApi.updateCard(editTarget.card.id, editForm)
+      await journalistApi.updatePressCard(editTarget.id, editForm)
       toast.success('Card updated')
       setEditTarget(null)
       load()
@@ -109,12 +127,13 @@ export default function CardsTab() {
   }
 
   const openEdit = (row) => {
+    const card = pressCard(row)
     setEditTarget(row)
     setEditForm({
-      status: row.card?.status || 'ACTIVE',
-      expiryDate: row.card?.expiryDate
-        ? new Date(row.card.expiryDate).toISOString().split('T')[0]
-        : ''
+      status: card?.status || 'ACTIVE',
+      expiryDate: card?.expiryDate
+        ? new Date(card.expiryDate).toISOString().split('T')[0]
+        : '',
     })
   }
 
@@ -122,10 +141,10 @@ export default function CardsTab() {
     {
       header: 'Member',
       accessor: 'user',
-      render: (v, row) => (
+      render: (_, row) => (
         <div>
-          <p className="font-medium text-gray-900">{v?.profile?.fullName || '—'}</p>
-          <p className="text-xs text-gray-500">{row.pressId || v?.mobileNumber || '—'}</p>
+          <p className="font-medium text-gray-900">{memberName(row)}</p>
+          <p className="text-xs text-gray-500">{pressIdDisplay(row) || row.mobileNumber || '—'}</p>
         </div>
       )
     },
@@ -174,10 +193,10 @@ export default function CardsTab() {
                 Edit Card
               </DropdownItem>
               <DropdownItem
-                onClick={() => handleRegenerate(row.card.id)}
-                disabled={regenId === row.card.id}
+                onClick={() => handleRegenerate(row.id)}
+                disabled={regenId === row.id}
               >
-                {regenId === row.card.id ? 'Regenerating…' : 'Regenerate PDF'}
+                {regenId === row.id ? 'Regenerating…' : 'Regenerate PDF'}
               </DropdownItem>
               {row.card.pdfUrl && (
                 <DropdownItem onClick={() => window.open(row.card.pdfUrl, '_blank')}>

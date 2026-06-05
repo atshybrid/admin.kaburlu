@@ -23,11 +23,6 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
   const [checking, setChecking] = useState(true)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
-  // Get current tab from URL
-  const currentTab = router.query?.tab || 
-    (router.pathname === '/dashboard' ? 'overview' : 
-    router.pathname.split('/').pop())
-
   useEffect(() => {
     try {
       const tokenData = getToken()
@@ -99,7 +94,6 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
           <ModernSidebar
             user={user}
             onLogout={handleLogout}
-            currentTab={currentTab}
           />
 
           {/* Mobile Sidebar */}
@@ -108,7 +102,6 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
             onClose={() => setMobileNavOpen(false)}
             user={user}
             onLogout={handleLogout}
-            currentTab={currentTab}
           />
 
           {/* Main Content */}

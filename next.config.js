@@ -2,8 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   trailingSlash: false,
-  // Ensure all pages are included in the build output
   output: 'standalone',
+  transpilePackages: ['fabric', 'html2canvas', 'html-to-image'],
   images: {
     remotePatterns: [
       {

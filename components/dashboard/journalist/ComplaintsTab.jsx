@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { normalizePagedList } from '../../../lib/journalist/apiNormalize'
+import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
 import {
   DataTable,
   StatusBadge,
@@ -47,10 +49,12 @@ export default function ComplaintsTab() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await journalistApi.listComplaints(filter !== 'ALL' ? { status: filter } : {})
-      setItems(Array.isArray(data) ? data : data?.complaints ?? data?.data ?? [])
+      const data = await journalistApi.listComplaints(
+        filter !== 'ALL' ? { status: filter, page: 1, limit: 50 } : { page: 1, limit: 50 }
+      )
+      setItems(normalizePagedList(data).items)
     } catch (err) {
-      toast.error(err.message || 'Failed to load complaints')
+      toast.error(formatJournalistApiError(err, 'Failed to load complaints'))
     } finally {
       setLoading(false)
     }

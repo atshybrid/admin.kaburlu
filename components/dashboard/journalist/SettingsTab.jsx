@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { DEFAULT_UNION_NAME } from '../../../lib/journalist/unionConfig'
 import {
   Button,
   Card,
@@ -99,12 +100,11 @@ export default function SettingsTab({ unionName: propUnionName }) {
   const [uploadingStateField, setUploadingStateField] = useState(null)
 
   // For SuperAdmin: which union to manage
-  const [unionName, setUnionName] = useState(propUnionName || '')
-  const [unionNameInput, setUnionNameInput] = useState(propUnionName || '')
+  const [unionName, setUnionName] = useState(propUnionName || DEFAULT_UNION_NAME)
+  const [unionNameInput, setUnionNameInput] = useState(propUnionName || DEFAULT_UNION_NAME)
 
   const load = useCallback(async (name) => {
-    const target = name || unionName
-    if (!target) return
+    const target = name || unionName || DEFAULT_UNION_NAME
     setLoading(true)
     try {
       const data = await journalistApi.getSettings(target)

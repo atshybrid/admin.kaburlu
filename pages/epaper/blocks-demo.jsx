@@ -1,5 +1,6 @@
 import React from 'react'
 import Head from 'next/head'
+import Link from 'next/link'
 import ClassicArticleBlock from '../../components/epaper/ClassicArticleBlock'
 import ArticleBlock2in1col from '../../components/epaper/ArticleBlock2in1col'
 import ArticleBlock3in1col from '../../components/epaper/ArticleBlock3in1col'
@@ -66,9 +67,20 @@ export default function BlocksDemo({ articleProps, error }) {
 
       <div style={{ minHeight: '100vh', background: '#e8edf2', padding: '30px 20px' }}>
 
-        {/* 8in × 3col - Locked baseline */}
+        {/* 8in × 3col - partition engine */}
         <div style={SECTION_STYLE}>
-          <div style={LABEL_STYLE}>BLOCK-08A (LOCKED) · 8 inch · 3 column — /epaper/classic-article-demo</div>
+          <div style={LABEL_STYLE}>
+            BLOCK-08A · 7.5 inch · 3 column —{' '}
+            <Link href="/epaper/block-08a-demo" style={{ color: '#2563eb' }}>
+              /epaper/block-08a-demo
+            </Link>
+          </div>
+          <ArticleBlock6in2col {...articleProps} blockCode="BLOCK-08A" showColumnDebug />
+        </div>
+
+        {/* 8in × 3col - classic locked baseline */}
+        <div style={SECTION_STYLE}>
+          <div style={LABEL_STYLE}>ClassicArticleBlock (legacy) — /epaper/classic-article-demo</div>
           <ClassicArticleBlock {...articleProps} />
         </div>
 

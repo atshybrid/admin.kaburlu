@@ -1,15 +1,11 @@
 import { getAdminJwtFromRequest } from '../../../../lib/server/auth'
 import { getBackendApiBase } from '../../../../lib/server/backend'
+import {
+  ACTIVE_BLOCK_CODES,
+  coerceToActiveBlockCode,
+} from '../../../../lib/epaper/epaperActiveBlocks'
 
-const BLOCK_CODES = [
-  'BLOCK-02A',
-  'BLOCK-03A',
-  'BLOCK-04A',
-  'BLOCK-06A',
-  'BLOCK-08A',
-  'BLOCK-09A',
-  'BLOCK-12A',
-]
+const BLOCK_CODES = ACTIVE_BLOCK_CODES
 
 const ENV_TEMPLATE_MAP = {
   'BLOCK-02A': process.env.EPAPER_BLOCK_02A_TEMPLATE_ID || null,
@@ -37,6 +33,16 @@ function parseWordCount(article) {
   return words.length
 }
 
+function parseCharCount(article, wordCount = 0) {
+  if (typeof article?.charCount === 'number' && article.charCount > 0) return article.charCount
+  const title = String(article?.title || '').trim()
+  const body = String(article?.content || '').replace(/<[^>]+>/g, ' ').trim()
+  const combined = `${title} ${body}`.trim()
+  if (combined) return combined.length
+  if (wordCount > 0) return Math.round(wordCount * 5.8)
+  return 0
+}
+
 function parseImageCount(article) {
   const mediaCount = Array.isArray(article?.media) ? article.media.filter(item => item?.url).length : 0
   if (mediaCount > 0) return Math.min(mediaCount, 4)
@@ -46,41 +52,53 @@ function parseImageCount(article) {
 
 function suggestBlockCode(article) {
   const wordCount = parseWordCount(article)
+  const charCount = parseCharCount(article, wordCount)
   const imageCount = parseImageCount(article)
   const pointsCount = Array.isArray(article?.points) ? article.points.length : 0
-  const isBreaking = !!article?.isBreaking
+  const over04 = wordCount > 199 || charCount > 3400
+
+  const pick06or08 = () => {
+    let score08 = 0
+    if (wordCount >= 180) score08 += 2
+    if (charCount >= 4200) score08 += 3
+    else if (charCount >= 3600) score08 += 2
+    if (imageCount >= 1) score08 += 2
+    if (wordCount >= 220) score08 += 3
+    return score08 >= 4 ? 'BLOCK-08A' : 'BLOCK-06A'
+  }
 
   if (imageCount >= 4) return 'BLOCK-12A'
-  if (imageCount === 3) return wordCount >= 140 ? 'BLOCK-12A' : 'BLOCK-09A'
+  if (imageCount === 3) return wordCount >= 140 ? 'BLOCK-12A' : 'BLOCK-08A'
 
   if (imageCount === 2) {
     if (wordCount < 90) return 'BLOCK-06A'
-    if (wordCount < 180) return 'BLOCK-09A'
+    if (wordCount < 200) return 'BLOCK-08A'
     return 'BLOCK-12A'
   }
 
   if (imageCount === 1) {
-    if (wordCount < 55) return 'BLOCK-03A'
-    if (wordCount < 95) return 'BLOCK-04A'
+    if (!over04 && wordCount < 95) return 'BLOCK-04A'
+    if (over04) return pick06or08()
     if (wordCount < 155) return 'BLOCK-06A'
     if (wordCount < 230) return 'BLOCK-08A'
-    return 'BLOCK-09A'
+    return 'BLOCK-12A'
   }
 
-  if (pointsCount >= 4 && wordCount <= 70) return 'BLOCK-02A'
-  if (wordCount < 45) return 'BLOCK-02A'
-  if (wordCount < 75) return 'BLOCK-03A'
-  if (wordCount < 120) return 'BLOCK-04A'
-  if (wordCount < 185) return 'BLOCK-08A'
-  if (wordCount < 260) return 'BLOCK-09A'
+  if (!over04 && wordCount <= 199) return 'BLOCK-04A'
+  if (over04) return pick06or08()
+  if (wordCount < 260) return 'BLOCK-08A'
 
   return 'BLOCK-12A'
 }
 
 function applyBreakingBump(code, article) {
   if (!article?.isBreaking) return code
-  if (code === 'BLOCK-02A' || code === 'BLOCK-03A' || code === 'BLOCK-04A') return 'BLOCK-06A'
+  if (code === 'BLOCK-04A') return 'BLOCK-06A'
   return code
+}
+
+function finalizeBlockCode(code) {
+  return coerceToActiveBlockCode(code)
 }
 
 async function backendFetch(path, { method = 'GET', token, body, backendBaseUrl } = {}) {
@@ -181,7 +199,9 @@ export default async function handler(req, res) {
     let failedCount = 0
 
     for (const article of collected) {
-      const suggestedCode = applyBreakingBump(suggestBlockCode(article), article)
+      const suggestedCode = finalizeBlockCode(
+        applyBreakingBump(suggestBlockCode(article), article)
+      )
       const selectedTemplateId = templateMap[suggestedCode]
       const wordCount = parseWordCount(article)
       const imageCount = parseImageCount(article)

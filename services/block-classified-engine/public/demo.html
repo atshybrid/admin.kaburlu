@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+  <meta charset="utf-8" />
+  <title>Classified Blocks — 6C & 12C</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: #f1f5f9; }
+    header { background: #1e1b4b; color: #fff; padding: 14px 20px; }
+    header h1 { margin: 0; font-size: 18px; }
+    main { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 52px); }
+    .side { padding: 16px; background: #fff; border-right: 1px solid #cbd5e1; }
+    label { display: block; font-size: 11px; font-weight: 600; margin: 10px 0 4px; }
+    select, button { width: 100%; padding: 10px; border-radius: 8px; font-size: 14px; }
+    button { background: #4f46e5; color: #fff; border: 0; font-weight: 700; cursor: pointer; margin-top: 12px; }
+    iframe { width: 100%; min-height: calc(100vh - 52px); border: 0; }
+    a { color: #4f46e5; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Classified Block 6C · 12C</h1>
+    <p style="margin:6px 0 0;font-size:12px;opacity:.9">Eenadu / Sakshi style · v2.0</p>
+  </header>
+  <main>
+    <div class="side">
+      <label>Block</label>
+      <select id="code">
+        <option value="CLASSIFIED-6C">CLASSIFIED-6C — 6″ · 3 columns</option>
+        <option value="CLASSIFIED-12C">CLASSIFIED-12C — 12″ · 6 columns</option>
+      </select>
+      <button type="button" id="go">Preview sample</button>
+      <p style="font-size:11px;color:#64748b;margin-top:12px">
+        <a id="p6" href="#">6C preview</a><br/>
+        <a id="p12" href="#">12C preview</a>
+      </p>
+    </div>
+    <iframe id="frame" title="preview"></iframe>
+  </main>
+  <script>
+    const API = location.origin
+    document.getElementById('p6').href = API + '/layout/classified/preview?blockCode=CLASSIFIED-6C'
+    document.getElementById('p12').href = API + '/layout/classified/preview?blockCode=CLASSIFIED-12C'
+    async function load() {
+      const code = document.getElementById('code').value
+      document.getElementById('frame').src = API + '/layout/classified/preview?blockCode=' + encodeURIComponent(code)
+    }
+    document.getElementById('go').onclick = load
+    load()
+  </script>
+</body>
+</html>

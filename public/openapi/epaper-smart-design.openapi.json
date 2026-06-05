@@ -1,0 +1,256 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kaburlu ePaper Smart Design API",
+    "version": "1.0.0",
+    "description": "Tenant-scoped ePaper masthead / sub-header configuration. Admin BFF: `/api/admin/epaper/smart-design/*`. Backend target: `/api/v1/epaper/smart-design/*`."
+  },
+  "servers": [
+    { "url": "/api/admin/epaper/smart-design", "description": "Next.js admin proxy (local)" },
+    { "url": "/api/v1/epaper/smart-design", "description": "Kaburlu backend" }
+  ],
+  "tags": [
+    { "name": "Catalog", "description": "Header style registry" },
+    { "name": "Context", "description": "Tenant + edition context" },
+    { "name": "Designs", "description": "CRUD per tenant" },
+    { "name": "Media", "description": "Upload → internal URL" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    },
+    "parameters": {
+      "XTenantId": {
+        "name": "X-Tenant-Id",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "Tenant UUID"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" },
+          "existingId": { "type": "string" }
+        }
+      },
+      "HeaderStylesResponse": {
+        "type": "object",
+        "properties": {
+          "source": { "type": "string", "example": "headerStyleCatalog" },
+          "mainHeaders": { "type": "array", "items": { "$ref": "#/components/schemas/StyleMeta" } },
+          "subHeaders": { "type": "array", "items": { "$ref": "#/components/schemas/StyleMeta" } },
+          "designConfigFields": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "StyleMeta": {
+        "type": "object",
+        "properties": {
+          "number": { "type": "integer" },
+          "key": { "type": "string", "example": "main_style2" },
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "nameTe": { "type": "string" }
+        }
+      },
+      "SmartDesign": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "clsd_xyz789" },
+          "tenantId": { "type": "string" },
+          "publicationEditionId": { "type": "string" },
+          "subEditionId": { "type": "string", "nullable": true },
+          "pageSize": { "type": "string", "enum": ["TABLOID", "BROADSHEET"] },
+          "totalPages": { "type": "integer" },
+          "paperSellCost": { "type": "number" },
+          "headerStyleNumber": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "subHeaderStyleNumber": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "headerStyleKey": { "type": "string" },
+          "subHeaderStyleKey": { "type": "string" },
+          "headerLogoUrl": { "type": "string" },
+          "subHeaderLogoUrl": { "type": "string" },
+          "paperNameImageUrl": { "type": "string" },
+          "headerLeftImageUrl": { "type": "string" },
+          "headerRightImageUrl": { "type": "string" },
+          "today": { "$ref": "#/components/schemas/TodayMeta" }
+        }
+      },
+      "TodayMeta": {
+        "type": "object",
+        "properties": {
+          "issueDate": { "type": "string", "format": "date" },
+          "dayNameTelugu": { "type": "string" },
+          "currentVolume": { "type": "integer" },
+          "currentIssue": { "type": "integer" },
+          "maxIssuePerYear": { "type": "integer" }
+        }
+      },
+      "SmartDesignCreate": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SmartDesign" },
+          {
+            "type": "object",
+            "required": ["publicationEditionId"]
+          }
+        ]
+      },
+      "ContextResponse": {
+        "type": "object",
+        "properties": {
+          "tenant": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" } } },
+          "prgiNumber": { "type": "string" },
+          "epaperDomain": { "type": "string" },
+          "editions": { "type": "array", "items": { "type": "object" } },
+          "headerStyles": { "$ref": "#/components/schemas/HeaderStylesResponse" },
+          "activeDesign": { "$ref": "#/components/schemas/SmartDesign" }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/header-styles": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "List main + sub header style catalog",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HeaderStylesResponse" } } } }
+        }
+      }
+    },
+    "/context": {
+      "get": {
+        "tags": ["Context"],
+        "summary": "Tenant-wise smart design context",
+        "parameters": [
+          { "$ref": "#/components/parameters/XTenantId" },
+          { "name": "editionId", "in": "query", "schema": { "type": "string" } },
+          { "name": "subEditionId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContextResponse" } } } },
+          "400": { "description": "Missing tenant", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "": {
+      "get": {
+        "tags": ["Designs"],
+        "summary": "List smart designs for tenant",
+        "parameters": [
+          { "$ref": "#/components/parameters/XTenantId" },
+          { "name": "publicationEditionId", "in": "query", "schema": { "type": "string" } },
+          { "name": "subEditionId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tenantId": { "type": "string" },
+                    "total": { "type": "integer" },
+                    "items": { "type": "array", "items": { "$ref": "#/components/schemas/SmartDesign" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Designs"],
+        "summary": "Create smart design (one per edition scope)",
+        "parameters": [{ "$ref": "#/components/parameters/XTenantId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SmartDesignCreate" },
+              "example": {
+                "publicationEditionId": "ed_telangana",
+                "totalPages": 12,
+                "paperSellCost": 6,
+                "headerStyleNumber": 2,
+                "subHeaderStyleNumber": 1,
+                "headerLogoUrl": "https://cdn/internal/tenant/logo.png",
+                "subHeaderLogoUrl": "https://cdn/internal/tenant/sub-logo.png"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "prgiNumber": "TELENG/2024/12345",
+                  "epaperDomain": "epaper.telugudaily.com",
+                  "design": { "id": "clsd_xyz789", "headerStyleKey": "main_style2" }
+                }
+              }
+            }
+          },
+          "409": { "description": "Already exists", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/{id}": {
+      "get": {
+        "tags": ["Designs"],
+        "summary": "Get smart design by id",
+        "parameters": [{ "$ref": "#/components/parameters/XTenantId" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "put": {
+        "tags": ["Designs"],
+        "summary": "Replace smart design",
+        "parameters": [{ "$ref": "#/components/parameters/XTenantId" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SmartDesign" } } } },
+        "responses": { "200": { "description": "OK" }, "404": { "description": "Not found" } }
+      },
+      "patch": {
+        "tags": ["Designs"],
+        "summary": "Partial update",
+        "parameters": [{ "$ref": "#/components/parameters/XTenantId" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": { "paperSellCost": 8, "tagline": "New tagline only" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" }, "404": { "description": "Not found" } }
+      },
+      "delete": {
+        "tags": ["Designs"],
+        "summary": "Delete smart design",
+        "parameters": [{ "$ref": "#/components/parameters/XTenantId" }, { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": { "success": true, "id": "clsd_main_tg", "message": "Smart design deleted" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Full JSON samples",
+    "url": "/docs/epaper-smart-design-api-samples.md"
+  }
+}

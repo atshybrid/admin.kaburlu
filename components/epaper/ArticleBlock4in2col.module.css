@@ -1,101 +1,292 @@
+/* BLOCK-04A — 4-inch rail, Style 1 (centered + H&J)
+ * LOCKED spec: lib/epaper/block04LockedRules.js (v2026-05-21.4)
+ * Gutter 2mm | Title 38–58px | Body 11/14px | Headlines 12.5px | Photo cover fill
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Ramabhadra&family=Mandali&display=swap');
+
 .articleBlock {
-  width: 101.6mm; /* 4 inch */
+  width: 101.6mm;
+  max-width: 100%;
   margin: 0 auto;
-  background: white;
-  padding: 4mm 4mm 5mm;
+  background: #fffef9;
+  /* 4in rail with side gutters (newspaper column inset) */
+  --block-gutter: 2mm;
+  padding: 2mm var(--block-gutter) 5mm;
   box-sizing: border-box;
-  border: none;
-  box-shadow: none;
+  font-family: 'Mandali', sans-serif;
+  --title-size: 35px;
+  --title-leading: 1.05;
+  --subtitle-size: 18px;
+}
+
+/* Title + body share the same content width (inside block padding) */
+.titleWrap,
+.articleBody,
+.subtitle,
+.articleImage,
+.headlineList {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .titleWrap {
-  margin-bottom: 4px;
+  position: relative;
+  z-index: 20;
+  margin: 0 0 10px;
+  padding: 2px 3px 0;
+  max-height: 88.9mm;
+  overflow: visible;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .title {
-  max-width: 100%;
-  margin: 0 auto 3px;
-  padding: 0;
-  font-family: 'Mandali', sans-serif;
-  font-weight: 700;
-  line-height: 1.28;
-  padding-bottom: 4px;
-  border-bottom: 1.5px solid #111;
-  text-align: center;
-  white-space: nowrap;
-  letter-spacing: 0.01em;
-}
-
-.subtitle {
-  max-width: 100%;
-  margin: 0 auto 0;
-  padding: 0;
-  font-family: 'Mandali', sans-serif;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 1.3;
-  text-align: center;
-}
-
-.articleColumns {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
+  max-width: 100%;
   margin: 0;
-  display: table;
-  table-layout: fixed;
-  border-spacing: 0;
+  padding: 0;
+  overflow: visible;
+  font-family: 'Ramabhadra', 'Noto Serif Telugu', 'Mandali', serif;
+  font-weight: 400;
+  font-size: var(--title-size);
+  line-height: 1;
+  letter-spacing: 0;
+  word-spacing: normal;
+  color: var(--title-color, #1a1a1a);
+  border: none;
+  background: transparent;
+}
+
+/* Line 1 behind, line 2 in front; tight newspaper deck spacing */
+.title > span {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 2px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  background: none;
+  overflow: visible;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+.title > span:first-child {
+  z-index: 1;
+}
+
+.title > span:nth-child(2) {
+  z-index: 2;
+  margin-top: max(
+    0px,
+    calc(
+      var(--title-line-gap, 0px) - var(--title-line-stack, 0px) - var(--title-line2-tuck, 0px)
+    )
+  );
+}
+
+.titleLine,
+.titleLineHighlight {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  text-align: center;
+  color: inherit;
+  overflow: visible;
+}
+
+.titleLineText {
+  display: block;
+  width: max-content;
+  max-width: calc(100% - 12px);
+  margin: 0 auto;
+  padding: 0 6px;
+  box-sizing: border-box;
+  white-space: nowrap;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+}
+
+.impactWord {
+  font-weight: 400;
+  background: transparent;
+}
+
+/* ── Subtitle: 50% of title size ── */
+.subtitle {
+  position: relative;
+  z-index: 20;
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0 3px;
+  overflow: visible;
+  text-align: center;
+  color: var(--subtitle-color, #444);
+  box-sizing: border-box;
+}
+
+.subtitleText {
+  display: inline-block;
+  max-width: calc(100% - 4px);
+  padding: 0 3px;
+  box-sizing: content-box;
+  white-space: nowrap;
+  font-family: 'Ramabhadra', 'Noto Serif Telugu', 'Mandali', serif;
+  font-weight: 400;
+  line-height: 1.25;
+  vertical-align: top;
+}
+
+/* ── Photo: full column width, Quark FILL (cover) into aspect frame ── */
+.articleImage {
+  position: relative;
+  z-index: 1;
+  margin: 3px 0 5px;
+  clear: both;
+  width: 100%;
+  max-width: 100%;
+  border: 0.5px solid #ddd;
+  overflow: hidden;
+  line-height: 0;
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: 50% 30%;
+}
+
+.photo[data-ratio='2'] {
+  aspect-ratio: 2 / 1;
+}
+
+.photo[data-ratio='3'] {
+  aspect-ratio: 3 / 4;
+}
+
+.photo[data-ratio='4'] {
+  aspect-ratio: 4 / 3;
+}
+
+.articleImage figcaption {
+  font-size: 9px;
+  line-height: 12px;
+  color: #555;
+  padding: 2px 4px;
+  font-style: italic;
+  text-align: center;
+  background: #f9f9f9;
+  border-top: 0.5px solid #ddd;
+}
+
+/* ── Headlines below photo: bullet + dashed rule under full point (incl. 2 lines) ── */
+.headlineList {
+  position: relative;
+  z-index: 20;
+  list-style: none;
+  margin: 8px 0 10px;
+  padding: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.headlineItem {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.headlineItem:last-child {
+  margin-bottom: 6px;
+}
+
+.headlineBullet {
+  flex-shrink: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 700;
+  color: #111;
+  padding-top: 2px;
+}
+
+.headlineText {
+  display: inline-block;
+  max-width: 100%;
+  text-align: center;
+  font-family: 'Mandali', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.42;
+  color: #111;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #4b5563;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ── Body: H&J ── */
+.articleBody {
+  position: relative;
+  z-index: 20;
   font-family: 'Mandali', sans-serif;
   font-size: 11px;
-  line-height: 16px;
+  line-height: 14px;
   text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.bodyPara {
+  margin: 0 0 5px;
+  text-align: justify;
+  text-justify: inter-word;
   hyphens: auto;
   -webkit-hyphens: auto;
 }
 
-.column {
-  display: table-cell;
-  vertical-align: top;
-  width: 50%;
-  padding: 0 5px;
-  border-right: 0.5px solid #aaa;
+.bodyPara:last-child {
+  margin-bottom: 0;
 }
-.column:first-child { padding-left: 0; }
-.column:last-child  { padding-right: 0; border-right: none; }
 
 .dateline {
   display: inline;
   font-weight: 700;
 }
 
-.firstPara  { margin: 0 0 5px 0; }
-.column p   { margin: 0 0 5px 0; }
-.column h3  { font-size: 12px; font-weight: 700; line-height: 16px; margin: 8px 0 3px; }
-.splitContinue { margin-top: 0; text-indent: 0; }
-
-.highlightBox {
-  background: #fbf6e8;
-  padding: 6px 8px;
-  border: 1px solid #c8b97a;
-  border-left: 3px solid #d35400;
-  margin-bottom: 6px;
-}
-.highlightBox ul  { margin: 0; padding-left: 0; list-style: none; }
-.highlightBox li  {
-  position: relative; padding-left: 14px;
-  margin-bottom: 2px; font-size: 10px; line-height: 13px; text-align: left;
-}
-.highlightBox li::before {
-  content: '\25A0'; position: absolute; left: 0;
-  color: #d35400; font-size: 7px; line-height: 14px; font-weight: bold;
-}
-
-.articleImage           { margin: 0 0 5px 0; border: 0.5px solid #ddd; }
-.articleImage img       { width: 100%; height: auto; display: block; }
-.articleImage figcaption {
-  font-size: 9px; line-height: 12px; color: #555;
-  padding: 2px 3px; font-style: italic; text-align: center;
-  background: #f9f9f9; border-top: 0.5px solid #ddd;
+.subHeading {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  margin: 6px 0 4px;
+  text-align: center;
+  font-family: 'Ramabhadra', 'Mandali', serif;
 }
 
 @media print {
-  .articleBlock { width: 100%; padding: 0; box-shadow: none; border: none; }
+  .articleBlock {
+    width: 101.6mm;
+    padding: 2mm var(--block-gutter, 2mm) 5mm;
+    box-shadow: none;
+    border: none;
+  }
 }

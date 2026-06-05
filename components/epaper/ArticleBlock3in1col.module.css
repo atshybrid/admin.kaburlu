@@ -1,127 +1,142 @@
+/* ─────────────────────────────────────────────────────────────
+   BLOCK-03A — 3 in × 1 col, Style 1 (brief / sidebar story)
+   Width: 76.2mm (3in). Max height ≈ 4in — overflow hidden (use larger block if copy overflows).
+   Reference: headline → dashed highlight lines → 1-col body + floated photo (cover).
+   No masthead logo / footer URL in this module.
+   ───────────────────────────────────────────────────────────── */
+
 .articleBlock {
   width: 76.2mm;
+  max-height: 101.6mm; /* ~4in cap — content beyond is clipped */
   margin: 0 auto;
-  background: white;
-  padding: 5px;
+  background: #fff;
+  padding: 4mm 3.5mm 4mm;
   box-sizing: border-box;
   border: none;
   box-shadow: none;
   font-family: 'Mandali', sans-serif;
+  overflow: hidden;
 }
 
 .titleWrap {
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .title {
-  max-width: 100%;
-  margin: 0 auto 3px;
-  padding: 0;
+  margin: 0 0 3px;
+  padding: 0 0 5px;
   font-family: 'Mandali', sans-serif;
-  font-weight: 700;
-  line-height: 1.28;
-  padding-bottom: 3px;
-  border-bottom: 1.5px solid #111;
-  text-align: center;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  font-weight: 900;
+  font-size: clamp(15px, 2.6vw, 22px);
+  line-height: 1.2;
+  text-align: left;
+  color: var(--title-color, #1a1a1a);
   letter-spacing: 0.01em;
+  border-bottom: 1px solid #c4c4c4;
+  word-break: break-word;
 }
 
 .subtitle {
-  max-width: 100%;
-  margin: 0;
+  margin: 0 0 5px;
   padding: 0;
   font-family: 'Mandali', sans-serif;
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: 11.5px;
   line-height: 1.35;
-  text-align: center;
-}
-
-.articleImage {
-  margin: 0 0 6px 0;
-  border: 0.5px solid #ddd;
-}
-
-.articleImage img {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.articleImage figcaption {
-  font-size: 9px;
-  line-height: 12px;
-  color: #555;
-  padding: 2px 4px;
-  font-style: italic;
-  text-align: center;
-  background: #f9f9f9;
-  border-top: 0.5px solid #ddd;
-}
-
-.highlightBox {
-  background: #fbf6e8;
-  padding: 6px 7px;
-  border: 1px solid #c8b97a;
-  border-left: 3px solid #d35400;
-  margin-bottom: 6px;
-}
-
-.highlightBox ul {
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.highlightBox li {
-  position: relative;
-  padding-left: 13px;
-  margin-bottom: 2px;
-  font-size: 10px;
-  line-height: 13px;
   text-align: left;
 }
 
-.highlightBox li::before {
-  content: '\25A0';
-  position: absolute;
-  left: 0;
-  color: #d35400;
-  font-size: 7px;
-  line-height: 14px;
-  font-weight: bold;
+/* ── Highlight “points” — dashed rule under each full point (wraps to 2+ lines) ── */
+.highlightDashList {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
 }
 
+.highlightDashItem {
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.38;
+  color: #111;
+  text-align: left;
+  padding-bottom: 4px;
+  margin-bottom: 5px;
+  border-bottom: 1px dashed #6b7280;
+}
+
+.highlightDashItem:last-child {
+  margin-bottom: 4px;
+}
+
+/* ── Single column body + floated image (text wraps) ───────────────── */
 .articleContent {
-  font-size: 11px;
-  line-height: 15px;
+  font-size: 10.5px;
+  line-height: 1.48;
   text-align: justify;
   hyphens: auto;
   -webkit-hyphens: auto;
+  color: #1f2937;
 }
 
-.articleContent p {
-  margin: 0 0 5px 0;
+.articleContent::after {
+  content: '';
+  display: table;
+  clear: both;
 }
 
-.articleContent h3 {
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 15px;
-  margin: 8px 0 3px;
+.floatFigure {
+  float: right;
+  width: 44%;
+  max-width: 46%;
+  margin: 0 0 4px 6px;
+  border: 0.5px solid #d1d5db;
+  background: #f8fafc;
+}
+
+.floatImg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  object-position: var(--img-focus, 50% 28%);
+}
+
+.floatCaption {
+  font-size: 8px;
+  line-height: 1.25;
+  color: #4b5563;
+  padding: 2px 3px;
+  text-align: center;
+  background: #f3f4f6;
+  border-top: 0.5px solid #e5e7eb;
+}
+
+.bodyPara {
+  margin: 0 0 4px;
+}
+
+.bodyPara:last-child {
+  margin-bottom: 0;
+}
+
+.inlineHeading {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 6px 0 3px;
+  text-align: left;
+  clear: none;
 }
 
 .dateline {
-  display: inline;
-  font-weight: 700;
+  font-weight: 800;
+  color: #111;
 }
 
 @media print {
   .articleBlock {
     width: 100%;
+    max-height: none;
     padding: 0;
     box-shadow: none;
     border: none;

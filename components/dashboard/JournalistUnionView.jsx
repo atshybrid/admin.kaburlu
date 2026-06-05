@@ -1,83 +1,94 @@
 /**
- * Journalist Union View — Main Component
- * Combines all union management tabs in a single page
+ * Journalist Union — Super Admin (all API modules)
  */
 
 import { useState } from 'react'
-import ApplicationsTab   from './journalist/ApplicationsTab'
-import MembersTab        from './journalist/MembersTab'
-import CardsTab          from './journalist/CardsTab'
-import RenewalsTab       from './journalist/RenewalsTab'
-import KycTab            from './journalist/KycTab'
-import ComplaintsTab     from './journalist/ComplaintsTab'
-import AnnouncementsTab  from './journalist/AnnouncementsTab'
-import InsuranceTab      from './journalist/InsuranceTab'
-import CommitteeTab      from './journalist/CommitteeTab'
-import SettingsTab       from './journalist/SettingsTab'
+import { Button } from '../ui'
+import AddMemberModal from './journalist/AddMemberModal'
+import JournalistUnionMembers from './journalist/JournalistUnionMembers'
+import SettingsTab from './journalist/SettingsTab'
+import ComplaintsTab from './journalist/ComplaintsTab'
+import CardsTab from './journalist/CardsTab'
+import RenewalsTab from './journalist/RenewalsTab'
+import UnionAdminsTab from './journalist/UnionAdminsTab'
+import CommitteeTab from './journalist/CommitteeTab'
+import AnnouncementsTab from './journalist/AnnouncementsTab'
 
 const TABS = [
-  { key: 'applications',  label: 'Applications',  emoji: '📋' },
-  { key: 'members',       label: 'Members',       emoji: '👥' },
-  { key: 'cards',         label: 'Press Cards',   emoji: '🪪' },
-  { key: 'renewals',      label: 'Renewals',      emoji: '🔄' },
-  { key: 'kyc',           label: 'KYC',           emoji: '🔍' },
-  { key: 'complaints',    label: 'Complaints',    emoji: '⚠️' },
-  { key: 'announcements', label: 'Announcements', emoji: '📢' },
-  { key: 'insurance',     label: 'Insurance',     emoji: '🛡️' },
-  { key: 'committee',     label: 'Committee',     emoji: '🏛️' },
-  { key: 'settings',      label: 'Settings',      emoji: '⚙️' },
+  { key: 'queue', label: 'Review queue', group: 'members' },
+  { key: 'members', label: 'All members', group: 'members' },
+  { key: 'cards', label: 'Press cards', group: 'ops' },
+  { key: 'renewals', label: 'Renewals', group: 'ops' },
+  { key: 'complaints', label: 'Complaints', group: 'ops' },
+  { key: 'committee', label: 'Committee', group: 'ops' },
+  { key: 'announcements', label: 'Announcements', group: 'ops' },
+  { key: 'union-admins', label: 'Union admins', group: 'ops' },
+  { key: 'settings', label: 'Settings', group: 'config' },
 ]
 
-const TAB_CONTENT = {
-  applications:  <ApplicationsTab />,
-  members:       <MembersTab />,
-  cards:         <CardsTab />,
-  renewals:      <RenewalsTab />,
-  kyc:           <KycTab />,
-  complaints:    <ComplaintsTab />,
-  announcements: <AnnouncementsTab />,
-  insurance:     <InsuranceTab />,
-  committee:     <CommitteeTab />,
-  settings:      <SettingsTab />,
-}
-
 export default function JournalistUnionView() {
-  const [activeTab, setActiveTab] = useState('applications')
+  const [activeTab, setActiveTab] = useState('queue')
+  const [addMemberOpen, setAddMemberOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  const bumpRefresh = () => setRefreshKey((n) => n + 1)
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Journalist Union</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage applications, press cards, KYC, complaints, insurance and committee
-        </p>
-      </div>
-
-      {/* Tab bar — horizontally scrollable on mobile */}
-      <div className="border-b border-gray-200 overflow-x-auto">
-        <div className="flex min-w-max">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative flex items-center gap-1.5 py-3 px-4 text-sm font-medium whitespace-nowrap transition-colors ${
-                activeTab === tab.key
-                  ? 'text-brand after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-brand after:rounded-full'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <span>{tab.emoji}</span>
-              {tab.label}
-            </button>
-          ))}
+    <div className="space-y-6 max-w-6xl">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Journalist Union</h1>
+          <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+            Super Admin — review queue, members, KYC, membership, insurance, press cards, complaints,
+            committee, and union settings (live API v1).
+          </p>
         </div>
+        <Button onClick={() => setAddMemberOpen(true)} className="shrink-0 shadow-sm">
+          + Add member
+        </Button>
+      </header>
+
+      <nav className="flex gap-1 p-1 bg-slate-100 rounded-xl w-full overflow-x-auto">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
+              activeTab === tab.key
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="min-h-[320px]">
+        {activeTab === 'queue' ? (
+          <JournalistUnionMembers variant="queue" refreshToken={refreshKey} />
+        ) : null}
+        {activeTab === 'members' ? (
+          <JournalistUnionMembers variant="directory" refreshToken={refreshKey} />
+        ) : null}
+        {activeTab === 'cards' ? <CardsTab refreshToken={refreshKey} /> : null}
+        {activeTab === 'renewals' ? <RenewalsTab /> : null}
+        {activeTab === 'complaints' ? <ComplaintsTab /> : null}
+        {activeTab === 'committee' ? <CommitteeTab /> : null}
+        {activeTab === 'announcements' ? <AnnouncementsTab /> : null}
+        {activeTab === 'union-admins' ? <UnionAdminsTab /> : null}
+        {activeTab === 'settings' ? <SettingsTab /> : null}
       </div>
 
-      {/* Tab content */}
-      <div>
-        {TAB_CONTENT[activeTab]}
-      </div>
+      <AddMemberModal
+        isOpen={addMemberOpen}
+        onClose={() => setAddMemberOpen(false)}
+        onCreated={() => {
+          bumpRefresh()
+          setActiveTab('queue')
+        }}
+      />
     </div>
   )
 }

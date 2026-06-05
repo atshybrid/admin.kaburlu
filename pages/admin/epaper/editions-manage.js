@@ -10,6 +10,14 @@ import { logout } from '../../../utils/auth'
 // Tenant override roles from env or default to SUPER_ADMIN only
 const TENANT_OVERRIDE_ROLES = (process.env.NEXT_PUBLIC_TENANT_OVERRIDE_ROLES || 'SUPER_ADMIN').split(',')
 
+function generateSlug(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
 export default function EditionsManagePage() {
   const router = useRouter()
 
@@ -33,6 +41,7 @@ export default function EditionsManagePage() {
   const [editionSeoTitle, setEditionSeoTitle] = useState('')
   const [editionSeoDescription, setEditionSeoDescription] = useState('')
   const [editionSeoKeywords, setEditionSeoKeywords] = useState('')
+  const [editionSlugTouched, setEditionSlugTouched] = useState(false)
 
   // Sub-edition form
   const [showSubEditionForm, setShowSubEditionForm] = useState(false)
@@ -46,6 +55,7 @@ export default function EditionsManagePage() {
   const [subEditionSeoTitle, setSubEditionSeoTitle] = useState('')
   const [subEditionSeoDescription, setSubEditionSeoDescription] = useState('')
   const [subEditionSeoKeywords, setSubEditionSeoKeywords] = useState('')
+  const [subEditionSlugTouched, setSubEditionSlugTouched] = useState(false)
 
   async function fetchWithAuth(url, options = {}) {
     const res = await fetch(url, options)
@@ -196,6 +206,7 @@ export default function EditionsManagePage() {
     setEditionSeoTitle('')
     setEditionSeoDescription('')
     setEditionSeoKeywords('')
+    setEditionSlugTouched(false)
   }
 
   function resetSubEditionForm() {
@@ -209,6 +220,7 @@ export default function EditionsManagePage() {
     setSubEditionSeoTitle('')
     setSubEditionSeoDescription('')
     setSubEditionSeoKeywords('')
+    setSubEditionSlugTouched(false)
   }
 
   function openEditEdition(edition) {
@@ -220,6 +232,7 @@ export default function EditionsManagePage() {
     setEditionSeoTitle(edition.seoTitle || '')
     setEditionSeoDescription(edition.seoDescription || '')
     setEditionSeoKeywords(edition.seoKeywords || '')
+    setEditionSlugTouched(true)
     setShowEditionForm(true)
   }
 
@@ -234,6 +247,7 @@ export default function EditionsManagePage() {
     setSubEditionSeoTitle(subEdition.seoTitle || '')
     setSubEditionSeoDescription(subEdition.seoDescription || '')
     setSubEditionSeoKeywords(subEdition.seoKeywords || '')
+    setSubEditionSlugTouched(true)
     setShowSubEditionForm(true)
   }
 
@@ -419,11 +433,30 @@ export default function EditionsManagePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
-                  <input value={editionName} onChange={(e) => setEditionName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Main Edition" />
+                  <input
+                    value={editionName}
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setEditionName(name)
+                      if (!editingEdition && !editionSlugTouched) {
+                        setEditionSlug(generateSlug(name))
+                      }
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="Main Edition"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Slug *</label>
-                  <input value={editionSlug} onChange={(e) => setEditionSlug(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="main-edition" />
+                  <input
+                    value={editionSlug}
+                    onChange={(e) => {
+                      setEditionSlugTouched(true)
+                      setEditionSlug(e.target.value)
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="main-edition"
+                  />
                 </div>
               </div>
 
@@ -476,11 +509,30 @@ export default function EditionsManagePage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Name *</label>
-                  <input value={subEditionName} onChange={(e) => setSubEditionName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Telangana" />
+                  <input
+                    value={subEditionName}
+                    onChange={(e) => {
+                      const name = e.target.value
+                      setSubEditionName(name)
+                      if (!editingSubEdition && !subEditionSlugTouched) {
+                        setSubEditionSlug(generateSlug(name))
+                      }
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="Telangana"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Slug *</label>
-                  <input value={subEditionSlug} onChange={(e) => setSubEditionSlug(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="telangana" />
+                  <input
+                    value={subEditionSlug}
+                    onChange={(e) => {
+                      setSubEditionSlugTouched(true)
+                      setSubEditionSlug(e.target.value)
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    placeholder="telangana"
+                  />
                 </div>
               </div>
 

@@ -1,0 +1,22 @@
+{
+  "name": "@kaburlu/block-classified-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CLASSIFIED-6C / CLASSIFIED-12C — newspaper classified ads renderer",
+  "type": "module",
+  "scripts": {
+    "predev": "lsof -ti :3100 | xargs kill -9 2>/dev/null || true",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "seed:blocks": "npm --prefix ../../../kaburlu_media_backend run seed:classified-blocks",
+    "seed:blocks:droplet": "npm --prefix ../../../kaburlu_media_backend run seed:classified-blocks:droplet",
+    "seed:blocks:tunnel": "npm --prefix ../../../kaburlu_media_backend run seed:classified-blocks:tunnel",
+    "migrate:hint": "npm --prefix ../../../kaburlu_media_backend run prisma:migrate:deploy"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  }
+}

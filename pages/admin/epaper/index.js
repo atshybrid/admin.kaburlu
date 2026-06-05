@@ -8,6 +8,8 @@ import ConfirmDialog from '../../../components/ui/ConfirmDialog.jsx'
 import { Trash } from 'lucide-react'
 
 const BLOCK_DEMO_LINKS = [
+  { label: '📰 Main page top blocks (8×7)', href: '/admin/epaper/main-page-top-blocks', primary: true },
+  { label: '🎨 Block Template Studio', href: '/admin/epaper/block-templates', primary: true },
   { label: 'All Blocks Demo', href: '/epaper/blocks-demo' },
   { label: '2in · 1col', href: '/epaper/block-2in-1col-demo' },
   { label: '3in · 1col', href: '/epaper/block-3in-1col-demo' },
@@ -255,7 +257,9 @@ export default function EPaperIndex() {
                   href={item.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors"
+                  className={item.primary
+                    ? "px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors font-semibold"
+                    : "px-3 py-1.5 text-sm bg-gray-100 text-gray-800 rounded-md hover:bg-gray-200 transition-colors"}
                 >
                   {item.label}
                 </a>

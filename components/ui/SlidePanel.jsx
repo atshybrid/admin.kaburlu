@@ -8,7 +8,8 @@ import { IconX } from './icons'
 import Spinner from './Spinner'
 
 export default function SlidePanel({
-  isOpen = false,
+  isOpen: isOpenProp,
+  open,
   onClose,
   title,
   subtitle,
@@ -20,6 +21,8 @@ export default function SlidePanel({
   closeOnEscape = true,
   className = ''
 }) {
+  const isOpen = Boolean(isOpenProp ?? open)
+
   const widths = {
     sm: 'max-w-sm',
     md: 'max-w-lg',
@@ -51,7 +54,7 @@ export default function SlidePanel({
     <div className="fixed inset-0 z-50 overflow-hidden">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-black/45 transition-opacity"
         onClick={closeOnOverlay ? onClose : undefined}
       />
 

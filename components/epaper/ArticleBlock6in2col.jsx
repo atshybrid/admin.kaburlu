@@ -1,244 +1,309 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useLayoutEffect } from 'react'
+import Block08Article from './Block08Article'
+import Block06Article from './Block06Article'
 import styles from './ArticleBlock6in2col.module.css'
+import {
+  resolveBlock04TitleColor,
+  resolveBlock04SubtitleColor,
+} from '../../lib/epaper/block04Color'
+import {
+  BLOCK_04A_CONTENT_WIDTH_PX,
+  getBlock04ColumnPx,
+  fallbackTitleMetrics,
+} from '../../lib/epaper/block04TitleMetrics'
+import {
+  measureBlock04TitleLayoutWhenReady,
+} from '../../lib/epaper/block04TitleMeasure'
+import {
+  fitTitleLinesToRail,
+  ensureBlock04TitleFonts,
+  maxSubtitleSizeThatFits,
+  clampElementToRail,
+} from '../../lib/epaper/block04TitleFit'
+import { colonTitleLineHeightPx, colonTitleLine2TuckPx } from '../../lib/epaper/block04TitleSmart'
+import {
+  BLOCK_08A_DIMENSIONS,
+  BLOCK_06A_DIMENSIONS,
+} from '../../lib/epaper/wideBlockRules'
 
-const CATEGORY_COLORS = {
-  political: '#2C3E50',
-  crime: '#C0392B',
-  sports: '#16A085',
-  business: '#8E44AD',
-  entertainment: '#D35400',
-  general: '#34495E',
+function renderBodyParagraphs(items, keyPrefix, { dateline = '', showDateline = false } = {}) {
+  const nodes = []
+  let datelineUsed = false
+  items.forEach((item, idx) => {
+    if (item?.type === 'heading') {
+      nodes.push(
+        <h3 key={`${keyPrefix}-h-${idx}`}>{String(item.content || '')}</h3>
+      )
+      return
+    }
+    const text = String(item?.content || item || '').trim()
+    if (!text) return
+    const showLine = showDateline && !datelineUsed && !!dateline
+    if (showLine) datelineUsed = true
+    nodes.push(
+      <p key={`${keyPrefix}-p-${idx}`}>
+        {showLine ? <span className={styles.dateline}>{dateline} </span> : null}
+        {text}
+      </p>
+    )
+  })
+  return nodes
 }
 
-// 6-inch wide, 2-column article block
-export default function ArticleBlock6in2col({
+function normalizeImages(images, max = 4) {
+  const list = []
+  const seen = new Set()
+  for (const raw of images || []) {
+    if (!raw || list.length >= max) break
+    const src = raw.src || raw.url || raw.imageUrl || ''
+    if (!src || seen.has(src)) continue
+    seen.add(src)
+    list.push({ src, alt: raw.alt || '', caption: raw.caption || '' })
+  }
+  return list
+}
+
+/** BLOCK-06A / BLOCK-08A — threaded wide blocks (08A=3 col, 06A=2 col, same engine). */
+export default function ArticleBlock6in2col(props) {
+  if (props.blockCode === 'BLOCK-08A') {
+    return <Block08Article {...props} showColumnDebug={props.showColumnDebug} />
+  }
+  if (props.blockCode === 'BLOCK-06A') {
+    return <Block06Article {...props} showColumnDebug={props.showColumnDebug} />
+  }
+  return <ArticleBlock06 {...props} />
+}
+
+function ArticleBlock06({
+  blockCode = 'BLOCK-06A',
   title,
-  subtitle,
+  subtitle = '',
   category = 'general',
   dateline = '',
   highlights = [],
   images = [],
   paragraphs = [],
+  titleColor = '',
+  titleColorEnabled = false,
+  imageObjectPosition = '',
 }) {
-  const titleRef = useRef(null)
-  const [titleFontSize, setTitleFontSize] = useState(26)
-  const subtitleColor = CATEGORY_COLORS[category] || CATEGORY_COLORS.general
+  const blockClass = styles.block06
 
-  // 6in = 152.4mm, minus ~1.35mm each side ≈ 149.7mm
-  useEffect(() => {
-    if (!titleRef.current || !title) return
-    const maxWidth = 149.7
-    const minSize = 20
-    const maxSize = 34
-    let currentSize = minSize
-    const temp = document.createElement('span')
-    temp.style.fontFamily = 'Mandali, sans-serif'
-    temp.style.fontWeight = '700'
-    temp.style.visibility = 'hidden'
-    temp.style.position = 'absolute'
-    temp.style.whiteSpace = 'nowrap'
-    temp.textContent = title
-    document.body.appendChild(temp)
-    for (let size = minSize; size <= maxSize; size++) {
-      temp.style.fontSize = size + 'px'
-      if (temp.offsetWidth * 0.264583 > maxWidth) break
-      currentSize = size
+  const hasColonInTitle = /[:：]/.test(String(title || ''))
+  const resolvedTitleColor = hasColonInTitle
+    ? '#1a1a1a'
+    : resolveBlock04TitleColor(titleColor, titleColorEnabled, title, category)
+  const resolvedSubtitleColor = subtitle
+    ? resolveBlock04SubtitleColor(subtitle, title)
+    : undefined
+
+  const leadImages = useMemo(() => normalizeImages(images), [images])
+  const headlinePoints = useMemo(
+    () =>
+      highlights
+        .map((item) => (typeof item === 'string' ? item : item?.text || item?.content || '').trim())
+        .filter(Boolean),
+    [highlights]
+  )
+
+  const flowStart = headlinePoints.length ? 0 : 1
+  const bodyItems = useMemo(() => paragraphs.slice(flowStart), [paragraphs, flowStart])
+
+  const hasSubtitle = !!String(subtitle || '').trim()
+  const colorOpts = useMemo(
+    () => ({
+      titleColor: hasColonInTitle ? '' : titleColor,
+      titleColorEnabled: hasColonInTitle ? false : titleColorEnabled,
+      category,
+      baseColor: resolvedTitleColor,
+      hasSubtitle,
+      wideBlockTitle: false,
+    }),
+    [titleColor, titleColorEnabled, category, resolvedTitleColor, hasSubtitle, hasColonInTitle]
+  )
+
+  const blockRef = useRef(null)
+  const titleLineRefs = useRef([])
+  const titleTextRefs = useRef([])
+  const subtitleRef = useRef(null)
+  const subtitleTextRef = useRef(null)
+  const [subtitlePx, setSubtitlePx] = useState(null)
+  const [titleMetrics, setTitleMetrics] = useState(() =>
+    fallbackTitleMetrics(title, BLOCK_04A_CONTENT_WIDTH_PX, colorOpts)
+  )
+  const [fittedLineSizes, setFittedLineSizes] = useState(null)
+
+  useLayoutEffect(() => {
+    const el = blockRef.current
+    if (!el) return undefined
+    let cancelled = false
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+      const width = getBlock04ColumnPx(el)
+      const metrics = await measureBlock04TitleLayoutWhenReady(title, width, colorOpts)
+      if (!cancelled) setTitleMetrics(metrics)
     }
-    document.body.removeChild(temp)
-    setTitleFontSize(currentSize)
-  }, [title])
-
-  const flowStart = highlights.length ? 0 : 1
-  const flowItems = paragraphs.slice(flowStart)
-  const totalFlow = flowItems.length
-
-  const imageCount = images?.length || 0
-  const columnCount = imageCount >= 3 ? 4 : imageCount === 2 ? 3 : 2
-  const imageSlots = Math.max(0, columnCount - 1)
-  const slotImages = (images || []).slice(0, imageSlots)
-  const overflowImages = (images || []).slice(imageSlots)
-
-  const getInitialCuts = (total, cols) => {
-    const cuts = []
-    for (let index = 1; index < cols; index++) {
-      cuts.push(Math.round((total * index) / cols))
+    run()
+    return () => {
+      cancelled = true
     }
-    return cuts
-  }
+  }, [title, colorOpts, hasSubtitle, blockCode])
 
-  const [cuts, setCuts] = useState(getInitialCuts(totalFlow, columnCount))
-  const [balanceTick, setBalanceTick] = useState(0)
-  const colRefs = useRef([])
-  const balanceRound = useRef(0)
-
-  useEffect(() => {
-    colRefs.current = new Array(columnCount)
-  }, [columnCount])
-
-  useEffect(() => {
-    balanceRound.current = 0
-    setCuts(getInitialCuts(totalFlow, columnCount))
-    setBalanceTick(t => t + 1)
-  }, [totalFlow, columnCount, paragraphs, images, highlights])
-
-  useEffect(() => {
-    if (balanceRound.current >= 180) return
-    if (!cuts.length) return
-
-    const heights = colRefs.current.slice(0, columnCount).map(col => (col ? col.offsetHeight : 0))
-    if (heights.some(height => height === 0)) return
-
-    let maxAdjacentDiff = 0
-    let pivot = -1
-
-    for (let index = 0; index < columnCount - 1; index++) {
-      const diff = heights[index] - heights[index + 1]
-      if (Math.abs(diff) > Math.abs(maxAdjacentDiff)) {
-        maxAdjacentDiff = diff
-        pivot = index
-      }
-    }
-
-    if (pivot === -1 || Math.abs(maxAdjacentDiff) <= 6) {
-      balanceRound.current = 0
-      return
-    }
-
-    const nextCuts = [...cuts]
-    const minBound = pivot === 0 ? 0 : nextCuts[pivot - 1]
-    const maxBound = pivot === nextCuts.length - 1 ? totalFlow : nextCuts[pivot + 1]
-
-    if (maxAdjacentDiff > 0) {
-      if (nextCuts[pivot] > minBound) {
-        nextCuts[pivot] -= 1
-      } else {
-        return
-      }
-    } else {
-      if (nextCuts[pivot] < maxBound) {
-        nextCuts[pivot] += 1
-      } else {
-        return
-      }
-    }
-
-    balanceRound.current += 1
-    setCuts(nextCuts)
-  }, [cuts, balanceTick, columnCount, totalFlow])
-
-  useEffect(() => {
-    const observers = []
-    const callback = () => {
-      const heights = colRefs.current.slice(0, columnCount).map(col => (col ? col.offsetHeight : 0))
-      if (heights.some(height => height === 0)) return
-      const max = Math.max(...heights)
-      const min = Math.min(...heights)
-      if (Math.abs(max - min) <= 6) return
-      // Do NOT reset balanceRound here — resetting causes an infinite loop.
-      // Just trigger another balance pass if we haven't hit the cap yet.
-      if (balanceRound.current < 180) setBalanceTick(t => t + 1)
-    }
-
-    colRefs.current.slice(0, columnCount).forEach(col => {
-      if (!col) return
-      const observer = new ResizeObserver(callback)
-      observer.observe(col)
-      observers.push(observer)
-    })
-
-    return () => observers.forEach(observer => observer.disconnect())
-  }, [columnCount, cuts])
-
-  const renderContinuousFlow = (items, keyPrefix, initialText = '', includeDateline = false) => {
-    const nodes = []
-    let buffer = String(initialText || '').trim()
-    let paraIndex = 0
-    let datelinePending = includeDateline && !!dateline
-
-    const flush = () => {
-      if (!buffer) return
-      nodes.push(
-        <p key={`${keyPrefix}-p-${paraIndex++}`}>
-          {datelinePending ? <span className={styles.dateline}>{dateline} </span> : null}
-          {buffer}
-        </p>
+  useLayoutEffect(() => {
+    const block = blockRef.current
+    if (!block) return undefined
+    let cancelled = false
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+      const lineCount = titleMetrics.renderedLines?.length || titleMetrics.titleLines?.length || 0
+      const initial = (titleMetrics.lineSizes || [titleMetrics.fontSizePx]).slice(0, lineCount)
+      const sizes = fitTitleLinesToRail(
+        titleLineRefs.current,
+        titleTextRefs.current,
+        initial,
+        26,
+        { lockEqualSizes: hasSubtitle && lineCount >= 2 }
       )
-      datelinePending = false
-      buffer = ''
-    }
+      if (!cancelled && sizes.length) setFittedLineSizes(sizes)
 
-    items.forEach((item, idx) => {
-      if (item?.type === 'heading') {
-        flush()
-        nodes.push(<h3 key={`${keyPrefix}-h-${idx}`}>{item.content}</h3>)
-        return
+      if (hasSubtitle && subtitle && subtitleRef.current && subtitleTextRef.current) {
+        const rail = getBlock04ColumnPx(block)
+        const titleBase =
+          sizes[0] || titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx || 38
+        let px = maxSubtitleSizeThatFits(subtitle, rail, titleBase)
+        subtitleTextRef.current.style.fontSize = `${px}px`
+        px = clampElementToRail(subtitleRef.current, subtitleTextRef.current, 14)
+        if (!cancelled) setSubtitlePx(px)
+      } else if (!cancelled) {
+        setSubtitlePx(null)
       }
-      const text = String(item?.content || item || '').trim()
-      if (!text) return
-      buffer = buffer ? `${buffer} ${text}` : text
-    })
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [titleMetrics, title, subtitle, hasSubtitle, blockCode])
 
-    flush()
-    return nodes
-  }
+  const titleLinesForRender = useMemo(() => {
+    if (titleMetrics.renderedLines?.length) return titleMetrics.renderedLines
+    return (titleMetrics.titleLines || ['']).map((text) => ({
+      text,
+      fontSizePx: titleMetrics.fontSizePx,
+      segments: [{ text, impact: false }],
+    }))
+  }, [titleMetrics])
 
-  const ranges = [...cuts, totalFlow]
-  const columnItems = []
-  let start = 0
-  ranges.forEach(end => {
-    columnItems.push(flowItems.slice(start, end))
-    start = end
-  })
+  const line2TuckPx = useMemo(() => {
+    const lines = titleMetrics.titleLines || []
+    if (lines.length < 2) return 0
+    const size0 = fittedLineSizes?.[0] ?? titleMetrics.lineSizes?.[0] ?? titleMetrics.fontSizePx
+    return colonTitleLine2TuckPx(size0, lines[1])
+  }, [titleMetrics, fittedLineSizes])
+
+  const apiFocus = String(imageObjectPosition || '').trim()
+  const showLeadRow = headlinePoints.length > 0 || leadImages.length > 0
 
   return (
-    <div className={styles.articleBlock}>
+    <div
+      ref={blockRef}
+      className={`${styles.articleBlock} ${blockClass}`}
+      data-block-code={blockCode}
+      style={{
+        '--title-color': resolvedTitleColor,
+        '--subtitle-color': resolvedSubtitleColor || 'inherit',
+        '--title-line-gap': `${titleMetrics.lineGapPx ?? 0}px`,
+        '--title-line-stack': `${titleMetrics.lineStackPx ?? 0}px`,
+        '--title-line2-tuck': `${line2TuckPx}px`,
+        '--body-col-count': BLOCK_06A_DIMENSIONS.columns,
+      }}
+    >
       <div className={styles.titleWrap}>
-        <h1 ref={titleRef} className={styles.title} style={{ fontSize: `${titleFontSize}px` }}>
-          {title}
+        <h1 className={styles.title}>
+          {titleLinesForRender.map((line, i) => (
+            <span
+              key={i}
+              ref={(node) => {
+                titleLineRefs.current[i] = node
+              }}
+              className={line.highlight ? styles.titleLineHighlight : styles.titleLine}
+            >
+              <span
+                ref={(node) => {
+                  titleTextRefs.current[i] = node
+                }}
+                className={styles.titleLineText}
+                style={{
+                  fontSize: `${fittedLineSizes?.[i] ?? line.fontSizePx}px`,
+                  lineHeight:
+                    fittedLineSizes?.[i] != null
+                      ? colonTitleLineHeightPx(fittedLineSizes[i])
+                      : line.lineHeight ?? 1,
+                }}
+              >
+                {line.segments.map((seg, j) =>
+                  seg.impact && seg.color ? (
+                    <span key={j} className={styles.impactWord} style={{ color: seg.color }}>
+                      {seg.text}
+                    </span>
+                  ) : (
+                    <span key={j}>{seg.text}</span>
+                  )
+                )}
+              </span>
+            </span>
+          ))}
         </h1>
-        {subtitle && (
-          <h2 className={styles.subtitle} style={{ color: subtitleColor }}>{subtitle}</h2>
-        )}
+        {subtitle ? (
+          <h2 ref={subtitleRef} className={styles.subtitle}>
+            <span
+              ref={subtitleTextRef}
+              className={styles.subtitleText}
+              style={{
+                fontSize: `${subtitlePx ?? Math.round((titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx) * 0.5)}px`,
+              }}
+            >
+              {subtitle}
+            </span>
+          </h2>
+        ) : null}
       </div>
 
-      <div className={styles.articleColumns}>
-        {Array.from({ length: columnCount }).map((_, columnIndex) => {
-          const imageForColumn = columnIndex === 0 ? null : slotImages[columnIndex - 1]
-          const textItems = columnItems[columnIndex] || []
-          const extraImages = columnIndex === columnCount - 1 ? overflowImages : []
-
-          return (
-            <div className={styles.column} ref={el => { colRefs.current[columnIndex] = el }} key={`col-${columnIndex}`}>
-              {columnIndex === 0 && highlights.length > 0 ? (
-                <div className={styles.highlightBox}>
-                  <ul>{highlights.map((item, idx) => <li key={idx}>{item}</li>)}</ul>
+      {showLeadRow ? (
+        <div className={styles.leadRow} data-lead-row>
+          {headlinePoints.length > 0 ? (
+            <div className={styles.headlinePanel} aria-label="Article headlines">
+              <ul className={styles.headlineList}>
+                {headlinePoints.map((text, idx) => (
+                  <li key={idx} className={styles.headlineItem}>
+                    <span className={styles.headlineBullet} aria-hidden>
+                      •
+                    </span>
+                    <span className={styles.headlineText}>{text}</span>
+                  </li>
+                ))}
+              </ul>
                 </div>
               ) : null}
-
-              {imageForColumn ? (
-                <figure className={styles.articleImage}>
+          {leadImages.map((image, idx) => (
+            <figure className={styles.imageWrap} key={`lead-img-${idx}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageForColumn.src} alt={imageForColumn.alt || ''} />
-                  {imageForColumn.caption ? <figcaption>{imageForColumn.caption}</figcaption> : null}
-                </figure>
-              ) : null}
-
-              {extraImages.map((image, idx) => (
-                <figure className={styles.articleImage} key={`extra-image-${idx}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={image.src} alt={image.alt || ''} />
+              <img
+                src={image.src}
+                alt={image.alt || ''}
+                style={apiFocus ? { objectPosition: apiFocus } : undefined}
+              />
                   {image.caption ? <figcaption>{image.caption}</figcaption> : null}
                 </figure>
               ))}
-
-              {renderContinuousFlow(
-                textItems,
-                `c${columnIndex + 1}`,
-                columnIndex === 0 && !highlights.length && paragraphs.length > 0 ? (paragraphs[0]?.content || paragraphs[0]) : '',
-                columnIndex === 0 && !highlights.length && paragraphs.length > 0
-              )}
             </div>
-          )
+      ) : null}
+
+      <div className={styles.bodyFlow} data-body-flow>
+        {renderBodyParagraphs(bodyItems, 'flow', {
+          dateline,
+          showDateline: !headlinePoints.length,
         })}
       </div>
     </div>

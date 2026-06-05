@@ -1,0 +1,25 @@
+{
+  "name": "@kaburlu/block08-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BLOCK-08A — 8in · 3 column newspaper template engine (06A-style threaded flow)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "predev": "lsof -ti :3097 | xargs kill -9 2>/dev/null || true",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js",
+    "test:render": "node scripts/test-render.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "pg": "^8.13.0"
+  }
+}

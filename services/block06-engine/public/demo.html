@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BLOCK-06A — Local Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f1f5f9; }
+    header { background: #1e293b; color: #fff; padding: 12px 20px; }
+    header h1 { margin: 0; font-size: 18px; }
+    header p { margin: 4px 0 0; font-size: 12px; opacity: 0.85; }
+    main { display: grid; grid-template-columns: 380px 1fr; gap: 0; min-height: calc(100vh - 56px); }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+    .form { padding: 16px; background: #fff; border-right: 1px solid #cbd5e1; overflow: auto; }
+    label { display: block; font-size: 12px; font-weight: 600; margin: 10px 0 4px; color: #334155; }
+    input, textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
+    textarea { min-height: 120px; font-family: inherit; }
+    button { margin-top: 12px; width: 100%; padding: 10px; background: #7c3aed; color: #fff; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; }
+    button:hover { background: #6d28d9; }
+    .errors { color: #b91c1c; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+    .meta { font-size: 11px; color: #64748b; margin-top: 8px; }
+    .preview { padding: 20px; overflow: auto; background: #e2e8f0; }
+    #mount { display: flex; justify-content: center; }
+    iframe { width: 100%; min-height: 80vh; border: 0; background: #fff; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>BLOCK-06A Engine — Local</h1>
+    <p>POST <code id="apiUrl"></code>/layout/block06/render</p>
+  </header>
+  <main>
+    <div class="form">
+      <label>Title *</label>
+      <input id="title" value="బ్లాక్-06A డెమో: ప్రజా సమావేశం" />
+      <label>Subtitle</label>
+      <input id="subtitle" value="జిల్లా కేంద్రంలో నిర్వహణ" />
+      <label>Highlight 1</label>
+      <input id="h1" value="పథకాల అమలుపై సమీక్ష" />
+      <label>Highlight 2</label>
+      <input id="h2" value="పారదర్శకత హామీ" />
+      <label>Image URL (max 1)</label>
+      <input id="image" value="https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&q=80" />
+      <label>Content * (150–300 words)</label>
+      <textarea id="content"></textarea>
+      <button type="button" id="renderBtn">Render BLOCK-06A</button>
+      <div class="errors" id="errors"></div>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="preview">
+      <iframe id="frame" title="BLOCK-06A preview"></iframe>
+    </div>
+  </main>
+  <script>
+    const API = window.location.origin
+    document.getElementById('apiUrl').textContent = API
+
+    const seed = 'ఈ రోజు జరిగిన సమావేశంలో అధికారులు ప్రజా హితాలను ప్రాధాన్యతగా పరిగణించాలని నిర్ణయించారు. స్థానిక సమస్యలపై విస్తృత చర్చ జరిగింది. విద్య ఆరోగ్యం రోడ్ల అభివృద్ధి పై ప్రత్యేక దృష్టి సారించాలని సూచనలు వచ్చాయి. పారదర్శకత పాటిస్తూ పథకాలను అమలు చేయాలని హామీ ఇచ్చారు. '
+    let c = ''
+    while (c.split(/\s+/).filter(Boolean).length < 200) c += seed
+    document.getElementById('content').value = c.split(/\s+/).slice(0, 200).join(' ')
+
+    document.getElementById('renderBtn').addEventListener('click', async () => {
+      const errorsEl = document.getElementById('errors')
+      const metaEl = document.getElementById('meta')
+      errorsEl.textContent = ''
+      metaEl.textContent = 'Loading…'
+      const highlights = [document.getElementById('h1').value, document.getElementById('h2').value].filter(Boolean)
+      const body = {
+        title: document.getElementById('title').value,
+        subtitle: document.getElementById('subtitle').value,
+        highlights,
+        image: document.getElementById('image').value,
+        content: document.getElementById('content').value,
+      }
+      try {
+        const res = await fetch(API + '/layout/block06/render', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const data = await res.json()
+        if (!data.valid) {
+          errorsEl.textContent = (data.errors || [data.error]).join('\n')
+          metaEl.textContent = `words: ${data.wordCount} · height: ${data.estimatedHeightMm}mm`
+          return
+        }
+        const eng = (data.html || '').includes('threaded-v3.3') ? 'threaded-v3.3 ✓' : 'restart server'
+        metaEl.textContent = `${eng} · words: ${data.wordCount} · est: ${data.estimatedHeightMm}mm · ${data.template?.block_code}`
+        const doc = `<!DOCTYPE html><html lang="te"><head><meta charset="utf-8"><style>${data.css}</style></head><body style="margin:0;padding:24px;background:#e2e8f0"><div id="block06a-root">${data.html}</div><script src="${API}/static/threadBalance.js"><\/script></body></html>`
+        document.getElementById('frame').srcdoc = doc
+      } catch (e) {
+        errorsEl.textContent = e.message
+        metaEl.textContent = ''
+      }
+    })
+  </script>
+</body>
+</html>

@@ -22,6 +22,9 @@ import {
   Database,
   Layers,
   PlusCircle,
+  ExternalLink,
+  RefreshCw,
+  Eye,
 } from 'lucide-react'
 
 const MAX_PDF_BYTES = 100 * 1024 * 1024 // 100 MB
@@ -222,6 +225,11 @@ function TrainingContent() {
   const [globalError, setGlobalError] = useState('')
   const [doneCount, setDoneCount] = useState(0)
 
+  // ---- Samples list ----
+  const [samples, setSamples] = useState([])
+  const [samplesLoading, setSamplesLoading] = useState(false)
+  const [samplesError, setSamplesError] = useState('')
+
   // ---- Tenant load ----
   useEffect(() => {
     if (!user) return
@@ -237,6 +245,38 @@ function TrainingContent() {
       .catch(() => {})
       .finally(() => setTenantsLoading(false))
   }, [user, router])
+
+  // ---- Load samples ----
+  const loadSamples = useCallback(async () => {
+    setSamplesLoading(true)
+    setSamplesError('')
+    try {
+      const authToken = getToken()?.token
+      const apiBase = process.env.NEXT_PUBLIC_BACKEND_URL
+        ? String(process.env.NEXT_PUBLIC_BACKEND_URL).replace(/\/$/, '')
+        : 'https://app.kaburlumedia.com/api/v1'
+      const params = new URLSearchParams()
+      if (tenantId) params.set('tenantId', tenantId)
+      params.set('limit', '50')
+      const res = await fetch(`${apiBase}/epaper/ml-training/samples?${params}`, {
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      })
+      if (res.status === 401) { logout(); router.replace('/'); return }
+      if (!res.ok) { setSamplesError(`Failed to load samples (${res.status})`); return }
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : (data?.data || data?.samples || data?.items || [])
+      setSamples(list)
+    } catch (err) {
+      setSamplesError(err?.message || 'Network error')
+    } finally {
+      setSamplesLoading(false)
+    }
+  }, [tenantId, router])
+
+  useEffect(() => {
+    if (!user) return
+    loadSamples()
+  }, [user, tenantId, loadSamples])
 
   // ---- File add ----
   const addFiles = useCallback((files) => {
@@ -369,6 +409,15 @@ function TrainingContent() {
   const idleCount = queue.filter((q) => q.status === 'idle').length
   const doneItems = queue.filter((q) => q.status === 'done').length
   const errorItems = queue.filter((q) => q.status === 'error').length
+
+  // Reload samples after a successful upload batch
+  const prevDoneCount = useRef(doneCount)
+  useEffect(() => {
+    if (doneCount > prevDoneCount.current) {
+      prevDoneCount.current = doneCount
+      loadSamples()
+    }
+  }, [doneCount, loadSamples])
 
   return (
     <>
@@ -507,6 +556,105 @@ function TrainingContent() {
               </button>
             </div>
           )}
+
+          {/* ── Registered Samples ── */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between gap-4 px-6 py-4 border-b border-slate-100">
+              <h2 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                <Eye className="w-4 h-4 text-violet-500" />
+                Registered Training Samples
+                {samples.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 text-xs font-bold">{samples.length}</span>
+                )}
+              </h2>
+              <button
+                type="button"
+                onClick={loadSamples}
+                disabled={samplesLoading}
+                className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-violet-600 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${samplesLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+            {samplesError && (
+              <div className="mx-6 my-4 flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                {samplesError}
+              </div>
+            )}
+
+            {samplesLoading && !samples.length ? (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-slate-400">
+                <Loader2 className="w-4 h-4 animate-spin text-violet-400" />
+                Loading samples...
+              </div>
+            ) : !samples.length ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-2 text-slate-400">
+                <Database className="w-8 h-8 text-slate-300" />
+                <p className="text-sm">No training samples registered yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 uppercase tracking-wide">
+                      <th className="text-left px-4 py-2.5 font-semibold">File</th>
+                      <th className="text-left px-4 py-2.5 font-semibold">Issue Date</th>
+                      <th className="text-left px-4 py-2.5 font-semibold">Layout</th>
+                      <th className="text-left px-4 py-2.5 font-semibold">Cols</th>
+                      <th className="text-left px-4 py-2.5 font-semibold">Language</th>
+                      <th className="text-left px-4 py-2.5 font-semibold">Registered</th>
+                      <th className="px-4 py-2.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {samples.map((s, idx) => {
+                      const fileName = s.fileName || s.pdfUrl?.split('/').pop() || '—'
+                      const issueDate = s.issueDate ? new Date(s.issueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+                      const createdAt = s.createdAt ? new Date(s.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+                      return (
+                        <tr key={s.id || idx} className="hover:bg-violet-50/40 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <span className="flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-violet-400 flex-shrink-0" />
+                              <span className="max-w-[160px] truncate font-medium text-slate-700" title={fileName}>{fileName}</span>
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-600">{issueDate}</td>
+                          <td className="px-4 py-2.5">
+                            <span className="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-100 capitalize">
+                              {s.layoutStyle || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-center text-slate-600">{s.columns ?? '—'}</td>
+                          <td className="px-4 py-2.5 text-slate-600">{s.language || '—'}</td>
+                          <td className="px-4 py-2.5 text-slate-400">{createdAt}</td>
+                          <td className="px-4 py-2.5">
+                            {s.pdfUrl ? (
+                              <a
+                                href={s.pdfUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 transition-colors"
+                                title={s.pdfUrl}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Preview
+                              </a>
+                            ) : (
+                              <span className="text-slate-300">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* ── What happens next ── */}
           <div className="bg-gradient-to-br from-violet-900 to-purple-900 rounded-2xl p-6 text-white">

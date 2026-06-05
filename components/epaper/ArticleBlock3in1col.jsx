@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React from 'react'
 import styles from './ArticleBlock3in1col.module.css'
 
 const CATEGORY_COLORS = {
@@ -10,68 +10,59 @@ const CATEGORY_COLORS = {
   general: '#34495E',
 }
 
+/** Stable hue from title+category when API does not send titleColor */
+function hashHue(str) {
+  let h = 0
+  const s = String(str || '')
+  for (let i = 0; i < s.length; i++) h = (h << 5) - h + s.charCodeAt(i)
+  return Math.abs(h) % 360
+}
+
+function resolveTitleColor(titleColor, title, category) {
+  const raw = String(titleColor || '').trim()
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(raw)) return raw
+  const hue = hashHue(`${title}|${category}`)
+  return `hsl(${hue}, 52%, 24%)`
+}
+
+function normalizeImage(img) {
+  if (!img) return null
+  const src = img.src || img.url || img.imageUrl || ''
+  if (!src) return null
+  return {
+    src,
+    alt: img.alt || '',
+    caption: img.caption || '',
+  }
+}
+
+/**
+ * BLOCK-03A — 3-inch × 1 column, “Style 1” (Telugu daily brief)
+ *
+ * • Physical width 76.2mm (3in). Max block height ≈ 4in — overflow clipped (long copy → larger block).
+ * • Title colour: `titleColor` (hex from backend) else stable HSL from title hash.
+ * • Highlights: each point is a full-width dashed underline block (multi-line wraps; rule under block).
+ * • One text column: optional lead image floats right, `object-fit: cover` + smart-ish `object-position`.
+ * • First paragraph opens with bold dateline when `dateline` is set.
+ *
+ * Page chrome (logo, footer URL) is never rendered here — story body only.
+ */
 export default function ArticleBlock3in1col({
   title,
-  subtitle,
+  subtitle = '',
   category = 'general',
   dateline = '',
   highlights = [],
   images = [],
   paragraphs = [],
+  titleColor = '',
+  imageObjectPosition = '',
 }) {
-  const titleRef = useRef(null)
-  const [titleFontSize, setTitleFontSize] = useState(18)
-  const subtitleColor = CATEGORY_COLORS[category] || CATEGORY_COLORS.general
+  const accentFallback = CATEGORY_COLORS[category] || CATEGORY_COLORS.general
+  const resolvedTitleColor = resolveTitleColor(titleColor, title, category)
+  const focus = String(imageObjectPosition || '').trim() || '50% 28%'
+  const image = normalizeImage(images?.[0])
 
-  useEffect(() => {
-    if (!titleRef.current || !title) return
-    const minSize = 9
-    const maxSize = 24
-
-    const calculateTitleSize = () => {
-      if (!titleRef.current) return
-      const containerWidthPx = titleRef.current.parentElement?.clientWidth || titleRef.current.clientWidth || 240
-      const temp = document.createElement('span')
-      temp.style.fontFamily = 'Mandali, sans-serif'
-      temp.style.fontWeight = '700'
-      temp.style.visibility = 'hidden'
-      temp.style.position = 'absolute'
-      temp.style.left = '-9999px'
-      temp.style.top = '-9999px'
-      temp.style.display = 'block'
-      temp.style.width = `${containerWidthPx}px`
-      temp.style.whiteSpace = 'normal'
-      temp.style.wordBreak = 'break-word'
-      temp.style.overflowWrap = 'anywhere'
-      temp.style.lineHeight = '1.28'
-      temp.style.letterSpacing = '0.01em'
-      temp.textContent = title
-      document.body.appendChild(temp)
-
-      let fitSize = minSize
-      for (let size = maxSize; size >= minSize; size--) {
-        temp.style.fontSize = `${size}px`
-        const lineHeight = size * 1.28
-        const lineCount = Math.ceil(temp.offsetHeight / lineHeight)
-        if (lineCount <= 2) {
-          fitSize = size
-          break
-        }
-      }
-
-      document.body.removeChild(temp)
-      setTitleFontSize(fitSize)
-    }
-
-    calculateTitleSize()
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(calculateTitleSize)
-    }
-    window.addEventListener('resize', calculateTitleSize)
-    return () => window.removeEventListener('resize', calculateTitleSize)
-  }, [title])
-
-  const image = images && images.length > 0 ? images[0] : null
   const flowStart = highlights.length ? 0 : 1
   const flowItems = paragraphs.slice(flowStart)
 
@@ -84,7 +75,7 @@ export default function ArticleBlock3in1col({
     const flush = () => {
       if (!buffer) return
       nodes.push(
-        <p key={`${keyPrefix}-p-${paraIndex++}`}>
+        <p key={`${keyPrefix}-p-${paraIndex++}`} className={styles.bodyPara}>
           {datelinePending ? <span className={styles.dateline}>{dateline} </span> : null}
           {buffer}
         </p>
@@ -96,7 +87,7 @@ export default function ArticleBlock3in1col({
     items.forEach((item, idx) => {
       if (item?.type === 'heading') {
         flush()
-        nodes.push(<h3 key={`${keyPrefix}-h-${idx}`}>{item.content}</h3>)
+        nodes.push(<h3 key={`${keyPrefix}-h-${idx}`} className={styles.inlineHeading}>{item.content}</h3>)
         return
       }
       const text = String(item?.content || item || '').trim()
@@ -109,29 +100,42 @@ export default function ArticleBlock3in1col({
   }
 
   return (
-    <div className={styles.articleBlock}>
+    <div
+      className={styles.articleBlock}
+      style={{ '--title-color': resolvedTitleColor, '--img-focus': focus }}
+    >
       <div className={styles.titleWrap}>
-        <h1 ref={titleRef} className={styles.title} style={{ fontSize: `${titleFontSize}px` }}>
-          {title}
-        </h1>
-        {subtitle ? <h2 className={styles.subtitle} style={{ color: subtitleColor }}>{subtitle}</h2> : null}
+        <h1 className={styles.title}>{title}</h1>
+        {subtitle ? (
+          <h2 className={styles.subtitle} style={{ color: accentFallback }}>
+            {subtitle}
+          </h2>
+        ) : null}
       </div>
 
-      {image ? (
-        <figure className={styles.articleImage}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={image.src} alt={image.alt || ''} />
-          {image.caption ? <figcaption>{image.caption}</figcaption> : null}
-        </figure>
-      ) : null}
-
       {highlights.length > 0 ? (
-        <div className={styles.highlightBox}>
-          <ul>{highlights.map((item, idx) => <li key={idx}>{item}</li>)}</ul>
-        </div>
+        <ul className={styles.highlightDashList} aria-label="Highlights">
+          {highlights.map((item, idx) => (
+            <li key={idx} className={styles.highlightDashItem}>
+              {typeof item === 'string' ? item : (item?.text || item?.content || '')}
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <div className={styles.articleContent}>
+        {image ? (
+          <figure className={styles.floatFigure}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={image.src}
+              alt={image.alt || ''}
+              className={styles.floatImg}
+            />
+            {image.caption ? <figcaption className={styles.floatCaption}>{image.caption}</figcaption> : null}
+          </figure>
+        ) : null}
+
         {renderContinuousFlow(
           flowItems,
           'c1',

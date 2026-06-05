@@ -199,7 +199,11 @@ function ColorPicker({ label, value, onChange }) {
   )
 }
 
-function ImageUpload({ label, value, onChange, onUpload, uploading }) {
+function ImageUpload({ label, value, onChange, onUpload, uploading, previewVersion }) {
+  const previewSrc = value
+    ? `${value}${value.includes('?') ? '&' : '?'}v=${previewVersion || 0}`
+    : ''
+
   return (
     <div>
       <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
@@ -222,7 +226,7 @@ function ImageUpload({ label, value, onChange, onUpload, uploading }) {
           </label>
           {value && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="Preview" className="h-8 w-auto rounded border" />
+            <img src={previewSrc} alt="Preview" className="h-8 w-auto rounded border" />
           )}
         </div>
       </div>
@@ -244,7 +248,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   const [activeTab, setActiveTab] = useState('appearance')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [uploadingAsset, setUploadingAsset] = useState(null)
+  const [previewVersions, setPreviewVersions] = useState({})
   const [message, setMessage] = useState({ type: '', text: '' })
   
   // Original config for diff
@@ -665,22 +670,27 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     }
   }, [tenantId, domainId, domains, originalConfig, buildCurrentConfig, buildEpaperConfig, loadConfig, showMessage])
   
-  const uploadImage = useCallback(async (file, setter) => {
-    setUploading(true)
+  const uploadImage = useCallback(async (file, assetKey, setter) => {
+    if (!assetKey) return
+    setUploadingAsset(assetKey)
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('folder', `tenants/${tenantId}/domains/${domainId}`)
+      fd.append('folder', `tenants/${tenantId}/domains/${domainId}/${assetKey}`)
+      fd.append('kind', 'image')
       
       const res = await fetch('/api/admin/media/upload', { method: 'POST', body: fd })
       if (!res.ok) throw new Error('Upload failed')
       
       const data = await res.json()
-      setter(data.publicUrl || data.url)
+      const url = data.publicUrl || data.internalUrl || data.url || data.fileUrl
+      if (!url) throw new Error('Upload succeeded but no URL returned')
+      setter(url)
+      setPreviewVersions((prev) => ({ ...prev, [assetKey]: Date.now() }))
     } catch (e) {
       showMessage('error', e.message || 'Upload failed')
     } finally {
-      setUploading(false)
+      setUploadingAsset(null)
     }
   }, [tenantId, domainId, showMessage])
   
@@ -793,15 +803,17 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             label="Logo"
             value={logoUrl}
             onChange={setLogoUrl}
-            onUpload={(f) => uploadImage(f, setLogoUrl)}
-            uploading={uploading}
+            onUpload={(f) => uploadImage(f, 'logo', setLogoUrl)}
+            uploading={uploadingAsset === 'logo'}
+            previewVersion={previewVersions.logo}
           />
           <ImageUpload
             label="Favicon"
             value={faviconUrl}
             onChange={setFaviconUrl}
-            onUpload={(f) => uploadImage(f, setFaviconUrl)}
-            uploading={uploading}
+            onUpload={(f) => uploadImage(f, 'favicon', setFaviconUrl)}
+            uploading={uploadingAsset === 'favicon'}
+            previewVersion={previewVersions.favicon}
           />
         </div>
       </Section>
@@ -1026,8 +1038,9 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             label="OG Image (1200x630 recommended)"
             value={ogImageUrl}
             onChange={setOgImageUrl}
-            onUpload={(f) => uploadImage(f, setOgImageUrl)}
-            uploading={uploading}
+            onUpload={(f) => uploadImage(f, 'og-image', setOgImageUrl)}
+            uploading={uploadingAsset === 'og-image'}
+            previewVersion={previewVersions['og-image']}
           />
         </div>
       </Section>
@@ -1208,15 +1221,17 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
               label="Logo"
               value={logoUrl}
               onChange={setLogoUrl}
-              onUpload={(f) => uploadImage(f, setLogoUrl)}
-              uploading={uploading}
+              onUpload={(f) => uploadImage(f, 'logo', setLogoUrl)}
+              uploading={uploadingAsset === 'logo'}
+              previewVersion={previewVersions.logo}
             />
             <ImageUpload
               label="Favicon"
               value={faviconUrl}
               onChange={setFaviconUrl}
-              onUpload={(f) => uploadImage(f, setFaviconUrl)}
-              uploading={uploading}
+              onUpload={(f) => uploadImage(f, 'favicon', setFaviconUrl)}
+              uploading={uploadingAsset === 'favicon'}
+              previewVersion={previewVersions.favicon}
             />
           </div>
         </div>
@@ -1231,8 +1246,9 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             label="Organization Logo"
             value={organizationLogo}
             onChange={setOrganizationLogo}
-            onUpload={(f) => uploadImage(f, setOrganizationLogo)}
-            uploading={uploading}
+            onUpload={(f) => uploadImage(f, 'organization-logo', setOrganizationLogo)}
+            uploading={uploadingAsset === 'organization-logo'}
+            previewVersion={previewVersions['organization-logo']}
           />
         </div>
       </Section>

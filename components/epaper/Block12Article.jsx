@@ -1,0 +1,942 @@
+import React, { useMemo, useRef, useState, useLayoutEffect, useCallback, useEffect } from 'react'
+import styles from './Block12Article.module.css'
+import { analyzeBlock08Visuals } from '../../lib/epaper/block08VisualAnalysis'
+import { buildBlock12Composition } from '../../lib/epaper/block12EditorialIntel'
+import { buildBlock12ColumnModels } from '../../lib/epaper/block12ColumnModel'
+import { mergeEditorialParagraphs } from '../../lib/epaper/block08ParagraphMerge'
+import { assignBlock12ColumnText } from '../../lib/epaper/block12ThreadFlow'
+import { isBroken12ColumnLayout } from '../../lib/epaper/block12LayoutGuard'
+import { mergeBodyItemsToFlowText } from '../../lib/epaper/block08CrossColumnFlow'
+import Block08ColumnBody from './Block08ColumnBody'
+import { clearBlock08DomMeasureCache } from '../../lib/epaper/block08Measure'
+import { ensureBlock08BodyFonts, resetTextMetricsCache } from '../../lib/epaper/block08TextMetrics'
+import {
+  alignColumnTextsToRenderedBottoms12,
+  measureRenderedColumnTextBottoms12,
+} from '../../lib/epaper/block12CrossColumnFlow'
+import { tokenizeWords } from '../../lib/epaper/block08LineComposer'
+import { estimateHeadlinePanelPx } from '../../lib/epaper/wideColumnBalance'
+import { wideColumnContentWidthPx } from '../../lib/epaper/wideColumnBalance'
+import { uniformBlock08ColumnWidths } from '../../lib/epaper/block08ColumnWidths'
+import { BLOCK_12A_MAX_IMAGES } from '../../lib/epaper/block12EditorialIntel'
+import {
+  resolveBlock04TitleColor,
+  resolveBlock04SubtitleColor,
+} from '../../lib/epaper/block04Color'
+import {
+  getBlock04ColumnPx,
+  fallbackTitleMetrics,
+} from '../../lib/epaper/block04TitleMetrics'
+import {
+  measureBlock04TitleLayout,
+  measureBlock04TitleLayoutWhenReady,
+} from '../../lib/epaper/block04TitleMeasure'
+import {
+  fitTitleLinesToRail,
+  titleTextOverflowsRail,
+  lineInkWidthPx,
+  effectiveWideTitlePx,
+  ensureBlock04TitleFonts,
+  maxSubtitleSizeThatFits,
+  clampElementToRail,
+} from '../../lib/epaper/block04TitleFit'
+import { colonTitleLineHeightPx, colonTitleLine2TuckPx } from '../../lib/epaper/block04TitleSmart'
+import {
+  BLOCK_12A_TITLE,
+  BLOCK_12A_DIMENSIONS,
+  BLOCK_12A_CONTENT_RAIL_PX,
+  BLOCK_12A_IMAGE,
+  block12ImageObstaclePx,
+} from '../../lib/epaper/wideBlockRules'
+import {
+  block12ImageMaxHeightPx,
+  computeBlock12ImageFrameHeight,
+} from '../../lib/epaper/block12ImageFrame'
+import EditorialCropImage from './EditorialCropImage'
+
+const COLUMN_COUNT = 4
+const BLOCK_12_PRIMARY_IMAGE_COL = 1
+const PARTITION_COOLDOWN_MS = 420
+const OBSTACLE_SIG_MIN_DELTA_PX = 14
+
+function normalizeImages(images, max = BLOCK_12A_MAX_IMAGES) {
+  const list = []
+  const seen = new Set()
+  for (const raw of images || []) {
+    if (!raw || list.length >= max) break
+    const src = raw.src || raw.url || raw.imageUrl || ''
+    if (!src || seen.has(src)) continue
+    seen.add(src)
+    list.push({
+      src,
+      alt: raw.alt || '',
+      caption: raw.caption || '',
+      width: raw.width || raw.naturalWidth || 0,
+      height: raw.height || raw.naturalHeight || 0,
+      tags: raw.tags || raw.subject || '',
+    })
+  }
+  return list
+}
+
+
+/**
+ * BLOCK-12A — 4-column CSS grid (08A engine, max 6 images).
+ * Col1: highlights → text | Col2: img1 + img2 below | Col3: img3 top | Col4: img4 + img5 + img6 below
+ * Thread col1→col2→col3→col4; even bottoms; H&J.
+ */
+export default function Block12Article({
+  title,
+  subtitle = '',
+  category = 'general',
+  dateline = '',
+  highlights = [],
+  images = [],
+  paragraphs = [],
+  titleColor = '',
+  titleColorEnabled = false,
+  imageObjectPosition = '',
+  showColumnDebug = false,
+}) {
+  const hasColonInTitle = /[:：]/.test(String(title || ''))
+  const resolvedTitleColor = hasColonInTitle
+    ? '#1a1a1a'
+    : resolveBlock04TitleColor(titleColor, titleColorEnabled, title, category)
+
+  const leadImages = useMemo(() => normalizeImages(images), [images])
+  const headlinePoints = useMemo(
+    () =>
+      highlights
+        .map((item) => (typeof item === 'string' ? item : item?.text || item?.content || '').trim())
+        .filter(Boolean),
+    [highlights]
+  )
+
+  const flowStart = headlinePoints.length ? 0 : 1
+  const bodyItems = useMemo(() => {
+    const highlightSet = new Set(
+      headlinePoints.map((h) =>
+        String(h || '')
+          .replace(/^[\s•\-–—*]+/, '')
+          .trim()
+      )
+    )
+    const sliced = paragraphs.slice(flowStart).filter((p) => {
+      const t = String(p?.content ?? p ?? '')
+        .replace(/^[\s•\-–—*]+/, '')
+        .trim()
+      if (!t) return false
+      if (headlinePoints.length && highlightSet.has(t)) return false
+      return true
+    })
+    return mergeEditorialParagraphs(sliced)
+  }, [paragraphs, flowStart, headlinePoints])
+  const bodyFlowKey = useMemo(
+    () =>
+      [
+        headlinePoints.length,
+        leadImages.length,
+        leadImages.map((im) => im.src).join('|').slice(0, 200),
+        headlinePoints.join('|').slice(0, 120),
+        bodyItems
+          .map((item, i) => `${item?.type || 'p'}:${String(item?.content ?? item ?? '').length}:${i}`)
+          .join('|'),
+      ].join('::'),
+    [bodyItems, headlinePoints, leadImages]
+  )
+
+  const [imageMetrics, setImageMetrics] = useState({ width: 0, height: 0 })
+  const [columnTexts, setColumnTexts] = useState(() => Array.from({ length: COLUMN_COUNT }, () => ''))
+  const [layoutReady, setLayoutReady] = useState(() => bodyItems.length === 0)
+  const [debugHeights, setDebugHeights] = useState(null)
+  const partitionTimerRef = useRef(null)
+  const runPartitionRef = useRef(() => {})
+  const alignTimerRef = useRef(null)
+  const partitionRunIdRef = useRef(0)
+  const partitionDeferRef = useRef(0)
+  const obstacleMountGenRef = useRef(0)
+  const alignPassRef = useRef(0)
+  const layoutFrozenRef = useRef(false)
+  const lastPartitionKeyRef = useRef('')
+  const obstacleHeightSigRef = useRef('')
+  const gridWidthSigRef = useRef('')
+  const imageFrameHeightsRef = useRef({})
+  const lastPartitionAtRef = useRef(0)
+  const frameHeightTimerRef = useRef(null)
+
+  const articleForAnalysis = useMemo(
+    () => ({
+      title,
+      category,
+      highlights: headlinePoints,
+      images: leadImages,
+      paragraphs: bodyItems,
+      imageWidth: imageMetrics.width || leadImages[0]?.width,
+      imageHeight: imageMetrics.height || leadImages[0]?.height,
+    }),
+    [title, category, headlinePoints, leadImages, bodyItems, imageMetrics]
+  )
+
+  const visuals = useMemo(
+    () => analyzeBlock08Visuals(articleForAnalysis),
+    [articleForAnalysis]
+  )
+
+  const composition = useMemo(
+    () =>
+      buildBlock12Composition(visuals, leadImages, headlinePoints.length > 0, {
+        title,
+        category,
+      }),
+    [visuals, leadImages, headlinePoints.length, title, category]
+  )
+
+  const columnModels = useMemo(
+    () =>
+      buildBlock12ColumnModels({
+        images: leadImages,
+        headlineCount: headlinePoints.length,
+        columnCount: COLUMN_COUNT,
+      }),
+    [visuals, leadImages, headlinePoints.length]
+  )
+
+  const blockRef = useRef(null)
+  const columnsRef = useRef(null)
+  const obstacleRefs = useRef(
+    Array.from({ length: COLUMN_COUNT }, () => ({ highlights: null, images: [] }))
+  )
+  const titleLineRefs = useRef([])
+  const titleTextRefs = useRef([])
+  const subtitleRef = useRef(null)
+  const subtitleTextRef = useRef(null)
+  const [measuredTitleInkRatio, setMeasuredTitleInkRatio] = useState(0)
+  const [subtitlePx, setSubtitlePx] = useState(null)
+  const [titleMetrics, setTitleMetrics] = useState(() =>
+    fallbackTitleMetrics(title, BLOCK_12A_CONTENT_RAIL_PX, { wideBlockTitle: true })
+  )
+  const [fittedLineSizes, setFittedLineSizes] = useState(null)
+  const titleReflowOnce = useRef(false)
+
+  const typography = composition.typography
+  const hasSubtitle = !!String(subtitle || '').trim()
+  const showDateline = !headlinePoints.length
+
+  const colorOpts = useMemo(
+    () => ({
+      titleColor: hasColonInTitle ? '' : titleColor,
+      titleColorEnabled: hasColonInTitle ? false : titleColorEnabled,
+      category,
+      baseColor: resolvedTitleColor,
+      hasSubtitle,
+      wideBlockTitle: true,
+      wideTitleMinPx: typography.titleMinPx ?? BLOCK_12A_TITLE.minPx,
+      wideTitleMaxPx: typography.titleMaxPx ?? BLOCK_12A_TITLE.maxPx,
+      preferMultiLineOnly:
+        typography.forceMultiLine || measuredTitleInkRatio >= 0.85,
+      wideTitleMaxLines: BLOCK_12A_TITLE.maxLines,
+    }),
+    [
+      titleColor,
+      titleColorEnabled,
+      category,
+      resolvedTitleColor,
+      hasSubtitle,
+      hasColonInTitle,
+      typography,
+      measuredTitleInkRatio,
+    ]
+  )
+
+  const colWidthPx = useMemo(
+    () =>
+      wideColumnContentWidthPx(
+        BLOCK_12A_DIMENSIONS.nativeWidthPx,
+        COLUMN_COUNT,
+        BLOCK_12A_DIMENSIONS.gutterMm,
+        BLOCK_12A_DIMENSIONS.columnGapMm
+      ),
+    []
+  )
+
+  const estimateObstaclePx = useCallback(() => {
+    return columnModels.map((model, colIdx) => {
+      let h = 0
+      if (model.highlights) {
+        h += estimateHeadlinePanelPx(headlinePoints.length)
+      }
+      if (model.images?.length) {
+        model.images.forEach((slot, imgIdx) => {
+          const key = `${colIdx}-${imgIdx}`
+          const measured = imageFrameHeightsRef.current[key]
+          const est =
+            measured ||
+            computeBlock12ImageFrameHeight({
+              naturalWidth: imageMetrics.width || slot.image?.width,
+              naturalHeight: imageMetrics.height || slot.image?.height,
+              columnWidthPx: colWidthPx,
+              role: slot.role || 'primary',
+            })
+          h += block12ImageObstaclePx(slot.role || 'primary', !!slot.image?.caption, est)
+        })
+      }
+      return h
+    })
+  }, [columnModels, headlinePoints.length, imageMetrics, colWidthPx])
+
+  const measureObstaclesFromDom = useCallback(() => {
+    return columnModels.map((model, colIdx) => {
+      const refs = obstacleRefs.current[colIdx]
+      let h = 0
+      if (model.highlights && refs?.highlights) {
+        h += Math.ceil(refs.highlights.getBoundingClientRect().height)
+      }
+      ;(refs?.images || []).forEach((el) => {
+        if (el) h += Math.ceil(el.getBoundingClientRect().height)
+      })
+      const est = estimateObstaclePx()[colIdx]
+      if (h <= 0) return est
+      // Grid stretch can inflate DOM — keep obstacles near estimate (08A-style)
+      if (est > 0) {
+        return Math.min(Math.max(h, est * 0.92), est * 1.35)
+      }
+      return Math.min(h, 480)
+    })
+  }, [columnModels, estimateObstaclePx])
+
+  const markLayoutSettled = useCallback(() => {
+    setLayoutReady(true)
+  }, [])
+
+  const schedulePostPartitionAlign = useCallback(
+    (texts) => {
+      clearTimeout(alignTimerRef.current)
+      alignTimerRef.current = setTimeout(() => {
+        const grid = columnsRef.current
+        if (!grid || grid.children?.length !== COLUMN_COUNT) {
+          if (alignPassRef.current < 10) {
+            alignPassRef.current += 1
+            alignTimerRef.current = setTimeout(() => schedulePostPartitionAlign(texts), 180)
+          } else {
+            markLayoutSettled()
+          }
+          return
+        }
+        if (alignPassRef.current >= 6) {
+          markLayoutSettled()
+          return
+        }
+
+        const bottoms = measureRenderedColumnTextBottoms12(grid)
+        if (!bottoms) {
+          alignPassRef.current += 1
+          alignTimerRef.current = setTimeout(() => schedulePostPartitionAlign(texts), 200)
+          return
+        }
+        const spread = Math.max(...bottoms) - Math.min(...bottoms)
+        const totalW = texts.reduce(
+          (n, t) => n + tokenizeWords(String(t || '')).length,
+          0
+        )
+        const centerW = tokenizeWords(texts[1] || '').length
+        const centerOk = !columnModels[1]?.images?.length || centerW >= totalW * 0.18
+        if (spread <= 10 && centerOk) {
+          markLayoutSettled()
+          return
+        }
+
+        setColumnTexts((prev) => {
+          const fullText = mergeBodyItemsToFlowText(bodyItems)
+          const flowCtx = {
+            totalWords: tokenizeWords(fullText).length,
+            imageCount: leadImages.length,
+          }
+          if (isBroken12ColumnLayout(prev, flowCtx)) {
+            lastPartitionKeyRef.current = ''
+            queueMicrotask(() => runPartitionRef.current())
+            return prev
+          }
+          const aligned = alignColumnTextsToRenderedBottoms12(prev, grid)
+          const same = aligned.every((t, i) => t === prev[i])
+          if (same || isBroken12ColumnLayout(aligned, flowCtx)) {
+            if (isBroken12ColumnLayout(aligned, flowCtx)) {
+              lastPartitionKeyRef.current = ''
+              queueMicrotask(() => runPartitionRef.current())
+              return prev
+            }
+            markLayoutSettled()
+            return prev
+          }
+          alignPassRef.current += 1
+          clearTimeout(alignTimerRef.current)
+          alignTimerRef.current = setTimeout(() => schedulePostPartitionAlign(aligned), 160)
+          return aligned
+        })
+      }, 160)
+    },
+    [columnModels, markLayoutSettled, bodyItems, leadImages.length]
+  )
+
+  const runColumnPartitionNow = useCallback(async () => {
+    if (!bodyItems.length) {
+      setColumnTexts(Array.from({ length: COLUMN_COUNT }, () => ''))
+      markLayoutSettled()
+      return
+    }
+
+    const runId = ++partitionRunIdRef.current
+    await ensureBlock08BodyFonts()
+    resetTextMetricsCache()
+    clearBlock08DomMeasureCache()
+
+    const domObstacles = measureObstaclesFromDom()
+    const centerEst = estimateObstaclePx()[BLOCK_12_PRIMARY_IMAGE_COL] || 0
+    const centerNeedsDom = (columnModels[1]?.images?.length || 0) > 0
+    const centerDom = domObstacles[1] || 0
+    if (centerNeedsDom && centerDom < centerEst * 0.72) {
+      partitionDeferRef.current += 1
+      if (partitionDeferRef.current <= 10) {
+        setTimeout(() => {
+          if (runId === partitionRunIdRef.current) {
+            runColumnPartitionNow()
+          }
+        }, 120)
+        return
+      }
+    }
+    partitionDeferRef.current = 0
+
+    const estObstacles = estimateObstaclePx()
+    const obstacleTotals = columnModels.map((model, colIdx) => {
+      const est = estObstacles[colIdx] || 0
+      const dom = domObstacles[colIdx] || 0
+      if (model.images?.length && dom < est * 0.55) return est
+      if (est <= 0) return dom
+      if (dom <= 0) return est
+      return Math.min(Math.max(dom, est * 0.92), Math.ceil(est * 1.35))
+    })
+
+    const colWidths = uniformBlock08ColumnWidths(
+      columnsRef.current,
+      COLUMN_COUNT,
+      BLOCK_12A_DIMENSIONS.nativeWidthPx,
+      BLOCK_12A_DIMENSIONS.gutterMm,
+      BLOCK_12A_DIMENSIONS.columnGapMm
+    )
+
+    const minColW = Math.min(...colWidths)
+    if (minColW < 120) {
+      partitionDeferRef.current += 1
+      if (partitionDeferRef.current <= 15) {
+        setTimeout(() => {
+          if (runId === partitionRunIdRef.current) runColumnPartitionNow()
+        }, 100)
+        return
+      }
+    }
+    partitionDeferRef.current = 0
+
+    const partitionKey = `${bodyFlowKey}|${obstacleTotals.join(',')}|${colWidths.join(',')}`
+
+    const cols = assignBlock12ColumnText(
+      bodyItems,
+      columnModels,
+      obstacleTotals,
+      null,
+      colWidths,
+      { dateline, showDateline, imageCount: leadImages.length }
+    )
+
+    if (runId !== partitionRunIdRef.current) return
+
+    const next = cols.map((c) => c.columnText || '')
+    const fullText = mergeBodyItemsToFlowText(bodyItems)
+    const flowCtx = {
+      totalWords: tokenizeWords(fullText).length,
+      imageCount: leadImages.length,
+    }
+    const broken = isBroken12ColumnLayout(next, flowCtx)
+
+    if (partitionKey === lastPartitionKeyRef.current && !broken) return
+    if (!broken) lastPartitionKeyRef.current = partitionKey
+    lastPartitionAtRef.current = Date.now()
+    obstacleHeightSigRef.current = obstacleTotals.join(',')
+
+    setColumnTexts((prev) => {
+      const same = prev.length === next.length && prev.every((t, i) => t === next[i])
+      return same ? prev : next
+    })
+    if (next.some((t) => String(t || '').trim())) setLayoutReady(true)
+    schedulePostPartitionAlign(next)
+  }, [
+    bodyItems,
+    columnModels,
+    colWidthPx,
+    dateline,
+    showDateline,
+    measureObstaclesFromDom,
+    estimateObstaclePx,
+    headlinePoints.length,
+    bodyFlowKey,
+    schedulePostPartitionAlign,
+    markLayoutSettled,
+  ])
+
+  runPartitionRef.current = runColumnPartitionNow
+
+  const runColumnPartition = useCallback(() => {
+    clearTimeout(partitionTimerRef.current)
+    partitionTimerRef.current = setTimeout(() => {
+      runColumnPartitionNow()
+    }, 120)
+  }, [runColumnPartitionNow])
+
+  /** Highlights / images just mounted — remeasure obstacles then re-thread columns. */
+  const onObstacleMounted = useCallback(() => {
+    layoutFrozenRef.current = false
+    const now = Date.now()
+    if (now - lastPartitionAtRef.current < PARTITION_COOLDOWN_MS) return
+
+    const sig = measureObstaclesFromDom().join(',')
+    const prevSig = obstacleHeightSigRef.current
+    if (prevSig && sig === prevSig) return
+    if (prevSig) {
+      const prevHeights = prevSig.split(',').map((n) => Number(n) || 0)
+      const nextHeights = sig.split(',').map((n) => Number(n) || 0)
+      const delta = Math.max(
+        ...nextHeights.map((h, i) => Math.abs(h - (prevHeights[i] || 0))),
+        0
+      )
+      if (delta < OBSTACLE_SIG_MIN_DELTA_PX) return
+    }
+    obstacleHeightSigRef.current = sig
+    lastPartitionKeyRef.current = ''
+
+    const gen = ++obstacleMountGenRef.current
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (gen === obstacleMountGenRef.current) {
+          lastPartitionAtRef.current = Date.now()
+          lastPartitionKeyRef.current = ''
+          runColumnPartition()
+        }
+      })
+    })
+  }, [runColumnPartition, measureObstaclesFromDom])
+
+  const handleImageLoad = useCallback(() => {
+    onObstacleMounted()
+  }, [onObstacleMounted])
+
+  useEffect(() => {
+    layoutFrozenRef.current = false
+    setLayoutReady(bodyItems.length === 0)
+    lastPartitionKeyRef.current = ''
+    obstacleHeightSigRef.current = ''
+    gridWidthSigRef.current = ''
+    imageFrameHeightsRef.current = {}
+    partitionDeferRef.current = 0
+    alignPassRef.current = 0
+    clearTimeout(alignTimerRef.current)
+  }, [bodyFlowKey, bodyItems.length])
+
+  useEffect(() => {
+    if (!bodyItems.length) return undefined
+    const t = setTimeout(runColumnPartition, 1100)
+    return () => clearTimeout(t)
+  }, [bodyFlowKey, bodyItems.length, runColumnPartition])
+
+  useLayoutEffect(() => {
+    const el = blockRef.current
+    if (!el) return undefined
+    titleReflowOnce.current = false
+    let cancelled = false
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+      resetTextMetricsCache()
+      const width = getBlock04ColumnPx(el)
+      const metrics = await measureBlock04TitleLayoutWhenReady(title, width, colorOpts)
+      if (!cancelled) setTitleMetrics(metrics)
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [title, colorOpts, hasSubtitle])
+
+  useLayoutEffect(() => {
+    const block = blockRef.current
+    if (!block) return undefined
+    let cancelled = false
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+      const rail = getBlock04ColumnPx(block)
+      const effectiveRail = effectiveWideTitlePx(rail)
+      const lineCount = titleMetrics.renderedLines?.length || titleMetrics.titleLines?.length || 0
+      const initial = (titleMetrics.lineSizes || [titleMetrics.fontSizePx]).slice(0, lineCount)
+      const sizes = fitTitleLinesToRail(
+        titleLineRefs.current,
+        titleTextRefs.current,
+        initial,
+        typography.titleMinPx ?? BLOCK_12A_TITLE.minPx,
+        { lockEqualSizes: hasSubtitle && lineCount >= 2 }
+      )
+      if (!cancelled && sizes.length) setFittedLineSizes(sizes)
+
+      const firstText = titleTextRefs.current[0]
+      if (firstText && effectiveRail > 0) {
+        const ratio = lineInkWidthPx(firstText) / effectiveRail
+        if (!cancelled) setMeasuredTitleInkRatio(ratio)
+      }
+
+      if (
+        !titleReflowOnce.current &&
+        lineCount === 1 &&
+        titleLineRefs.current[0] &&
+        titleTextRefs.current[0] &&
+        (typography.forceMultiLine ||
+          measuredTitleInkRatio >= 0.85 ||
+          titleTextOverflowsRail(titleLineRefs.current[0], titleTextRefs.current[0]))
+      ) {
+        titleReflowOnce.current = true
+        const remeasured = measureBlock04TitleLayout(title, rail, {
+          ...colorOpts,
+          preferMultiLineOnly: true,
+        })
+        if (!cancelled) {
+          setTitleMetrics(remeasured)
+          setFittedLineSizes(null)
+        }
+        return
+      }
+
+      if (hasSubtitle && subtitle && subtitleRef.current && subtitleTextRef.current) {
+        const titleBase =
+          sizes[0] || titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx || 38
+        let px = maxSubtitleSizeThatFits(subtitle, rail, titleBase)
+        subtitleTextRef.current.style.fontSize = `${px}px`
+        px = clampElementToRail(subtitleRef.current, subtitleTextRef.current, 18)
+        if (!cancelled) setSubtitlePx(px)
+      } else if (!cancelled) {
+        setSubtitlePx(null)
+      }
+    }
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [titleMetrics, title, subtitle, hasSubtitle, colorOpts, typography, measuredTitleInkRatio])
+
+  useLayoutEffect(() => {
+    let cancelled = false
+    const schedule = () => {
+      if (!cancelled) runColumnPartition()
+    }
+    requestAnimationFrame(schedule)
+    return () => {
+      cancelled = true
+    }
+  }, [bodyFlowKey, columnModels, runColumnPartition])
+
+  useLayoutEffect(() => {
+    const grid = columnsRef.current
+    if (!grid) return undefined
+    let t = null
+    const onResize = () => {
+      clearTimeout(t)
+      t = setTimeout(() => {
+        const kids = columnsRef.current?.children
+        if (!kids || kids.length !== COLUMN_COUNT) return
+        const ws = [...kids].map((el) => Math.round(el.getBoundingClientRect().width))
+        const widthSig = ws.join(',')
+        if (widthSig === gridWidthSigRef.current) return
+        if (Math.max(...ws) - Math.min(...ws) <= 3) return
+        gridWidthSigRef.current = widthSig
+        lastPartitionKeyRef.current = ''
+        runColumnPartition()
+      }, 280)
+    }
+    const ro = new ResizeObserver(onResize)
+    ro.observe(grid)
+    return () => {
+      clearTimeout(t)
+      ro.disconnect()
+    }
+  }, [bodyFlowKey, runColumnPartition])
+
+  /** Re-flow once when image/highlight obstacle height stabilizes (not on every px tick). */
+  useLayoutEffect(() => {
+    const nodes = []
+    for (let colIdx = 0; colIdx < COLUMN_COUNT; colIdx++) {
+      const refs = obstacleRefs.current[colIdx]
+      if (refs?.highlights) nodes.push(refs.highlights)
+      ;(refs?.images || []).forEach((el) => {
+        if (el) nodes.push(el)
+      })
+    }
+    if (!nodes.length) return undefined
+
+    let t = null
+    const schedule = () => {
+      clearTimeout(t)
+      t = setTimeout(() => {
+        const sig = measureObstaclesFromDom().join(',')
+        if (!sig || sig === obstacleHeightSigRef.current) return
+        obstacleHeightSigRef.current = sig
+        alignPassRef.current = 0
+        lastPartitionKeyRef.current = ''
+        runColumnPartition()
+      }, 200)
+    }
+    const ro = new ResizeObserver(schedule)
+    nodes.forEach((el) => ro.observe(el))
+    return () => {
+      clearTimeout(t)
+      ro.disconnect()
+    }
+  }, [bodyFlowKey, headlinePoints.length, columnModels, runColumnPartition, measureObstaclesFromDom])
+
+  useLayoutEffect(() => {
+    if (!showColumnDebug) return undefined
+    const measure = () => {
+      const cols = columnsRef.current?.children
+      if (!cols || cols.length !== COLUMN_COUNT) return
+      const widths = [...cols].map((el) => Math.round(el.getBoundingClientRect().width))
+      const heights = [...cols].map((el) => Math.round(el.getBoundingClientRect().height))
+      const textBottoms = measureRenderedColumnTextBottoms12(columnsRef.current) || []
+      const textSpread = Math.max(...textBottoms) - Math.min(...textBottoms)
+      const widthSpread = Math.max(...widths) - Math.min(...widths)
+      setDebugHeights({
+        widths,
+        heights,
+        textBottoms,
+        textSpread,
+        widthSpread,
+        counts: columnTexts.map((t) => (String(t || '').trim() ? String(t).length : 0)),
+      })
+    }
+    measure()
+    const t = setTimeout(measure, 600)
+    const ro = new ResizeObserver(measure)
+    if (columnsRef.current) ro.observe(columnsRef.current)
+    return () => {
+      clearTimeout(t)
+      ro.disconnect()
+    }
+  }, [showColumnDebug, columnTexts, imageMetrics])
+
+  const titleLinesForRender = useMemo(() => {
+    if (titleMetrics.renderedLines?.length) return titleMetrics.renderedLines
+    return (titleMetrics.titleLines || ['']).map((text) => ({
+      text,
+      fontSizePx: titleMetrics.fontSizePx,
+      segments: [{ text, impact: false }],
+    }))
+  }, [titleMetrics])
+
+  const line2TuckPx = useMemo(() => {
+    const lines = titleMetrics.titleLines || []
+    if (lines.length < 2) return 0
+    const size0 = fittedLineSizes?.[0] ?? titleMetrics.lineSizes?.[0] ?? titleMetrics.fontSizePx
+    return colonTitleLine2TuckPx(size0, lines[1])
+  }, [titleMetrics, fittedLineSizes])
+
+  const apiFocus = String(imageObjectPosition || '').trim()
+  const familyClass =
+    styles[`family${composition.layoutFamily.replace('08A-', '')}`] || ''
+
+  const texts = columnTexts
+
+  return (
+    <div
+      ref={blockRef}
+      className={`${styles.block12a} ${familyClass}`}
+      data-block-code="BLOCK-12A"
+      data-layout-family={composition.layoutFamily}
+      data-flow-model="threaded-4col"
+      lang="te"
+    >
+      {showColumnDebug && debugHeights ? (
+        <div className={styles.debugBar} data-column-debug>
+          <span>
+            Col1 W{debugHeights.widths[0]} · text↓{debugHeights.textBottoms[0]} · {debugHeights.counts[0]} chars
+          </span>
+          <span>
+            Col2 W{debugHeights.widths[1]} · text↓{debugHeights.textBottoms[1]} · {debugHeights.counts[1]} chars
+          </span>
+          <span>
+            Col3 W{debugHeights.widths[2]} · text↓{debugHeights.textBottoms[2]} · {debugHeights.counts[2]} chars
+          </span>
+          <span>
+            Col4 W{debugHeights.widths[3]} · text↓{debugHeights.textBottoms[3]} · {debugHeights.counts[3]} chars
+          </span>
+          <span className={debugHeights.widthSpread <= 2 ? styles.debugOk : styles.debugWarn}>
+            width Δ{debugHeights.widthSpread}px
+          </span>
+          <span className={debugHeights.textSpread <= 10 ? styles.debugOk : styles.debugWarn}>
+            text bottom Δ{debugHeights.textSpread}px
+          </span>
+        </div>
+      ) : null}
+
+      <div className={styles.titleZone}>
+        <h1 className={styles.title}>
+          {titleLinesForRender.map((line, i) => (
+            <span
+              key={i}
+              ref={(node) => {
+                titleLineRefs.current[i] = node
+              }}
+              className={line.highlight ? styles.titleLineHighlight : styles.titleLine}
+            >
+              <span
+                ref={(node) => {
+                  titleTextRefs.current[i] = node
+                }}
+                className={styles.titleLineText}
+                style={{
+                  fontSize: `${fittedLineSizes?.[i] ?? line.fontSizePx}px`,
+                  lineHeight:
+                    fittedLineSizes?.[i] != null
+                      ? colonTitleLineHeightPx(fittedLineSizes[i])
+                      : line.lineHeight ?? 1.2,
+                }}
+              >
+                {line.segments.map((seg, j) =>
+                  seg.impact && seg.color ? (
+                    <span key={j} className={styles.impactWord} style={{ color: seg.color }}>
+                      {seg.text}
+                    </span>
+                  ) : (
+                    <span key={j}>{seg.text}</span>
+                  )
+                )}
+              </span>
+            </span>
+          ))}
+        </h1>
+        {subtitle ? (
+          <h2 ref={subtitleRef} className={styles.subtitle}>
+            <span
+              ref={subtitleTextRef}
+              className={styles.subtitleText}
+              style={{
+                fontSize: `${subtitlePx ?? Math.round((titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx) * 0.5)}px`,
+                color: resolveBlock04SubtitleColor(subtitle, title),
+              }}
+            >
+              {subtitle}
+            </span>
+          </h2>
+        ) : null}
+      </div>
+
+      <div
+        className={`${styles.columnGridWrap} ${!layoutReady && bodyItems.length ? styles.columnGridLoading : ''}`}
+        aria-busy={!layoutReady && bodyItems.length > 0}
+      >
+        {!layoutReady && bodyItems.length > 0 ? (
+          <div className={styles.layoutSkeleton} aria-hidden>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className={styles.skeletonColumn}>
+                {i === 1 || (leadImages.length >= 2 && i === 2) ? (
+                  <div className={styles.skeletonBlock} />
+                ) : null}
+                {[0, 1, 2, 3, 4, 5, 6].map((j) => (
+                  <div key={j} className={styles.skeletonLine} />
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        <div className={styles.columnGrid} ref={columnsRef} data-columns>
+        {columnModels.map((model, colIdx) => {
+          const colText = texts[colIdx] || ''
+          const showColDateline = colIdx === 0 && showDateline
+          const colEl = columnsRef.current?.children?.[colIdx]
+          const liveColW =
+            colEl?.clientWidth && colEl.clientWidth > 40
+              ? Math.floor(colEl.clientWidth)
+              : colWidthPx
+
+          return (
+            <div className={styles.column} key={`col-${colIdx}`} data-column={colIdx + 1}>
+              {model.highlights ? (
+                <div
+                  className={styles.highlightBox}
+                  ref={(el) => {
+                    const prev = obstacleRefs.current[colIdx].highlights
+                    obstacleRefs.current[colIdx].highlights = el
+                    if (el && el !== prev) onObstacleMounted()
+                  }}
+                >
+                  <ul className={styles.headlineList}>
+                    {headlinePoints.map((text, idx) => (
+                      <li key={idx} className={styles.headlineItem}>
+                        <span className={styles.headlineBullet} aria-hidden>
+                          •
+                        </span>
+                        <span className={styles.headlineText}>{text}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {model.images.map((slot, imgIdx) => (
+                <div
+                  key={`img-${colIdx}-${imgIdx}`}
+                  className={styles.imageObstacle}
+                  ref={(el) => {
+                    const prev = obstacleRefs.current[colIdx].images[imgIdx]
+                    obstacleRefs.current[colIdx].images[imgIdx] = el
+                    if (el && el !== prev) onObstacleMounted()
+                  }}
+                >
+                  <EditorialCropImage
+                    image={slot.image}
+                    layoutFamily={composition.layoutFamily}
+                    role={slot.role || 'primary'}
+                    maxImageHeightPx={block12ImageMaxHeightPx(slot.role || 'primary')}
+                    widthPct={BLOCK_12A_IMAGE.widthPct}
+                    columnHeightPx={Math.round(blockRef.current?.clientHeight || 480)}
+                    columnWidthPx={liveColW}
+                    article={{ title, category }}
+                    apiFocus={apiFocus}
+                    onLoadMetrics={(w, h) =>
+                      setImageMetrics((prev) =>
+                        prev.width === w && prev.height === h ? prev : { width: w, height: h }
+                      )
+                    }
+                    onFrameHeight={(h) => {
+                      const key = `${colIdx}-${imgIdx}`
+                      const rounded = Math.ceil(h)
+                      if (rounded > 0 && imageFrameHeightsRef.current[key] !== rounded) {
+                        imageFrameHeightsRef.current[key] = rounded
+                        onObstacleMounted()
+                      }
+                    }}
+                    onCropReady={handleImageLoad}
+                  />
+                </div>
+              ))}
+
+              <div className={styles.columnText} data-text-flow>
+                <Block08ColumnBody
+                  text={colText}
+                  columnIndex={colIdx}
+                  terminalColumnIndex={COLUMN_COUNT - 1}
+                  dateline={dateline}
+                  showDateline={showColDateline}
+                />
+              </div>
+            </div>
+          )
+        })}
+        </div>
+      </div>
+    </div>
+  )
+}

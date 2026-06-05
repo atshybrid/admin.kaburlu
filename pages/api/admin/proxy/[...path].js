@@ -20,10 +20,14 @@ export default async function handler(req, res) {
 
     const pathParts = req.query.path
     const pathString = Array.isArray(pathParts) ? pathParts.join('/') : String(pathParts || '')
+    const tenantIdFromQuery = String(req.query.tenantId || '').trim()
+    const tenantIdFromHeader = String(req.headers['x-tenant-id'] || '').trim()
+    const tenantId = tenantIdFromHeader || tenantIdFromQuery
 
     return await forwardJson(req, res, {
       path: `/${pathString}`,
       authorization: `Bearer ${jwt}`,
+      extraHeaders: tenantId ? { 'X-Tenant-Id': tenantId } : undefined,
     })
   } catch (e) {
     // eslint-disable-next-line no-console

@@ -25,6 +25,9 @@ Thumbs.db
 # Coverage
 coverage/
 
+# Local smart-design dev store
+.data/
+
 # Misc
 *.swp
 *.log

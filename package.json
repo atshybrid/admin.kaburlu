@@ -4,12 +4,25 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "pkill -f 'next dev' 2>/dev/null; rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "block06:dev": "cd services/block06-engine && npm run dev",
+    "block06:start": "cd services/block06-engine && npm start",
+    "block06:test": "cd services/block06-engine && npm run test:render",
+    "block08:dev": "cd services/block08-engine && npm run dev",
+    "block08:start": "cd services/block08-engine && npm start",
+    "block08:test": "cd services/block08-engine && npm run test:render",
+    "header-html:dev": "cd services/epaper-header-html && npm run dev",
+    "header-html:start": "cd services/epaper-header-html && npm start"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.14",
     "axios": "1.4.0",
+    "fabric": "^6.6.1",
+    "html-to-image": "^1.11.11",
+    "html2canvas": "^1.4.1",
     "lottie-react": "^2.4.0",
     "lucide-react": "^0.263.1",
     "next": "13.5.6",

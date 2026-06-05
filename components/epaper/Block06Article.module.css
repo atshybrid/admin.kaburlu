@@ -1,0 +1,327 @@
+/* BLOCK-06A — 2-column CSS grid (headlines / images / text per column, even bottoms) */
+
+@import url('https://fonts.googleapis.com/css2?family=Ramabhadra&family=Mandali&display=swap');
+
+.debugBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  background: #f1f5f9;
+  border: 1px dashed #94a3b8;
+  border-radius: 4px;
+  color: #334155;
+}
+
+.debugOk {
+  color: #047857;
+  font-weight: 700;
+}
+
+.debugWarn {
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.block06a {
+  margin: 0 auto;
+  width: 152.4mm;
+  max-width: 100%;
+  background: #fffef9;
+  --col-gap: 16px;
+  --block-gutter: 2mm;
+  padding: 2mm var(--block-gutter) 5mm;
+  box-sizing: border-box;
+  font-family: 'Mandali', sans-serif;
+}
+
+.titleZone {
+  margin: 0 0 10px;
+  padding: 2px 3px 0;
+  width: 100%;
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin: 0;
+  padding: 0;
+  font-family: 'Mandali', 'Noto Serif Telugu', sans-serif;
+  font-weight: 600;
+  color: var(--title-color, #1a1a1a);
+  -webkit-font-smoothing: antialiased;
+}
+
+.title > span {
+  display: block;
+  width: 100%;
+  padding: 0 2px;
+  box-sizing: border-box;
+}
+
+.title > span:nth-child(2) {
+  margin-top: max(
+    0px,
+    calc(
+      var(--title-line-gap, 0px) - var(--title-line-stack, 0px) - var(--title-line2-tuck, 0px)
+    )
+  );
+}
+
+.titleLine,
+.titleLineHighlight {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.titleLineText {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 6px;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: center;
+  font-weight: 600;
+}
+
+.subtitle {
+  display: block;
+  width: 100%;
+  margin: 2px 0 6px;
+  text-align: center;
+  color: var(--subtitle-color, #444);
+}
+
+.subtitleText {
+  display: inline-block;
+  max-width: calc(100% - 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: 'Mandali', 'Noto Serif Telugu', sans-serif;
+  font-weight: 500;
+}
+
+/* ── 2-column grid: each cell = obstacle(s) + text + flex fill (even bottoms) ── */
+.columnGrid {
+  display: grid;
+  /* Equal rails — middle column must not grow wider than col1/col3 */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--col-gap);
+  width: 100%;
+  align-items: stretch;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.highlightBox {
+  flex-shrink: 0;
+  background: #f7f4ec;
+  border: 1px solid #e5dfd0;
+  border-radius: 2px;
+  padding: 8px 10px 6px;
+  margin: 0 0 8px;
+}
+
+.headlineList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.headlineItem {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 6px;
+  text-align: left;
+}
+
+.headlineItem:last-child {
+  margin-bottom: 0;
+}
+
+.headlineBullet {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 14px;
+}
+
+.headlineText {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 14px;
+  padding-bottom: 3px;
+  border-bottom: 1px dashed #b8b0a0;
+}
+
+.imageObstacle {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.imageBox {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  break-inside: avoid;
+  line-height: 0;
+  overflow: hidden;
+  position: relative;
+  background: transparent;
+}
+
+.editorialFrame {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.imageFrameShell {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  line-height: 0;
+  font-size: 0;
+  background: transparent;
+}
+
+/* Fits within max — native aspect, no top/bottom letterbox */
+.editorialFrameNatural img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  vertical-align: bottom;
+}
+
+/* Taller than max — fixed shell, crop from top */
+.editorialFrameClamped .imageFrameShell {
+  flex-shrink: 0;
+}
+
+.editorialFrameClamped img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  object-fit: cover;
+  object-position: 50% top;
+}
+
+.imageSnapTop {
+  margin-top: 0;
+}
+
+.caption {
+  font-size: 9px;
+  line-height: 1.25;
+  color: #333;
+  padding: 2px 2px 0;
+  margin: 0;
+  text-align: center;
+}
+
+.columnText {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.48;
+  text-align: justify;
+  text-justify: inter-word;
+}
+
+.textBandPad {
+  flex-shrink: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+}
+
+/* H&J Narrow — col1/col2: full justify through column break; col3: last line rag */
+.hjBodyColumn,
+.hjBodyColumnEnd {
+  display: block;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 11px;
+  line-height: 1.48;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: none;
+  -webkit-hyphens: none;
+  -ms-hyphens: none;
+  hyphenate-limit-chars: 6 4 3;
+  word-spacing: normal;
+  letter-spacing: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  line-break: strict;
+  widows: 2;
+  orphans: 2;
+}
+
+/* Col1: justify body lines; last line left (Telugu — no stretched orphan) */
+.hjBodyColumn {
+  text-align-last: left;
+  -webkit-text-align-last: left;
+}
+
+.hjBodyColumnEnd {
+  text-align-last: left;
+}
+
+.textFlowStart {
+  margin-top: 0;
+}
+
+.bodyHeading {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  margin: 8px 0 4px;
+}
+
+.dateline {
+  font-weight: 700;
+}
+
+@media print {
+  .block06a {
+    width: 100%;
+    padding: 0;
+  }
+}

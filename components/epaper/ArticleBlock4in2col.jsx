@@ -1,260 +1,363 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState, useLayoutEffect, useEffect, useCallback } from 'react'
 import styles from './ArticleBlock4in2col.module.css'
+import Block04LeadPhoto from './Block04LeadPhoto'
+import Block04LayoutSkeleton from './Block04LayoutSkeleton'
+import sk from './blockLayoutSkeleton.module.css'
+import {
+  resolveBlock04TitleColor,
+  resolveBlock04SubtitleColor,
+} from '../../lib/epaper/block04Color'
+import {
+  BLOCK_04A_CONTENT_WIDTH_PX,
+  getBlock04ColumnPx,
+  fallbackTitleMetrics,
+} from '../../lib/epaper/block04TitleMetrics'
+import { BLOCK_04A_PHOTO } from '../../lib/epaper/block04LockedRules'
+import { measureBlock04TitleLayoutWhenReady } from '../../lib/epaper/block04TitleMeasure'
+import {
+  clampElementToRail,
+  ensureBlock04TitleFonts,
+  fitTitleLinesToRail,
+  maxSubtitleSizeThatFits,
+} from '../../lib/epaper/block04TitleFit'
+import {
+  colonTitleLineHeightPx,
+  colonTitleLine2TuckPx,
+} from '../../lib/epaper/block04TitleSmart'
 
-const CATEGORY_COLORS = {
-  political: '#2C3E50',
-  crime: '#C0392B',
-  sports: '#16A085',
-  business: '#8E44AD',
-  entertainment: '#D35400',
-  general: '#34495E',
-}
-
-// 4-inch wide, 2-column article block
+/**
+ * BLOCK-04A — 4-inch rail, Style 1 (centered stack + H&J body)
+ */
 export default function ArticleBlock4in2col({
   title,
-  subtitle,
+  subtitle = '',
   category = 'general',
   dateline = '',
   highlights = [],
   images = [],
   paragraphs = [],
+  titleColor = '',
+  titleColorEnabled = false,
+  imageObjectPosition = '',
 }) {
-  const titleRef = useRef(null)
-  const [titleFontSize, setTitleFontSize] = useState(22)
-  const subtitleColor = CATEGORY_COLORS[category] || CATEGORY_COLORS.general
+  const hasColonInTitle = /[:：]/.test(String(title || ''))
+  /** Colon golden rule owns accent colour — ignore article settings.* title colour for base ink */
+  const resolvedTitleColor = hasColonInTitle
+    ? '#1a1a1a'
+    : resolveBlock04TitleColor(titleColor, titleColorEnabled, title, category)
+  const resolvedSubtitleColor = subtitle
+    ? resolveBlock04SubtitleColor(subtitle, title)
+    : undefined
 
-  // 4in = 101.6mm, minus 4mm each side = 93.6mm available
-  useEffect(() => {
-    if (!titleRef.current || !title) return
-    const maxWidth = 93.6
-    const minSize = 18
-    const maxSize = 28
-    let currentSize = minSize
-    const temp = document.createElement('span')
-    temp.style.fontFamily = 'Mandali, sans-serif'
-    temp.style.fontWeight = '700'
-    temp.style.visibility = 'hidden'
-    temp.style.position = 'absolute'
-    temp.style.whiteSpace = 'nowrap'
-    temp.textContent = title
-    document.body.appendChild(temp)
-    for (let size = minSize; size <= maxSize; size++) {
-      temp.style.fontSize = size + 'px'
-      if (temp.offsetWidth * 0.264583 > maxWidth) break
-      currentSize = size
+  const leadImages = useMemo(() => {
+    const list = []
+    const seen = new Set()
+    for (const raw of images || []) {
+      if (!raw || list.length >= BLOCK_04A_PHOTO.maxImages) break
+      const src = raw.src || raw.url || raw.imageUrl || ''
+      if (!src || seen.has(src)) continue
+      seen.add(src)
+      list.push({ src, alt: raw.alt || '', caption: raw.caption || '' })
     }
-    document.body.removeChild(temp)
-    setTitleFontSize(currentSize)
-  }, [title])
+    return list
+  }, [images])
 
-  const totalParas = paragraphs.length
-  const flowStart = highlights.length ? 0 : 1
-  const flowItems = paragraphs.slice(flowStart)
-  const totalFlow = flowItems.length
-  const flowItemsRef = useRef(flowItems)
-  const totalFlowRef = useRef(totalFlow)
-  useEffect(() => {
-    flowItemsRef.current = flowItems
-    totalFlowRef.current = totalFlow
-  }, [flowItems, totalFlow])
+  const apiFocus = String(imageObjectPosition || '').trim()
+  const blockRef = useRef(null)
+  const titleLineRefs = useRef([])
+  const titleTextRefs = useRef([])
+  const subtitleRef = useRef(null)
+  const subtitleTextRef = useRef(null)
+  const [subtitlePx, setSubtitlePx] = useState(null)
+  const hasSubtitle = !!String(subtitle || '').trim()
 
-  const [splitIndex, setSplitIndex] = useState(Math.ceil(totalFlow / 2))
-  const [splitWords, setSplitWords] = useState(0)
-  const [balanceTick, setBalanceTick] = useState(0)
-  const col1Ref = useRef(null)
-  const col2Ref = useRef(null)
-  const balanceRound = useRef(0)
+  const colorOpts = useMemo(
+    () => ({
+      titleColor: hasColonInTitle ? '' : titleColor,
+      titleColorEnabled: hasColonInTitle ? false : titleColorEnabled,
+      category,
+      baseColor: resolvedTitleColor,
+      hasSubtitle,
+    }),
+    [titleColor, titleColorEnabled, category, resolvedTitleColor, hasSubtitle, hasColonInTitle]
+  )
 
-  // Reset on content change
-  useEffect(() => {
-    balanceRound.current = 0
-    setSplitIndex(Math.ceil(totalFlow / 2))
-    setSplitWords(0)
-    setBalanceTick(t => t + 1)
-  }, [paragraphs, images, highlights, totalFlow])
+  const [titleMetrics, setTitleMetrics] = useState(() =>
+    fallbackTitleMetrics(title, BLOCK_04A_CONTENT_WIDTH_PX, colorOpts)
+  )
+  /** DOM-fitted px — prevents measure re-render from resetting oversized fonts */
+  const [fittedLineSizes, setFittedLineSizes] = useState(null)
+  const [titleFitReady, setTitleFitReady] = useState(false)
+  const [photosReadyCount, setPhotosReadyCount] = useState(0)
 
-  // Iterative balance — fires on col1End change OR tick
-  useEffect(() => {
-    if (!col1Ref.current || !col2Ref.current) return
-    if (balanceRound.current >= 120) return
-    const h1 = col1Ref.current.offsetHeight
-    const h2 = col2Ref.current.offsetHeight
-    if (Math.abs(h1 - h2) <= 6) { balanceRound.current = 0; return }
+  useLayoutEffect(() => {
+    const el = blockRef.current
+    if (!el) return undefined
 
-    balanceRound.current++
-    const currentItems = flowItemsRef.current
+    let cancelled = false
 
-    if (h1 < h2) {
-      const nextItem = currentItems[splitIndex]
-      if (!nextItem) return
-      if (nextItem.type === 'heading') {
-        setSplitIndex(prev => Math.min(totalFlowRef.current, prev + 1))
-        setSplitWords(0)
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+      const width = getBlock04ColumnPx(el)
+      const metrics = await measureBlock04TitleLayoutWhenReady(title, width, colorOpts)
+      if (cancelled) return
+      setTitleMetrics(metrics)
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [title, colorOpts, hasSubtitle])
+
+  /** After paint: clamp to 4in gutter — store sizes so React does not restore overflow. */
+  useLayoutEffect(() => {
+    const block = blockRef.current
+    if (!block) return undefined
+
+    let cancelled = false
+    const run = async () => {
+      await ensureBlock04TitleFonts()
+      if (cancelled) return
+
+      const lineCount = titleMetrics.renderedLines?.length || titleMetrics.titleLines?.length || 0
+      const initial = (titleMetrics.lineSizes || [titleMetrics.fontSizePx]).slice(0, lineCount)
+      const sizes = fitTitleLinesToRail(
+        titleLineRefs.current,
+        titleTextRefs.current,
+        initial,
+        26,
+        { lockEqualSizes: hasSubtitle && lineCount >= 2 }
+      )
+      if (!cancelled && sizes.length) setFittedLineSizes(sizes)
+
+      if (hasSubtitle && subtitle && subtitleRef.current && subtitleTextRef.current) {
+        const rail = getBlock04ColumnPx(block)
+        const titleBase =
+          sizes[0] || titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx || 38
+        let px = maxSubtitleSizeThatFits(subtitle, rail, titleBase)
+        subtitleTextRef.current.style.fontSize = `${px}px`
+        px = clampElementToRail(subtitleRef.current, subtitleTextRef.current, 14)
+        if (!cancelled) setSubtitlePx(px)
+      } else if (!cancelled) {
+        setSubtitlePx(null)
+      }
+
+      if (!cancelled) {
+        requestAnimationFrame(() => {
+          if (!cancelled) setTitleFitReady(true)
+        })
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [titleMetrics, title, subtitle, hasSubtitle])
+
+  const bodyParagraphs = useMemo(() => {
+    const items = []
+    paragraphs.forEach((para) => {
+      if (para?.type === 'heading') {
+        items.push({ type: 'heading', content: para.content || para })
         return
       }
-      const text = (nextItem.content || nextItem || '').trim()
-      const words = text ? text.split(/\s+/) : []
-      if (!words.length) {
-        setSplitIndex(prev => Math.min(totalFlowRef.current, prev + 1))
-        setSplitWords(0)
-        return
-      }
-      if (splitWords < words.length - 6) {
-        setSplitWords(prev => Math.min(words.length, prev + 6))
-      } else {
-        setSplitIndex(prev => Math.min(totalFlowRef.current, prev + 1))
-        setSplitWords(0)
-      }
-      return
-    }
-
-    if (splitWords > 0) {
-      setSplitWords(prev => Math.max(0, prev - 6))
-      return
-    }
-
-    if (splitIndex <= 0) return
-    const prevItem = currentItems[splitIndex - 1]
-    if (prevItem?.type === 'heading') {
-      setSplitIndex(prev => Math.max(0, prev - 1))
-      setSplitWords(0)
-      return
-    }
-    const prevText = (prevItem?.content || prevItem || '').trim()
-    const prevWords = prevText ? prevText.split(/\s+/) : []
-    if (!prevWords.length) {
-      setSplitIndex(prev => Math.max(0, prev - 1))
-      setSplitWords(0)
-      return
-    }
-    setSplitIndex(prev => Math.max(0, prev - 1))
-    setSplitWords(Math.max(0, prevWords.length - 6))
-  }, [splitIndex, splitWords, balanceTick])
-
-  // ResizeObserver: always fires a tick when col2 height changes (image load, font load)
-  useEffect(() => {
-    if (!col2Ref.current) return
-    const ro = new ResizeObserver(() => {
-      if (!col1Ref.current || !col2Ref.current) return
-      const h1 = col1Ref.current.offsetHeight
-      const h2 = col2Ref.current.offsetHeight
-      if (Math.abs(h1 - h2) <= 18) return
-      balanceRound.current = 0
-      setBalanceTick(t => t + 1) // always a new value → always re-triggers balance effect
+      const text = String(para?.content || para || '').trim()
+      if (text) items.push({ type: 'text', content: text })
     })
-    ro.observe(col2Ref.current)
-    return () => ro.disconnect()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return items
+  }, [paragraphs])
+
+  const headlinePoints = useMemo(
+    () =>
+      highlights
+        .map((item) => (typeof item === 'string' ? item : item?.text || item?.content || '').trim())
+        .filter(Boolean),
+    [highlights]
+  )
+
+  const contentKey = useMemo(
+    () =>
+      [
+        title,
+        subtitle,
+        leadImages.map((i) => i.src).join('|'),
+        paragraphs.length,
+        headlinePoints.length,
+      ].join('::'),
+    [title, subtitle, leadImages, paragraphs.length, headlinePoints.length]
+  )
+
+  const railLoading = leadImages.length > 0 || bodyParagraphs.length > 0
+  const photosReady = leadImages.length === 0 || photosReadyCount >= leadImages.length
+  const layoutReady = titleFitReady && photosReady
+
+  useEffect(() => {
+    setTitleFitReady(false)
+    setFittedLineSizes(null)
+    setPhotosReadyCount(0)
+  }, [contentKey])
+
+  const onPhotoReady = useCallback(() => {
+    setPhotosReadyCount((n) => n + 1)
+  }, [])
+
+  const line2TuckPx = useMemo(() => {
+    const lines = titleMetrics.titleLines || []
+    if (lines.length < 2) return 0
+    const size0 = fittedLineSizes?.[0] ?? titleMetrics.lineSizes?.[0] ?? titleMetrics.fontSizePx
+    return colonTitleLine2TuckPx(size0, lines[1])
+  }, [titleMetrics, fittedLineSizes])
+
+  const flowNodes = useMemo(() => {
+    const nodes = []
+    let buffer = ''
+    let paraIndex = 0
+    let datelinePending = !!dateline
+
+    const flush = () => {
+      if (!buffer) return
+      nodes.push(
+        <p key={`flow-p-${paraIndex++}`} className={styles.bodyPara}>
+          {datelinePending ? <span className={styles.dateline}>{dateline} </span> : null}
+          {buffer}
+        </p>
+      )
+      datelinePending = false
+      buffer = ''
+    }
+
+    bodyParagraphs.forEach((item, idx) => {
+      if (item.type === 'heading') {
+        flush()
+        nodes.push(
+          <h3 key={`flow-h-${idx}`} className={styles.subHeading}>
+            {item.content}
+          </h3>
+        )
+        return
+      }
+      const text = item.content
+      if (!text) return
+      buffer = buffer ? `${buffer} ${text}` : text
+    })
+
+    flush()
+    return nodes
+  }, [bodyParagraphs, dateline])
 
   return (
-    <div className={styles.articleBlock}>
+    <div
+      ref={blockRef}
+      className={styles.articleBlock}
+      style={{
+        '--title-color': resolvedTitleColor,
+        '--subtitle-color': resolvedSubtitleColor || 'inherit',
+        '--title-size': `${titleMetrics.fontSizePx}px`,
+        '--title-line-gap': `${titleMetrics.lineGapPx ?? (titleMetrics.titleLines?.length > 1 ? 0 : 0)}px`,
+        '--title-line-stack': `${titleMetrics.lineStackPx ?? 0}px`,
+        '--title-line2-tuck': `${line2TuckPx}px`,
+        '--subtitle-size': `${subtitlePx ?? Math.round((titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx) * 0.5)}px`,
+      }}
+    >
       <div className={styles.titleWrap}>
-        <h1 ref={titleRef} className={styles.title} style={{ fontSize: `${titleFontSize}px` }}>
-          {title}
+        <h1
+          className={styles.title}
+          data-accent-impact={titleMetrics.accentImpact ? 'true' : undefined}
+        >
+          {(titleMetrics.renderedLines?.length
+            ? titleMetrics.renderedLines
+            : (titleMetrics.titleLines || ['']).map((text) => ({
+                text,
+                fontSizePx: titleMetrics.fontSizePx,
+                segments: [{ text, impact: false }],
+              }))
+          ).map((line, i) => (
+            <span
+              key={i}
+              ref={(node) => {
+                titleLineRefs.current[i] = node
+              }}
+              className={line.highlight ? styles.titleLineHighlight : styles.titleLine}
+            >
+              <span
+                ref={(node) => {
+                  titleTextRefs.current[i] = node
+                }}
+                className={styles.titleLineText}
+                style={{
+                  fontSize: `${fittedLineSizes?.[i] ?? line.fontSizePx}px`,
+                  lineHeight:
+                    fittedLineSizes?.[i] != null
+                      ? colonTitleLineHeightPx(fittedLineSizes[i])
+                      : line.lineHeight ?? 1,
+                }}
+              >
+                {line.segments.map((seg, j) =>
+                  seg.impact && seg.color ? (
+                    <span key={j} className={styles.impactWord} style={{ color: seg.color }}>
+                      {seg.text}
+                    </span>
+                  ) : (
+                    <span key={j}>{seg.text}</span>
+                  )
+                )}
+              </span>
+            </span>
+          ))}
         </h1>
-        {subtitle && (
-          <h2 className={styles.subtitle} style={{ color: subtitleColor }}>{subtitle}</h2>
-        )}
       </div>
 
-      <div className={styles.articleColumns}>
-        {(() => {
-          const leftItems = flowItems.slice(0, splitIndex)
-          const rightItems = flowItems.slice(splitIndex)
-          const firstRight = rightItems[0]
-          const canSplitFirstRight =
-            splitWords > 0 &&
-            firstRight &&
-            firstRight.type !== 'heading' &&
-            (firstRight.content || firstRight)
-          const splitSource = canSplitFirstRight ? String(firstRight.content || firstRight).trim() : ''
-          const splitSourceWords = splitSource ? splitSource.split(/\s+/) : []
-          const leftSplitText = canSplitFirstRight
-            ? splitSourceWords.slice(0, Math.min(splitWords, splitSourceWords.length)).join(' ')
-            : ''
-          const rightSplitText = canSplitFirstRight
-            ? splitSourceWords.slice(Math.min(splitWords, splitSourceWords.length)).join(' ')
-            : ''
-          const rightRemainingItems = rightItems.slice(canSplitFirstRight ? 1 : 0)
-          const firstRightRemaining = rightRemainingItems[0]
-          const canMergeRightSplit =
-            canSplitFirstRight &&
-            rightSplitText &&
-            firstRightRemaining &&
-            firstRightRemaining.type !== 'heading'
-          const renderContinuousFlow = (items, keyPrefix, initialText = '', includeDateline = false) => {
-            const nodes = []
-            let buffer = String(initialText || '').trim()
-            let paraIndex = 0
-            let datelinePending = includeDateline && !!dateline
+      {subtitle ? (
+        <h2 ref={subtitleRef} className={styles.subtitle}>
+          <span
+            ref={subtitleTextRef}
+            className={styles.subtitleText}
+            style={{
+              fontSize: `${subtitlePx ?? Math.round((titleMetrics.lineSizes?.[0] || titleMetrics.fontSizePx) * 0.5)}px`,
+            }}
+          >
+            {subtitle}
+          </span>
+        </h2>
+      ) : null}
 
-            const flush = () => {
-              if (!buffer) return
-              nodes.push(
-                <p key={`${keyPrefix}-p-${paraIndex++}`}>
-                  {datelinePending ? <span className={styles.dateline}>{dateline} </span> : null}
-                  {buffer}
-                </p>
-              )
-              datelinePending = false
-              buffer = ''
-            }
+      <div
+        className={`${sk.railWrap} ${!layoutReady && railLoading ? sk.railLoading : ''}`}
+        aria-busy={!layoutReady && railLoading}
+      >
+        {!layoutReady && railLoading ? (
+          <Block04LayoutSkeleton showImage={leadImages.length > 0} />
+        ) : null}
+        <div className={sk.railContent}>
+          {leadImages.map((img, idx) => (
+            <Block04LeadPhoto
+              key={img.src || idx}
+              src={img.src}
+              alt={img.alt}
+              caption={img.caption}
+              apiFocus={apiFocus}
+              onReady={onPhotoReady}
+            />
+          ))}
 
-            items.forEach((item, idx) => {
-              if (item?.type === 'heading') {
-                flush()
-                nodes.push(<h3 key={`${keyPrefix}-h-${idx}`}>{item.content}</h3>)
-                return
-              }
-              const text = String(item?.content || item || '').trim()
-              if (!text) return
-              buffer = buffer ? `${buffer} ${text}` : text
-            })
-
-            flush()
-            return nodes
-          }
-
-          const leftFlowItems = leftSplitText ? [...leftItems, { content: leftSplitText }] : leftItems
-          const rightFlowItems = canMergeRightSplit
-            ? [{ content: `${rightSplitText} ${firstRightRemaining.content || firstRightRemaining}` }, ...rightRemainingItems.slice(1)]
-            : [
-                ...(canSplitFirstRight && rightSplitText ? [{ content: rightSplitText }] : []),
-                ...rightRemainingItems,
-              ]
-
-          return (
-            <>
-        {/* COLUMN 1 */}
-        <div className={styles.column} ref={col1Ref}>
-          {highlights.length > 0 ? (
-            <div className={styles.highlightBox}>
-              <ul>{highlights.map((item, idx) => <li key={idx}>{item}</li>)}</ul>
-            </div>
+          {headlinePoints.length > 0 ? (
+            <ul className={styles.headlineList} aria-label="Article headlines">
+              {headlinePoints.map((text, idx) => (
+                <li key={idx} className={styles.headlineItem}>
+                  <span className={styles.headlineBullet} aria-hidden>
+                    •
+                  </span>
+                  <span className={styles.headlineText}>{text}</span>
+                </li>
+              ))}
+            </ul>
           ) : null}
-          {renderContinuousFlow(
-            leftFlowItems,
-            'c1',
-            !highlights.length && paragraphs.length > 0 ? (paragraphs[0]?.content || paragraphs[0]) : '',
-            !highlights.length && paragraphs.length > 0
-          )}
-        </div>
 
-        {/* COLUMN 2 */}
-        <div className={styles.column} ref={col2Ref}>
-          {images && images.length > 0 && images[0] && (
-            <figure className={styles.articleImage}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={images[0].src} alt={images[0].alt || ''} />
-              {images[0].caption && <figcaption>{images[0].caption}</figcaption>}
-            </figure>
-          )}
-          {renderContinuousFlow(rightFlowItems, 'c2')}
+          <div className={styles.articleBody}>{flowNodes}</div>
         </div>
-            </>
-          )
-        })()}
       </div>
     </div>
   )

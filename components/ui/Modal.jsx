@@ -16,7 +16,9 @@ export default function Modal({
   closeOnOverlay = true,
   closeOnEscape = true,
   showCloseButton = true,
-  className = ''
+  className = '',
+  /** 'auto' | 'visible' — visible helps dropdowns inside modal (no clip) */
+  contentOverflow = 'auto',
 }) {
   const sizes = {
     sm: 'max-w-md',
@@ -45,25 +47,32 @@ export default function Modal({
 
   if (!isOpen) return null
 
+  const contentScroll =
+    contentOverflow === 'visible'
+      ? 'overflow-visible'
+      : 'overflow-y-auto overscroll-contain'
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      {/* Backdrop — no blur (GPU-heavy, causes jank) */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/45 animate-in fade-in duration-150"
         onClick={closeOnOverlay ? onClose : undefined}
+        aria-hidden
       />
 
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-4">
-        <div
-          className={`
-            relative w-full ${sizes[size] || sizes.md} 
-            bg-white rounded-2xl shadow-2xl 
-            transform transition-all
+      <div
+        className={`
+            relative z-10 w-full ${sizes[size] || sizes.md} max-h-[calc(100vh-2rem)]
+            flex flex-col bg-white rounded-2xl shadow-2xl
+            animate-in fade-in zoom-in-95 duration-200
             ${className}
           `}
-          onClick={(e) => e.stopPropagation()}
-        >
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
           {/* Header */}
           {(title || showCloseButton) && (
             <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
@@ -83,7 +92,7 @@ export default function Modal({
           )}
 
           {/* Content */}
-          <div className="px-6 py-5 max-h-[calc(100vh-12rem)] overflow-y-auto">
+          <div className={`px-6 py-5 flex-1 min-h-0 ${contentScroll}`}>
             {children}
           </div>
 
@@ -93,7 +102,6 @@ export default function Modal({
               {footer}
             </div>
           )}
-        </div>
       </div>
     </div>
   )
