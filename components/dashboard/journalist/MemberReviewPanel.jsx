@@ -13,7 +13,6 @@ import {
   reviewableDocKeys,
   formatDate,
   pressIdDisplay,
-  pressCard,
   memberDesignation,
   memberNewspaper,
   memberLocation,
@@ -21,6 +20,8 @@ import {
 } from '../../../lib/journalist/memberDisplay'
 import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
 import MemberInsuranceSection from './MemberInsuranceSection'
+import MemberPressCardSection from './MemberPressCardSection'
+import { docEffectiveStatus, parseApproveIdCardResult } from '../../../lib/journalist/idCardFlow'
 import PartyChip from '../politicalParties/PartyChip'
 import Link from 'next/link'
 import {
@@ -36,21 +37,26 @@ import {
 
 function DocCard({ docKey, doc, label, onApprove, onReject, saving }) {
   const url = doc?.url
-  const canReview = Boolean(url) && doc?.status === 'PENDING'
+  const effectiveStatus = docEffectiveStatus(doc)
+  const canReview = effectiveStatus === 'PENDING'
   const isPdf = url && /\.pdf($|\?)/i.test(url)
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
       <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-b border-gray-100">
         <span className="text-sm font-medium text-gray-800 capitalize">{label}</span>
-        {doc?.status ? (
-          <StatusBadge
-            label={doc.status}
-            color={doc.status === 'APPROVED' ? 'green' : doc.status === 'PENDING' ? 'yellow' : 'gray'}
-          />
-        ) : (
-          <StatusBadge label="Missing" color="gray" />
-        )}
+        <StatusBadge
+          label={effectiveStatus === 'NOT_UPLOADED' ? 'Missing' : effectiveStatus}
+          color={
+            effectiveStatus === 'APPROVED'
+              ? 'green'
+              : effectiveStatus === 'PENDING'
+                ? 'yellow'
+                : effectiveStatus === 'REJECTED'
+                  ? 'red'
+                  : 'gray'
+          }
+        />
       </div>
 
       <div className="p-3 min-h-[120px] flex items-center justify-center bg-gray-50/50">
@@ -91,7 +97,7 @@ function DocCard({ docKey, doc, label, onApprove, onReject, saving }) {
   )
 }
 
-export default function MemberReviewPanel({ profileId, onUpdated }) {
+export default function MemberReviewPanel({ profileId, onUpdated, initialSection }) {
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(false)
   const [docSaving, setDocSaving] = useState(false)
@@ -122,6 +128,12 @@ export default function MemberReviewPanel({ profileId, onUpdated }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId])
 
+  useEffect(() => {
+    if (!loading && member && initialSection === 'insurance') {
+      document.getElementById('member-insurance')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [loading, member, initialSection])
+
   const refresh = async () => {
     await load()
     onUpdated?.()
@@ -150,7 +162,15 @@ export default function MemberReviewPanel({ profileId, onUpdated }) {
         approved: true,
         generateIdCard,
       })
-      toast.success(res?.message || 'Membership approved')
+      const idCardInfo = parseApproveIdCardResult(res)
+      if (idCardInfo.generated) {
+        toast.success(idCardInfo.message)
+      } else if (idCardInfo.skipped) {
+        toast.error(idCardInfo.message)
+      } else {
+        toast.success(res?.message || 'Membership approved')
+        if (generateIdCard) toast.error(idCardInfo.message)
+      }
       setApproveOpen(false)
       await refresh()
     } catch (err) {
@@ -189,7 +209,6 @@ export default function MemberReviewPanel({ profileId, onUpdated }) {
 
   const docsToReview = reviewableDocKeys(member)
   const needsMembership = membershipPending(member)
-  const card = pressCard(member)
   const docLabels = {
     photo: 'Photo',
     aadhaar: 'Aadhaar',
@@ -315,23 +334,9 @@ export default function MemberReviewPanel({ profileId, onUpdated }) {
         </Card>
       ) : null}
 
-      <MemberInsuranceSection profileId={profileId} member={member} onRefresh={refresh} />
+      <MemberPressCardSection profileId={profileId} member={member} onRefresh={refresh} />
 
-      {card?.pdfUrl ? (
-        <Card title="Press card">
-          <CardRow label="Card no." value={card.cardNumber || '—'} />
-          <CardRow label="Status" value={card.status || '—'} />
-          <CardRow label="Expiry" value={formatDate(card.expiryDate)} />
-          <CardRow
-            label="PDF"
-            value={
-              <a href={card.pdfUrl} target="_blank" rel="noreferrer" className="text-brand underline text-sm">
-                Download
-              </a>
-            }
-          />
-        </Card>
-      ) : null}
+      <MemberInsuranceSection profileId={profileId} member={member} onRefresh={refresh} />
 
       <Button size="sm" variant="ghost" onClick={refresh} loading={loading}>
         Refresh

@@ -267,13 +267,16 @@ export default function MemberInsuranceSection({ profileId, member, onRefresh })
 
   if (!member?.insurance && !allInsurances.length) {
     return (
-      <Card title="Insurance">
-        <p className="text-sm text-gray-500">No insurance data for this member.</p>
-      </Card>
+      <div id="member-insurance">
+        <Card title="Insurance">
+          <p className="text-sm text-gray-500">No insurance data for this member.</p>
+        </Card>
+      </div>
     )
   }
 
   return (
+    <div id="member-insurance">
     <Card title="Insurance benefits">
       <p className="text-xs text-gray-500 mb-4">
         Flow: unlock accidental → assign accidental → unlock health → assign health.
@@ -323,5 +326,6 @@ export default function MemberInsuranceSection({ profileId, member, onRefresh })
         </div>
       ) : null}
     </Card>
+    </div>
   )
 }
