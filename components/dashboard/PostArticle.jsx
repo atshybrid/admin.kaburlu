@@ -11,6 +11,12 @@ import { aiArticleService } from '../../lib/api/services/aiArticleService'
 import { locationService } from '../../lib/api/services/locationService'
 import { tenantsApi } from '../../lib/api/tenantApi'
 import { getToken } from '../../utils/auth'
+import {
+  resolveAuthTenants,
+  resolveTenantId,
+  resolveTenantRecord,
+  tenantEntityName,
+} from '../../lib/article/resolveAuthTenants'
 
 function normalizeRole(user) {
   const role = user?.role || user?.roleName || user?.userRole || user?.role?.name || ''
@@ -104,21 +110,21 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       if (isSuperAdmin(userData)) {
         loadTenants()
       } else {
-        // Reporter/Tenant Admin/Desk Editor: Use tenant from login response directly
-        const loginResponse = tokenData?.data?.loginResponse || userData.loginResponse
-        const userTenants = loginResponse?.tenants || []
-        
+        // Reporter / Tenant Admin — user.tenant from login (see LOGIN_RESPONSE_OPTIMIZATION.md)
+        const userTenants = resolveAuthTenants(tokenData, userData)
+
         if (userTenants.length > 0) {
           setTenants(userTenants)
           const firstTenant = userTenants[0]
-          const tenantId = firstTenant.id || firstTenant.tenantId
-          
+          const tenantId = resolveTenantId(firstTenant)
+
           if (tenantId) {
             setSelectedTenant(tenantId)
-            // Set tenant data directly from login response
             setTenantData(firstTenant)
-            // Load categories and languages
             loadCategoriesAndLanguages(tenantId, firstTenant)
+            if (!firstTenant.entity?.nativeName && !firstTenant.entity?.name) {
+              loadTenantData(tenantId)
+            }
           }
         }
       }
@@ -138,14 +144,13 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
     try {
       // Try to get from login response first
       const tokenData = getToken()
-      const loginResponse = tokenData?.data?.loginResponse || tokenData?.user?.loginResponse
-      const userTenants = loginResponse?.tenants || []
-      
+      const userTenants = resolveAuthTenants(tokenData, tokenData?.user)
+
       if (userTenants.length > 0) {
         setTenants(userTenants)
-        
+
         if (!selectedTenant) {
-          setSelectedTenant(userTenants[0].id)
+          setSelectedTenant(resolveTenantId(userTenants[0]))
         }
       } else {
         const data = await tenantsApi.list(true)
@@ -177,10 +182,10 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       
       // For Tenant Admin/Reporter, try using data from login response first
       const tokenData = getToken()
-      const loginResponse = tokenData?.data?.loginResponse || tokenData?.user?.loginResponse
-      const userTenants = loginResponse?.tenants || []
-      
-      const userTenant = userTenants.find(t => t.id === tenantId || t.tenantId === tenantId)
+      const userTenants = resolveAuthTenants(tokenData, tokenData?.user)
+      const userTenant =
+        resolveTenantRecord(tokenData, tokenData?.user, tenantId) ||
+        userTenants.find((t) => resolveTenantId(t) === tenantId)
       
       let tenantDetails = null
       
@@ -253,20 +258,21 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       return
     }
 
-    if (!selectedTenant) {
-      setError('Please select a tenant')
+    const tenantId = resolveTenantId(tenantData) || selectedTenant
+    if (!tenantId) {
+      setError('Publication not loaded — log out and sign in again, or contact admin.')
       return
     }
 
-    if (!tenantData?.id) {
-      setError('Tenant data not loaded properly')
+    if (!tenantData) {
+      setError('Tenant data not loaded. Please refresh the page.')
       return
     }
 
-    // Check if entity data is available (needed for AI processing)
     const entityData = tenantData.entity || tenantData
-    if (!entityData.nativeName && !entityData.name) {
-      setError('Tenant entity data is incomplete. Please ensure tenant is properly configured.')
+    const newspaperName = tenantEntityName(tenantData)
+    if (!newspaperName && !entityData?.name) {
+      setError('Publication name missing in your account. Ask admin to configure tenant entity.')
       return
     }
 
@@ -281,7 +287,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
       const aiPayload = {
         rawText: rawText.trim(),
         categories: categoryNames,
-        newspaperName: entityData.nativeName || tenantData.name || '',
+        newspaperName: newspaperName || entityData.nativeName || tenantData.name || '',
         language: {
           code: languageData.code || 'te',
           name: languageData.name || 'Telugu',
@@ -806,6 +812,8 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
   }
 
   const showTenantSelector = isSuperAdmin(user)
+  const activeTenantId = resolveTenantId(tenantData) || selectedTenant
+  const publicationLabel = tenantEntityName(tenantData) || tenantData?.name || ''
 
   return (
     <div className="max-w-5xl mx-auto p-6">
@@ -855,6 +863,15 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
         {/* STEP 1: Raw Input */}
         {step === 1 && (
           <div className="p-8 space-y-6">
+            {!showTenantSelector && activeTenantId && (
+              <div className="pb-4 border-b border-slate-200">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Publication</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5">
+                  {publicationLabel || 'Loading…'}
+                </p>
+              </div>
+            )}
+
             {showTenantSelector && (
               <div className="pb-6 border-b border-slate-200">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -917,7 +934,7 @@ export default function PostArticle({ user: propUser, onSuccess, onCancel }) {
               <button
                 type="button"
                 onClick={handleProcessAI}
-                disabled={processingAI || !selectedTenant || !rawText.trim()}
+                disabled={processingAI || !activeTenantId || !rawText.trim()}
                 className="px-8 py-3 bg-gradient-to-r from-brand to-brand-dark text-white rounded-lg font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {processingAI && (
