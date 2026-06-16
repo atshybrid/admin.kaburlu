@@ -30,6 +30,18 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
         router.replace('/')
       } else {
         setUser(tokenData.user || tokenData.data?.user || null)
+        // Ensure httpOnly cookie exists for BFF routes (e.g. /api/admin/media/upload)
+        if (typeof window !== 'undefined') {
+          const key = 'kab_admin_cookie_synced'
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            fetch('/api/auth/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jwt: tokenData.token }),
+            }).catch(() => {})
+          }
+        }
       }
     } finally {
       setChecking(false)

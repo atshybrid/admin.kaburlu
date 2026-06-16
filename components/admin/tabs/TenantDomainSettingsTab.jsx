@@ -671,18 +671,52 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   }, [tenantId, domainId, domains, originalConfig, buildCurrentConfig, buildEpaperConfig, loadConfig, showMessage])
   
   const uploadImage = useCallback(async (file, assetKey, setter) => {
-    if (!assetKey) return
+    if (!assetKey || !file) return
+    if (!tenantId || !domainId) {
+      showMessage('error', 'Select a domain before uploading')
+      return
+    }
+    if (!file.type.startsWith('image/')) {
+      showMessage('error', 'Please choose an image file (PNG, JPG, WebP, etc.)')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showMessage('error', 'Image must be under 5MB')
+      return
+    }
+
     setUploadingAsset(assetKey)
     try {
+      const token = getToken()
       const fd = new FormData()
       fd.append('file', file)
       fd.append('folder', `tenants/${tenantId}/domains/${domainId}/${assetKey}`)
       fd.append('kind', 'image')
-      
-      const res = await fetch('/api/admin/media/upload', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error('Upload failed')
-      
-      const data = await res.json()
+
+      const res = await fetch('/api/admin/media/upload', {
+        method: 'POST',
+        headers: token?.token ? { Authorization: `Bearer ${token.token}` } : {},
+        body: fd,
+      })
+
+      const raw = await res.text().catch(() => '')
+      let data = {}
+      try {
+        data = raw ? JSON.parse(raw) : {}
+      } catch {
+        data = { message: raw }
+      }
+
+      if (!res.ok) {
+        const msg =
+          data.message ||
+          data.error ||
+          (res.status === 401 ? 'Session expired — sign out and sign in again' : '') ||
+          (res.status === 413 ? 'File too large for server (max ~4.5MB via proxy)' : '') ||
+          `Upload failed (${res.status})`
+        throw new Error(msg)
+      }
+
       const url = data.publicUrl || data.internalUrl || data.url || data.fileUrl
       if (!url) throw new Error('Upload succeeded but no URL returned')
       setter(url)
