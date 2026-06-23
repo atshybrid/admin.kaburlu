@@ -18,6 +18,10 @@ import {
   IconNewspaper,
   IconArticles,
 } from '../ui/icons'
+import { PLATFORM_CARTOON_ROLES } from '../../lib/newsCartoons/platformRoles'
+
+/** Roles that can access Short News cartoon posting */
+const CARTOON_ROLES = PLATFORM_CARTOON_ROLES
 
 export const adminNavigation = {
   main: [
@@ -30,7 +34,16 @@ export const adminNavigation = {
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'roles', href: '/admin/roles', label: 'Roles', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
+    { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...CARTOON_ROLES] },
+  ],
+  platform: [
+    {
+      key: 'news-cartoons',
+      href: '/admin/news-cartoons',
+      label: 'News Cartoons',
+      icon: IconArticles,
+      roles: CARTOON_ROLES,
+    },
   ],
   epaper: [
     { key: 'epaper-overview', href: '/admin/epaper', label: 'ePaper Overview', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK'] },
@@ -56,6 +69,13 @@ export const adminNavigation = {
     { key: 'journalist-union', href: '/admin/journalist-union', label: 'Journalist Union', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
   ],
   political: [
+    {
+      key: 'readers',
+      href: '/admin/readers',
+      label: 'Readers (Naa Kaburlu)',
+      icon: IconUsers,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN'],
+    },
     {
       key: 'political-parties',
       href: '/admin/political-parties',
@@ -104,6 +124,7 @@ export function getFilteredAdminNavigation(user) {
     tenants: adminNavigation.tenants.filter(item => hasAccess(item, userRole)),
     journalist: adminNavigation.journalist.filter(item => hasAccess(item, userRole)),
     political: adminNavigation.political.filter(item => hasAccess(item, userRole)),
+    platform: adminNavigation.platform.filter(item => hasAccess(item, userRole)),
     settings: adminNavigation.settings.filter(item => hasAccess(item, userRole)),
   }
 }

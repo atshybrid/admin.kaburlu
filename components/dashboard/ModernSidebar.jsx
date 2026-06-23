@@ -59,6 +59,7 @@ export default function ModernSidebar({ user, onLogout }) {
     tenants: false,
     journalist: false,
     political: false,
+    platform: false,
     settings: false,
   })
 
@@ -129,6 +130,14 @@ export default function ModernSidebar({ user, onLogout }) {
             items={filteredNavigation.political}
             collapsed={collapsed.political}
             onToggle={() => toggleSection('political')}
+          />
+        )}
+        {filteredNavigation.platform.length > 0 && (
+          <NavGroup
+            title="Short News (Platform)"
+            items={filteredNavigation.platform}
+            collapsed={collapsed.platform}
+            onToggle={() => toggleSection('platform')}
           />
         )}
         {filteredNavigation.settings.length > 0 && (

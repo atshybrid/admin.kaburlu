@@ -7,6 +7,7 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react'
 import { getToken, logout } from '../../utils/auth'
+import { canAccessNewsCartoons, normalizePlatformRole } from '../../lib/newsCartoons/platformRoles'
 import ModernSidebar from './ModernSidebar'
 import ModernMobileSidebar from './ModernMobileSidebar'
 import ModernHeader from './ModernHeader'
@@ -53,13 +54,12 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
     router.push('/')
   }
 
-  // Flexible role check - handles superadmin, super_admin, SUPERADMIN, admin, desk_editor, reporter, etc.
   const hasAccess = (() => {
     if (!user) return false
-    const role = user.role || user.roleName || user.userRole || user.role?.name || ''
-    const roleStr = (typeof role === 'string' ? role : role?.name || '').toUpperCase().replace(/[_\s-]/g, '')
-    const allowedRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK', 'TENANTADMIN', 'REPORTER']
-    return allowedRoles.some(r => roleStr === r || roleStr.includes(r))
+    const roleStr = normalizePlatformRole(user)
+    const legacyRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK', 'TENANTADMIN', 'REPORTER']
+    if (legacyRoles.some((r) => roleStr === r || roleStr.includes(r))) return true
+    return canAccessNewsCartoons(user)
   })()
 
   if (checking) {
