@@ -8,6 +8,7 @@ import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react'
 import { getToken, logout } from '../../utils/auth'
 import { canAccessNewsCartoons, normalizePlatformRole } from '../../lib/newsCartoons/platformRoles'
+import { canAccessJournalistUnion } from '../../utils/roleUtils'
 import ModernSidebar from './ModernSidebar'
 import ModernMobileSidebar from './ModernMobileSidebar'
 import ModernHeader from './ModernHeader'
@@ -59,6 +60,7 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
     const roleStr = normalizePlatformRole(user)
     const legacyRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK', 'TENANTADMIN', 'REPORTER']
     if (legacyRoles.some((r) => roleStr === r || roleStr.includes(r))) return true
+    if (canAccessJournalistUnion(user)) return true
     return canAccessNewsCartoons(user)
   })()
 

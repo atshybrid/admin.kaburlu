@@ -56,6 +56,21 @@ export function isDeskEditor(user) {
 }
 
 /**
+ * Union moderator — full union admin API access (all unions, all states)
+ */
+export function isUnionModerator(user) {
+  const role = normalizeRole(user)
+  return role === 'UNIONMODERATOR'
+}
+
+/**
+ * Journalist union dashboard — Super Admin or Union Moderator
+ */
+export function canAccessJournalistUnion(user) {
+  return isSuperAdmin(user) || isUnionModerator(user)
+}
+
+/**
  * Check if user has access to admin features
  * @param {Object} user - User object
  * @returns {boolean}
@@ -119,6 +134,7 @@ export function getDashboardRoute(user) {
  */
 export const ROLES = {
   SUPER_ADMIN: 'SUPERADMIN',
+  UNION_MODERATOR: 'UNIONMODERATOR',
   TENANT_ADMIN: 'TENANTADMIN',
   REPORTER: 'REPORTER',
   DESK_EDITOR: 'DESKEDITOR',
@@ -160,6 +176,7 @@ export function getRoleDisplayName(user) {
   const roleNames = {
     'SUPERADMIN': 'Super Admin',
     'ADMIN': 'Admin',
+    'UNIONMODERATOR': 'Union Moderator',
     'TENANTADMIN': 'Tenant Admin',
     'REPORTER': 'Reporter',
     'DESKEDITOR': 'Desk Editor',

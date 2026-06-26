@@ -1,8 +1,14 @@
 /**
- * Journalist Union — Super Admin
+ * Journalist Union — Super Admin & Union Moderator (full union access)
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useLayout } from './DashboardLayout'
+import { canAccessJournalistUnion } from '../../utils/roleUtils'
+import {
+  canManageUnionAdmins,
+  unionDashboardLabel,
+} from '../../lib/journalist/unionAccess'
 import { Button } from '../ui'
 import AddMemberModal from './journalist/AddMemberModal'
 import JournalistUnionMembers from './journalist/JournalistUnionMembers'
@@ -32,17 +38,23 @@ const MORE = [
   { key: 'renewals', label: 'Renewals' },
   { key: 'complaints', label: 'Complaints' },
   { key: 'announcements', label: 'Announcements' },
-  { key: 'union-admins', label: 'Union admins' },
+  { key: 'union-admins', label: 'Union admins', superAdminOnly: true },
 ]
 
 export default function JournalistUnionView() {
+  const { user } = useLayout()
   const [activeTab, setActiveTab] = useState('members')
   const [memberView, setMemberView] = useState('pending')
   const [addMemberOpen, setAddMemberOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
+  const moreTabs = useMemo(
+    () => MORE.filter((t) => !t.superAdminOnly || canManageUnionAdmins(user)),
+    [user]
+  )
+
   const bumpRefresh = () => setRefreshKey((n) => n + 1)
-  const isMore = MORE.some((t) => t.key === activeTab)
+  const isMore = moreTabs.some((t) => t.key === activeTab)
 
   const handleWorkflowGo = (key) => {
     if (key === 'queue') {
@@ -53,18 +65,30 @@ export default function JournalistUnionView() {
     setActiveTab(key)
   }
 
+  if (!canAccessJournalistUnion(user)) {
+    return (
+      <div className="max-w-lg mx-auto mt-16 rounded-xl border border-rose-200 bg-rose-50 p-6 text-center">
+        <h2 className="text-lg font-semibold text-rose-900">Access denied</h2>
+        <p className="text-sm text-rose-700 mt-2">
+          Journalist Union requires Super Admin or Union Moderator access.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5 max-w-[1440px]">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-            Super Admin
+            {unionDashboardLabel(user)}
           </p>
           <h1 className="text-xl font-semibold text-slate-900 tracking-tight mt-1">
             Journalist Union
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-xl">
-            Approve members, KYC documents, and generate union ID cards from one table.
+            Pending queue → upload &amp; approve documents → approve membership → generate ID card.
+            All unions and states.
           </p>
         </div>
         <Button onClick={() => setAddMemberOpen(true)} size="sm" className="shrink-0">
@@ -92,20 +116,22 @@ export default function JournalistUnionView() {
             {tab.label}
           </button>
         ))}
-        <select
-          value={isMore ? activeTab : ''}
-          onChange={(e) => e.target.value && setActiveTab(e.target.value)}
-          className={`pb-3 text-sm font-medium border-b-2 -mb-px bg-transparent cursor-pointer ${
-            isMore ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
-          }`}
-        >
-          <option value="">{isMore ? MORE.find((t) => t.key === activeTab)?.label : 'More'}</option>
-          {MORE.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+        {moreTabs.length > 0 ? (
+          <select
+            value={isMore ? activeTab : ''}
+            onChange={(e) => e.target.value && setActiveTab(e.target.value)}
+            className={`pb-3 text-sm font-medium border-b-2 -mb-px bg-transparent cursor-pointer ${
+              isMore ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'
+            }`}
+          >
+            <option value="">{isMore ? moreTabs.find((t) => t.key === activeTab)?.label : 'More'}</option>
+            {moreTabs.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
       </nav>
 
       {activeTab === 'members' ? (
@@ -146,7 +172,7 @@ export default function JournalistUnionView() {
         {activeTab === 'renewals' ? <RenewalsTab /> : null}
         {activeTab === 'complaints' ? <ComplaintsTab /> : null}
         {activeTab === 'announcements' ? <AnnouncementsTab /> : null}
-        {activeTab === 'union-admins' ? <UnionAdminsTab /> : null}
+        {activeTab === 'union-admins' && canManageUnionAdmins(user) ? <UnionAdminsTab /> : null}
         {activeTab === 'settings' ? <SettingsTab /> : null}
       </div>
 

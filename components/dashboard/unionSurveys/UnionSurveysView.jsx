@@ -1,8 +1,10 @@
 /**
- * Political / Union Surveys — Super Admin
+ * Political / Union Surveys — Super Admin & Union Moderator
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useLayout } from '../DashboardLayout'
+import { canAccessJournalistUnion } from '../../../utils/roleUtils'
 import { unionSurveysApi } from '../../../lib/api/services/unionSurveysApi'
 import {
   extractSurveyId,
@@ -24,6 +26,7 @@ function formatErr(err, fb) {
 }
 
 export default function UnionSurveysView() {
+  const { user } = useLayout()
   const { unionName } = useUnionSettings()
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -67,6 +70,15 @@ export default function UnionSurveysView() {
   }
 
   const selected = items.find((s) => extractSurveyId(s) === selectedId)
+
+  if (!canAccessJournalistUnion(user)) {
+    return (
+      <div className="max-w-lg mx-auto mt-16 rounded-xl border border-rose-200 bg-rose-50 p-6 text-center">
+        <h2 className="text-lg font-semibold text-rose-900">Access denied</h2>
+        <p className="text-sm text-rose-700 mt-2">Union surveys require Super Admin or Union Moderator access.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 max-w-6xl">

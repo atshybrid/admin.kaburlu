@@ -2,8 +2,14 @@
  * Union member review — profile, KYC images, document + membership actions
  */
 
-import { useState, useEffect } from 'react'
-import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { useState, useEffect, useRef } from 'react'
+import { unionAdminApi } from '../../../lib/api/services/unionAdminApi'
+import {
+  patchMemberDocuments,
+  approveMembership,
+  fetchUnionMember,
+  formatDocActionError,
+} from '../../../lib/journalist/memberDocumentActions'
 import {
   DOC_KEYS,
   memberMobile,
@@ -13,14 +19,12 @@ import {
   reviewableDocKeys,
   formatDate,
   pressIdDisplay,
-  memberDesignation,
-  memberNewspaper,
-  memberLocation,
   memberTypeLabel,
 } from '../../../lib/journalist/memberDisplay'
-import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
+import { formatJournalistApiError, shouldSilenceMemberLoadError } from '../../../lib/journalist/memberErrors'
 import MemberInsuranceSection from './MemberInsuranceSection'
 import MemberPressCardSection from './MemberPressCardSection'
+import MemberProfileEdit from './MemberProfileEdit'
 import { docEffectiveStatus, parseApproveIdCardResult } from '../../../lib/journalist/idCardFlow'
 import PartyChip from '../politicalParties/PartyChip'
 import Link from 'next/link'
@@ -97,9 +101,10 @@ function DocCard({ docKey, doc, label, onApprove, onReject, saving }) {
   )
 }
 
-export default function MemberReviewPanel({ profileId, onUpdated, initialSection }) {
-  const [member, setMember] = useState(null)
+export default function MemberReviewPanel({ profileId, onUpdated, initialSection, initialMember = null }) {
+  const [member, setMember] = useState(initialMember)
   const [loading, setLoading] = useState(false)
+  const [detailUnavailable, setDetailUnavailable] = useState(false)
   const [docSaving, setDocSaving] = useState(false)
   const [membershipSaving, setMembershipSaving] = useState(false)
 
@@ -108,22 +113,59 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
 
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [uploading, setUploading] = useState(null)
+  const skipDetailFetchRef = useRef(false)
+  const loadSeqRef = useRef(0)
+
+  const listFallback = () => initialMember || member
 
   const load = async () => {
     if (!profileId) return
+    const fallback = listFallback()
+    if (skipDetailFetchRef.current && fallback) {
+      setMember({ ...fallback, _fromListFallback: true })
+      setDetailUnavailable(true)
+      return
+    }
+
+    const seq = ++loadSeqRef.current
     setLoading(true)
     try {
-      const data = await journalistApi.getMember(profileId)
+      const data = await fetchUnionMember(profileId, fallback)
+      if (seq !== loadSeqRef.current) return
       setMember(data)
+      setDetailUnavailable(Boolean(data?._fromListFallback))
+      if (data?._fromListFallback) skipDetailFetchRef.current = true
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'Failed to load member'))
-      setMember(null)
+      if (seq !== loadSeqRef.current) return
+      if (fallback) {
+        setMember({ ...fallback, _fromListFallback: true })
+        setDetailUnavailable(true)
+        skipDetailFetchRef.current = true
+      } else if (!shouldSilenceMemberLoadError(err)) {
+        toast.error(formatJournalistApiError(err, 'Failed to load member'))
+        setMember(null)
+        setDetailUnavailable(false)
+      } else {
+        setMember(null)
+        setDetailUnavailable(false)
+      }
     } finally {
-      setLoading(false)
+      if (seq === loadSeqRef.current) setLoading(false)
     }
   }
 
+  const handleProfileSaved = (updated) => {
+    if (updated && typeof updated === 'object') {
+      setMember((m) => ({ ...m, ...updated, _fromListFallback: false }))
+      setDetailUnavailable(false)
+    }
+    onUpdated?.()
+  }
+
   useEffect(() => {
+    skipDetailFetchRef.current = false
+    if (initialMember) setMember(initialMember)
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileId])
@@ -143,12 +185,11 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
     if (!profileId || !keys?.length) return
     setDocSaving(true)
     try {
-      const body = Object.fromEntries(keys.map((k) => [k, action]))
-      const res = await journalistApi.updateMemberDocuments(profileId, body)
+      const res = await patchMemberDocuments(profileId, keys, action)
       toast.success(res?.message || `Documents ${action}d`)
       await refresh()
     } catch (err) {
-      toast.error(err.message || `Document ${action} failed`)
+      toast.error(formatDocActionError(err, `Document ${action} failed`))
     } finally {
       setDocSaving(false)
     }
@@ -158,7 +199,7 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
     if (!profileId) return
     setMembershipSaving(true)
     try {
-      const res = await journalistApi.approveMembership(profileId, {
+      const res = await approveMembership(profileId, {
         approved: true,
         generateIdCard,
       })
@@ -184,7 +225,7 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
     if (!profileId) return
     setMembershipSaving(true)
     try {
-      const res = await journalistApi.approveMembership(profileId, {
+      const res = await approveMembership(profileId, {
         approved: false,
         reason: rejectReason.trim() || undefined,
       })
@@ -193,9 +234,32 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
       setRejectReason('')
       await refresh()
     } catch (err) {
-      toast.error(err.message || 'Reject failed')
+      toast.error(formatDocActionError(err, 'Reject failed'))
     } finally {
       setMembershipSaving(false)
+    }
+  }
+
+  const handleUpload = async (docKey, file) => {
+    if (!file || !profileId) return
+    const labels = { photo: 'Photo', aadhaar: 'Aadhaar', pan: 'PAN', workingIdCard: 'Working ID' }
+    setUploading(docKey)
+    try {
+      const fd = new FormData()
+      if (docKey === 'photo') {
+        fd.append('file', file)
+        await unionAdminApi.uploadPhoto(profileId, fd)
+      } else {
+        fd.append('document', docKey)
+        fd.append('file', file)
+        await unionAdminApi.uploadDocument(profileId, fd)
+      }
+      toast.success(`${labels[docKey] || docKey} uploaded — pending approval`)
+      await refresh()
+    } catch (err) {
+      toast.error(formatDocActionError(err, 'Upload failed'))
+    } finally {
+      setUploading(null)
     }
   }
 
@@ -218,12 +282,33 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
 
   return (
     <div className="space-y-5 pb-8">
+      <div>
+        <h3 className="text-lg font-semibold text-slate-900">{memberName(member)}</h3>
+        <p className="text-sm text-slate-500 tabular-nums">{memberMobile(member)}</p>
+      </div>
+
+      {detailUnavailable ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Full profile could not load from the server (backend <code className="text-[11px]">User.mobile</code> bug).
+          Showing list data — use <strong>Edit profile</strong> below to update details and save.
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={membershipStatusKey(member)} />
-        {member.pendingActions?.map((a) => (
-          <StatusBadge key={a} label={a} color="yellow" />
-        ))}
+        {member.pendingActions?.map((a) => {
+          const label = String(a)
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase())
+          return <StatusBadge key={a} label={label} color="yellow" />
+        })}
       </div>
+
+      <MemberProfileEdit
+        profileId={profileId}
+        member={member}
+        onSaved={handleProfileSaved}
+      />
 
       {needsMembership || docsToReview.length > 0 ? (
         <div className="rounded-lg border border-brand/20 bg-brand/5 p-3 flex flex-wrap gap-2">
@@ -249,6 +334,36 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
           ) : null}
         </div>
       ) : null}
+
+      <Card title="Upload documents (admin)">
+        <p className="text-xs text-slate-500 mb-3">
+          Step 3–4: Upload on behalf of member. Status becomes PENDING until you approve.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {DOC_KEYS.map((key) => (
+            <label
+              key={key}
+              className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50"
+            >
+              <span className="font-medium text-slate-700">{docLabels[key]}</span>
+              <span className="text-xs text-brand">
+                {uploading === key ? 'Uploading…' : 'Choose file'}
+              </span>
+              <input
+                type="file"
+                accept="image/*,.pdf,application/pdf"
+                className="hidden"
+                disabled={Boolean(uploading)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleUpload(key, file)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      </Card>
 
       <Card title="KYC documents">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -278,16 +393,9 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
         ) : null}
       </Card>
 
-      <Card title="Profile">
-        <CardRow label="Name" value={memberName(member)} />
-        <CardRow label="Mobile" value={memberMobile(member)} />
-        <CardRow label="Father" value={member.fatherName || '—'} />
+      <Card title="Account details">
         <CardRow label="Member type" value={memberTypeLabel(member)} />
         <CardRow label="Press ID" value={pressIdDisplay(member) || '—'} />
-        <CardRow label="Designation" value={memberDesignation(member)} />
-        <CardRow label="Newspaper" value={memberNewspaper(member)} />
-        <CardRow label="Publisher mobile" value={member.publisherMobileNumber || '—'} />
-        <CardRow label="Location" value={memberLocation(member)} />
         <CardRow label="Union" value={member.unionName || '—'} />
         <CardRow label="Linked tenant" value={member.linkedTenantName || '—'} />
         <CardRow label="Applied" value={formatDate(member.createdAt)} />
@@ -336,7 +444,12 @@ export default function MemberReviewPanel({ profileId, onUpdated, initialSection
 
       <MemberPressCardSection profileId={profileId} member={member} onRefresh={refresh} />
 
-      <MemberInsuranceSection profileId={profileId} member={member} onRefresh={refresh} />
+      <MemberInsuranceSection
+        profileId={profileId}
+        member={member}
+        onRefresh={refresh}
+        forceLoadApplications={initialSection === 'insurance'}
+      />
 
       <Button size="sm" variant="ghost" onClick={refresh} loading={loading}>
         Refresh

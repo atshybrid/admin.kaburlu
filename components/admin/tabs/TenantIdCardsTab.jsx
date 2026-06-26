@@ -1,21 +1,32 @@
 /**
- * TenantIdCardsTab - Modern ID Card Settings Management
+ * TenantIdCardsTab - ID card design & validity settings
  * API: GET/PUT /tenants/:tenantId/id-card-settings
- * 
- * Complete Payload Structure:
- * {
- *   templateId, frontLogoUrl, roundStampUrl, signUrl,
- *   primaryColor, secondaryColor, termsJson, officeAddress,
- *   helpLine1, helpLine2, validityType, validityDays,
- *   fixedValidUntil, idPrefix, idDigits
- * }
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { idCardApi } from '../../../lib/api/tenantApi'
+import { idCardSettingsApi } from '../../../lib/api/services/idCardSettingsApi'
+import { formatWalletError } from '../../../lib/tenantWallet/walletErrors'
+import { looksLikeInternalId } from '../../../lib/tenantWallet/displayLabels'
+import { getToken } from '../../../utils/auth'
 
-// ============================================================================
-// ICONS
-// ============================================================================
+const DEFAULT_ALLOWED_VALIDITY_DAYS = [30, 90, 180, 365]
+
+const VALIDITY_DAY_LABELS = {
+  30: '1 Month (30 days)',
+  90: '3 Months (90 days)',
+  180: '6 Months (180 days)',
+  365: '1 Year (365 days)',
+}
+
+function imageDisplayName(url) {
+  if (!url) return ''
+  const name = url.split('/').pop() || ''
+  if (!name || looksLikeInternalId(name) || name.length > 48) return 'Uploaded image'
+  return name
+}
+
+function templateDisplayName(templateId, templates) {
+  return templates.find((t) => t.id === templateId)?.name || 'Classic'
+}
 const Icons = {
   template: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,7 +177,7 @@ function ImageUploader({ label, value, onChange, onUpload, uploading, hint }) {
               onError={(e) => { e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23f1f5f9" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="%2394a3b8" font-size="12">Error</text></svg>' }}
             />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-slate-700 truncate">{value.split('/').pop()}</p>
+              <p className="text-sm text-slate-700 truncate">{imageDisplayName(value)}</p>
               <div className="flex items-center gap-2 mt-2">
                 <label className="px-3 py-1.5 text-xs font-medium bg-white text-slate-700 rounded-lg cursor-pointer hover:bg-slate-100 border transition-colors">
                   {uploading ? 'Uploading...' : 'Replace'}
@@ -318,12 +329,9 @@ function TermsEditor({ terms, onChange }) {
 // ============================================================================
 function IdCardPreview({ form, tenantName }) {
   const expiryDate = useMemo(() => {
-    if (form.validityType === 'FIXED_END_DATE' && form.fixedValidUntil) {
-      return new Date(form.fixedValidUntil).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
-    }
     const days = form.validityDays || 365
     return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
-  }, [form.validityType, form.validityDays, form.fixedValidUntil])
+  }, [form.validityDays])
   
   const idNumber = `${form.idPrefix || 'ID'}-${new Date().getFullYear()}-${'0'.repeat((form.idDigits || 6) - 1)}1`
   
@@ -477,6 +485,7 @@ export default function TenantIdCardsTab({ tenantContext }) {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState({})
   const [message, setMessage] = useState({ type: '', text: '' })
+  const [allowedValidityDays, setAllowedValidityDays] = useState(DEFAULT_ALLOWED_VALIDITY_DAYS)
   
   // Form State - matches API payload
   const [form, setForm] = useState({
@@ -493,7 +502,6 @@ export default function TenantIdCardsTab({ tenantContext }) {
     helpLine2: '',
     validityType: 'PER_USER_DAYS',
     validityDays: 365,
-    fixedValidUntil: null,
     idPrefix: 'KM',
     idDigits: 6,
   })
@@ -523,8 +531,11 @@ export default function TenantIdCardsTab({ tenantContext }) {
     setLoading(true)
     
     try {
-      const data = await idCardApi.get(tenant.id)
+      const data = await idCardSettingsApi.get(tenant.id)
       if (data) {
+        const allowed = data.meta?.allowedValidityDays || DEFAULT_ALLOWED_VALIDITY_DAYS
+        setAllowedValidityDays(allowed)
+        const days = allowed.includes(data.validityDays) ? data.validityDays : (allowed[allowed.length - 1] || 365)
         setForm(prev => ({
           ...prev,
           templateId: data.templateId || 'STYLE_1',
@@ -538,17 +549,15 @@ export default function TenantIdCardsTab({ tenantContext }) {
           officeAddress: data.officeAddress || '',
           helpLine1: data.helpLine1 || '',
           helpLine2: data.helpLine2 || '',
-          validityType: data.validityType || 'PER_USER_DAYS',
-          validityDays: data.validityDays || 365,
-          fixedValidUntil: data.fixedValidUntil || null,
+          validityType: 'PER_USER_DAYS',
+          validityDays: days,
           idPrefix: data.idPrefix || 'KM',
           idDigits: data.idDigits || 6,
         }))
       }
     } catch (e) {
-      // 404 is fine - no settings yet
-      if (!e.message?.includes('404')) {
-        showMessage('error', e.message)
+      if (e?.status !== 404) {
+        showMessage('error', formatWalletError(e, e.message || 'Failed to load'))
       }
     } finally {
       setLoading(false)
@@ -574,7 +583,12 @@ export default function TenantIdCardsTab({ tenantContext }) {
       fd.append('file', file)
       fd.append('folder', `tenants/${tenant.id}/id-card`)
       
-      const res = await fetch('/api/admin/media/upload', { method: 'POST', body: fd })
+      const token = getToken()
+      const res = await fetch('/api/admin/media/upload', {
+        method: 'POST',
+        headers: token?.token ? { Authorization: `Bearer ${token.token}` } : {},
+        body: fd,
+      })
       if (!res.ok) throw new Error('Upload failed')
       
       const data = await res.json()
@@ -593,15 +607,27 @@ export default function TenantIdCardsTab({ tenantContext }) {
   // Save settings
   const handleSave = async () => {
     if (!tenant?.id) return
+
+    if (!allowedValidityDays.includes(form.validityDays)) {
+      showMessage('error', 'Validity must be 30, 90, 180, or 365 days')
+      return
+    }
+
     setSaving(true)
     
     try {
-      await idCardApi.upsert(tenant.id, form)
+      const payload = {
+        ...form,
+        validityType: 'PER_USER_DAYS',
+        validityDays: form.validityDays,
+      }
+      delete payload.fixedValidUntil
+      await idCardSettingsApi.upsert(tenant.id, payload)
       showMessage('success', 'ID Card settings saved successfully!')
       await fetchSettings()
       refreshTenant?.()
     } catch (e) {
-      showMessage('error', e.message || 'Failed to save')
+      showMessage('error', formatWalletError(e, e.message || 'Failed to save'))
     } finally {
       setSaving(false)
     }
@@ -653,7 +679,7 @@ export default function TenantIdCardsTab({ tenantContext }) {
         {/* Left - Settings */}
         <div className="xl:col-span-2 space-y-6">
           {/* Tabs */}
-          <div className="bg-slate-100 p-1.5 rounded-xl flex gap-1">
+          <div className="bg-slate-100 p-1.5 rounded-xl flex gap-1 overflow-x-auto">
             {tabs.map(tab => (
               <TabButton
                 key={tab.id}
@@ -774,52 +800,20 @@ export default function TenantIdCardsTab({ tenantContext }) {
           {/* Validity Tab */}
           {activeTab === 'validity' && (
             <div className="space-y-6">
-              <FormSection title="Validity Period" description="Set how long ID cards remain valid">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { id: 'PER_USER_DAYS', name: 'Per User', desc: 'Validity starts from issue date' },
-                      { id: 'FIXED_END_DATE', name: 'Fixed Date', desc: 'All cards expire on same date' },
-                    ].map(type => (
-                      <button
-                        key={type.id}
-                        type="button"
-                        onClick={() => handleChange('validityType', type.id)}
-                        className={`p-4 rounded-xl border-2 text-left transition-all ${
-                          form.validityType === type.id
-                            ? 'border-brand bg-brand/5'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="font-medium text-slate-900">{type.name}</div>
-                        <div className="text-xs text-slate-500 mt-0.5">{type.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                  
-                  {form.validityType === 'PER_USER_DAYS' ? (
-                    <Select
-                      label="Validity Duration"
-                      value={form.validityDays}
-                      onChange={v => handleChange('validityDays', parseInt(v))}
-                      options={[
-                        { value: 180, label: '6 Months (180 days)' },
-                        { value: 365, label: '1 Year (365 days)' },
-                        { value: 730, label: '2 Years (730 days)' },
-                        { value: 1095, label: '3 Years (1095 days)' },
-                      ]}
-                      hint="How long each card is valid from issue date"
-                    />
-                  ) : (
-                    <Input
-                      label="Expiry Date"
-                      type="date"
-                      value={form.fixedValidUntil?.split('T')[0] || ''}
-                      onChange={v => handleChange('fixedValidUntil', v ? new Date(v).toISOString() : null)}
-                      hint="All cards will expire on this date"
-                    />
-                  )}
-                </div>
+              <FormSection
+                title="Validity Period"
+                description="Each reporter's card expires after the selected number of days from their issue date"
+              >
+                <Select
+                  label="Validity Duration"
+                  value={form.validityDays}
+                  onChange={v => handleChange('validityDays', parseInt(v, 10))}
+                  options={allowedValidityDays.map(d => ({
+                    value: d,
+                    label: VALIDITY_DAY_LABELS[d] || `${d} days`,
+                  }))}
+                  hint="Allowed: 30, 90, 180, or 365 days from issue date"
+                />
               </FormSection>
             </div>
           )}
@@ -875,18 +869,16 @@ export default function TenantIdCardsTab({ tenantContext }) {
               <div className="text-xs text-slate-500 space-y-2">
                 <div className="flex justify-between">
                   <span>Template:</span>
-                  <span className="font-medium text-slate-700">{form.templateId}</span>
+                  <span className="font-medium text-slate-700">{templateDisplayName(form.templateId, templates)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>ID Format:</span>
-                  <span className="font-mono text-slate-700">{form.idPrefix}-YYYY-{'#'.repeat(form.idDigits || 6)}</span>
+                  <span>ID format:</span>
+                  <span className="text-slate-700">{form.idPrefix}-YYYY-{'#'.repeat(form.idDigits || 6)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Validity:</span>
                   <span className="font-medium text-slate-700">
-                    {form.validityType === 'PER_USER_DAYS' 
-                      ? `${form.validityDays} days` 
-                      : 'Fixed date'}
+                    {form.validityDays} days from issue
                   </span>
                 </div>
               </div>

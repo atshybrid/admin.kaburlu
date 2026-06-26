@@ -4,9 +4,8 @@
  * Case B: NON_TENANT_REPORTER (Super Admin only)
  */
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
-import { prgiApi } from '../../../lib/api/services/prgiApi'
 import { locationService } from '../../../lib/api/services/locationService'
 import {
   reporterDesignationsApi,
@@ -28,95 +27,8 @@ import {
   Switch,
   toast,
 } from '../../ui'
-
-function AsyncSearchField({
-  label,
-  hint,
-  placeholder,
-  value,
-  onChange,
-  onSelect,
-  searchFn,
-  formatOption,
-  required,
-}) {
-  const [q, setQ] = useState(value || '')
-  const [items, setItems] = useState([])
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const timerRef = useRef(null)
-
-  useEffect(() => {
-    setQ(value || '')
-  }, [value])
-
-  const runSearch = useCallback(
-    (term) => {
-      clearTimeout(timerRef.current)
-      if (!term || term.length < 2) {
-        setItems([])
-        return
-      }
-      timerRef.current = setTimeout(async () => {
-        setLoading(true)
-        try {
-          const res = await searchFn(term)
-          setItems(res?.items || [])
-          setOpen(true)
-        } catch {
-          setItems([])
-        } finally {
-          setLoading(false)
-        }
-      }, 320)
-    },
-    [searchFn]
-  )
-
-  return (
-    <FormField label={label} hint={hint} required={required}>
-      <div className="relative">
-        <Input
-          placeholder={placeholder}
-          value={q}
-          onChange={(e) => {
-            const v = e.target.value
-            setQ(v)
-            onChange(v)
-            runSearch(v)
-          }}
-          onFocus={() => items.length > 0 && setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 180)}
-        />
-        {loading ? (
-          <span className="absolute right-2 top-2 text-xs text-gray-400">…</span>
-        ) : null}
-        {open && items.length > 0 ? (
-          <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm">
-            {items.map((item, idx) => (
-              <li key={item.id || idx}>
-                <button
-                  type="button"
-                  className="w-full px-3 py-2 text-left hover:bg-gray-50"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    const labelText = formatOption(item)
-                    setQ(labelText)
-                    onChange(labelText)
-                    onSelect?.(item)
-                    setOpen(false)
-                  }}
-                >
-                  {formatOption(item)}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    </FormField>
-  )
-}
+import LocationSearchField from './LocationSearchField'
+import NewspaperSearchField from './NewspaperSearchField'
 
 function DesignationSearchField({
   label,
@@ -213,6 +125,7 @@ const EMPTY = {
   designation: '',
   publisherMobileNumber: '',
   state: '',
+  district: '',
   mandal: '',
   mpin: '',
   autoApproveMembership: true,
@@ -331,8 +244,9 @@ export default function AddMemberModal({ isOpen, onClose, onCreated }) {
           workingArea: form.workingArea.trim(),
           designation: form.designation.trim(),
           publisherMobileNumber: String(form.publisherMobileNumber || '').replace(/\D/g, ''),
-          state: form.state.trim() || locationPick?.state?.name || '',
-          mandal: form.mandal.trim() || locationPick?.mandal?.name || '',
+          state: form.state.trim() || locationPick?.state || '',
+          district: form.district.trim() || locationPick?.district || '',
+          mandal: form.mandal.trim() || locationPick?.mandal || '',
           mpin: form.mpin.trim() || locationService.mpinFromMobile(mobile),
           skipRequiredUploads: form.skipRequiredUploads,
         })
@@ -479,41 +393,38 @@ export default function AddMemberModal({ isOpen, onClose, onCreated }) {
               </FormField>
             </div>
 
-            <AsyncSearchField
+            <NewspaperSearchField
               label="Current newspaper"
-              hint="Search PRGI registered titles"
+              hint="Search PRGI registry or type a custom name"
               placeholder="Type newspaper name…"
               required
               value={form.currentNewspaper}
               onChange={(v) => setForm((f) => ({ ...f, currentNewspaper: v }))}
-              searchFn={(term) => prgiApi.searchNewspapers(term, { limit: 20 })}
-              formatOption={(item) =>
-                [item.title, item.district, item.state].filter(Boolean).join(' · ')
+              onSelect={(item) =>
+                setForm((f) => ({ ...f, currentNewspaper: item.title || f.currentNewspaper }))
               }
             />
 
-            <AsyncSearchField
+            <LocationSearchField
               label="Working area"
-              hint="Search district / mandal (locations API)"
-              placeholder="e.g. Kamareddy"
+              hint="Search district / mandal / village — auto-fills state & district"
+              placeholder="e.g. Kamareddy, హైదరాబాద్"
               required
               value={form.workingArea}
               onChange={(v) => {
                 setLocationPick(null)
-                setForm((f) => ({ ...f, workingArea: v, state: '', mandal: '' }))
+                setForm((f) => ({ ...f, workingArea: v, state: '', district: '', mandal: '' }))
               }}
-              onSelect={(item) => {
-                setLocationPick(item)
-                const { state, mandal } = locationService.fieldsFromPick(item)
+              onLocationPick={(pick) => {
+                setLocationPick(pick)
                 setForm((f) => ({
                   ...f,
-                  workingArea: locationService.formatItemLabel(item),
-                  state,
-                  mandal,
+                  workingArea: pick.workingArea || f.workingArea,
+                  state: pick.state || '',
+                  district: pick.district || '',
+                  mandal: pick.mandal || '',
                 }))
               }}
-              searchFn={(term) => locationService.searchCombined(term, { limit: 20 })}
-              formatOption={(item) => locationService.formatItemLabel(item)}
             />
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -536,7 +447,7 @@ export default function AddMemberModal({ isOpen, onClose, onCreated }) {
               </FormField>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <FormField
                 label="State"
                 hint={form.state ? 'Filled from working area' : undefined}
@@ -544,20 +455,26 @@ export default function AddMemberModal({ isOpen, onClose, onCreated }) {
                 <Input
                   value={form.state}
                   onChange={set('state')}
-                  readOnly={Boolean(locationPick?.state?.name && form.state)}
-                  className={locationPick?.state?.name && form.state ? 'bg-gray-50 text-gray-700 cursor-not-allowed' : ''}
+                  readOnly={Boolean(locationPick?.state && form.state)}
+                  className={locationPick?.state && form.state ? 'bg-gray-50 text-gray-700 cursor-not-allowed' : ''}
+                />
+              </FormField>
+              <FormField
+                label="District"
+                hint={form.district ? 'Filled from working area' : undefined}
+              >
+                <Input
+                  value={form.district}
+                  onChange={set('district')}
+                  readOnly={Boolean(locationPick?.district && form.district)}
+                  className={locationPick?.district && form.district ? 'bg-gray-50 text-gray-700 cursor-not-allowed' : ''}
                 />
               </FormField>
               <FormField
                 label="Mandal"
-                hint={form.mandal ? 'Filled from working area' : undefined}
+                hint={form.mandal ? 'Filled from working area' : 'Manual if not in search'}
               >
-                <Input
-                  value={form.mandal}
-                  onChange={set('mandal')}
-                  readOnly={Boolean(form.mandal && locationPick)}
-                  className={form.mandal && locationPick ? 'bg-gray-50 text-gray-700 cursor-not-allowed' : ''}
-                />
+                <Input value={form.mandal} onChange={set('mandal')} />
               </FormField>
               <FormField label="MPIN" hint="Auto: last 4 digits of mobile (editable)">
                 <Input

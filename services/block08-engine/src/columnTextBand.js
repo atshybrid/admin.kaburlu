@@ -1,7 +1,7 @@
 import { BLOCK_08A, columnWidthMm, mmToPx } from './constants.js'
 
 const PX_TO_MM = 25.4 / 96
-const BODY_LINE_PX = BLOCK_08A.bodyFontPx * 1.42
+const BODY_LINE_PX = BLOCK_08A.bodyLinePx
 
 function imageObstaclePx(role) {
   const h =
@@ -30,13 +30,19 @@ export function measureObstacleHeightsPx({ highlights = [], imageUrls = [] } = {
   }
 }
 
-function charsPerLinePx(colWidthPx) {
-  return Math.max(12, Math.floor(colWidthPx / 8.2))
+const TELUGU_SCRIPT_RE = /[\u0C00-\u0C7F]/
+
+function charsPerLinePx(colWidthPx, text = '') {
+  const sample = String(text || '')
+  const teluguChars = (sample.match(TELUGU_SCRIPT_RE) || []).length
+  const teluguHeavy = teluguChars > 0 && teluguChars / Math.max(1, sample.length) >= 0.35
+  const pxPerChar = teluguHeavy ? 11.4 : 8.2
+  return Math.max(8, Math.floor(colWidthPx / pxPerChar))
 }
 
 export function wordsPerLineForColumn(colWidthMm = columnWidthMm()) {
   const colWidthPx = mmToPx(colWidthMm)
-  return Math.max(3, Math.floor(charsPerLinePx(colWidthPx) / 6.5))
+  return Math.max(3, Math.floor(charsPerLinePx(colWidthPx, 'తెలుగు') / 6.5))
 }
 
 export function lineHeightPx() {
@@ -50,7 +56,7 @@ export function lineHeightMm() {
 export function textLinesForWordSlice(wordSlice, colWidthPx) {
   const text = wordSlice.join(' ').trim()
   if (!text) return 0
-  const cpl = charsPerLinePx(colWidthPx)
+  const cpl = charsPerLinePx(colWidthPx, text)
   return Math.max(1, Math.ceil(text.length / cpl))
 }
 
@@ -97,8 +103,8 @@ function scoreSplit3(w1, w2, words, obsPx, colWidthPx) {
   if (orphan2 > 0 && orphan2 <= 3) linePenalty += 28
 
   const lineSpread = Math.max(l1, l2, l3) - Math.min(l1, l2, l3)
-  if (l3 > l2 + 1) linePenalty += (l3 - l2 - 1) * 25
-  if (l3 > l1 + 2) linePenalty += (l3 - l1 - 2) * 15
+  if (l3 > l2 + extraL3 + 2) linePenalty += (l3 - l2 - extraL3 - 2) * 12
+  if (l1 > l2 + extraL1 + 2) linePenalty += (l1 - l2 - extraL1 - 2) * 10
   if (b1 < b3 - BODY_LINE_PX * 2) linePenalty += 80
   if (b2 < b3 - BODY_LINE_PX * 2) linePenalty += 50
 

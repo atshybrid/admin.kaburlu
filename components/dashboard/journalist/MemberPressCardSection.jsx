@@ -1,11 +1,15 @@
 /**
- * Press / Union ID card — why missing + generate / regenerate actions
+ * Press / Union ID card — generate, regenerate, download
  */
 
 import { useState } from 'react'
-import { journalistApi } from '../../../lib/api/services/journalistApi'
-import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
-import { pressCard, formatDate, membershipStatusKey } from '../../../lib/journalist/memberDisplay'
+import {
+  generateUnionIdCard,
+  regenerateUnionIdCard,
+  formatDocActionError,
+} from '../../../lib/journalist/memberDocumentActions'
+import { unionAdminApi } from '../../../lib/api/services/unionAdminApi'
+import { pressCard, formatDate, membershipStatusKey, pressIdDisplay } from '../../../lib/journalist/memberDisplay'
 import {
   docEffectiveStatus,
   idCardReadiness,
@@ -24,6 +28,7 @@ const DOC_LABELS = {
 export default function MemberPressCardSection({ profileId, member, onRefresh }) {
   const [generating, setGenerating] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   if (!member) return null
 
@@ -31,21 +36,22 @@ export default function MemberPressCardSection({ profileId, member, onRefresh })
   const card = pressCard(member)
   const readiness = idCardReadiness(member)
   const blockReason = idCardBlockReason(member)
+  const canDownload = member.canDownloadIdCard !== false
 
   const handleGenerate = async () => {
     if (!profileId) return
     setGenerating(true)
     try {
-      const res = await journalistApi.generatePressCard({ profileId })
+      const res = await generateUnionIdCard(profileId)
       const parsed = parseApproveIdCardResult(res)
-      if (parsed.generated) {
-        toast.success(parsed.message)
+      if (parsed.generated || res?.idCard?.status === 'PROCESSING') {
+        toast.success(parsed.message || res?.message || 'ID card generation started')
       } else {
-        toast.error(parsed.message || 'Generate failed')
+        toast.error(parsed.message || res?.message || 'Generate failed')
       }
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'ID card generate failed'))
+      toast.error(formatDocActionError(err, 'ID card generate failed'))
     } finally {
       setGenerating(false)
     }
@@ -55,13 +61,26 @@ export default function MemberPressCardSection({ profileId, member, onRefresh })
     if (!profileId) return
     setRegenerating(true)
     try {
-      await journalistApi.regenerateMemberPdf(profileId)
-      toast.success('PDF regenerated')
+      await regenerateUnionIdCard(profileId)
+      toast.success('ID card regeneration started')
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'PDF regenerate failed'))
+      toast.error(formatDocActionError(err, 'PDF regenerate failed'))
     } finally {
       setRegenerating(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!profileId) return
+    setDownloading(true)
+    try {
+      const name = pressIdDisplay(member) || 'union-member'
+      await unionAdminApi.downloadIdCard(profileId, `${name.replace(/\s+/g, '-')}-id-card.pdf`)
+    } catch (err) {
+      toast.error(err.message || 'Download blocked — approve all required documents first')
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -69,8 +88,7 @@ export default function MemberPressCardSection({ profileId, member, onRefresh })
     <Card title="Union ID card">
       {!approved ? (
         <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-          Approve <strong>membership</strong> first. ID card is created after membership + required KYC
-          documents are approved.
+          Step 7: Approve <strong>membership</strong> first. Then generate the ID card after KYC approval.
         </p>
       ) : null}
 
@@ -97,50 +115,50 @@ export default function MemberPressCardSection({ profileId, member, onRefresh })
 
       {approved && !readiness.ready && blockReason ? (
         <p className="mt-3 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          <strong>ID card blocked:</strong> {blockReason}. Use ✓ in the table or Approve all documents
-          above.
+          <strong>ID card blocked:</strong> {blockReason}
         </p>
+      ) : null}
+
+      {card?.pdfUrl || approved ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            loading={generating}
+            disabled={!readiness.ready || !approved}
+            onClick={handleGenerate}
+          >
+            {card?.pdfUrl ? 'Regenerate card' : 'Generate ID card'}
+          </Button>
+          {card?.pdfUrl ? (
+            <>
+              <Button size="sm" variant="secondary" loading={regenerating} onClick={handleRegeneratePdf}>
+                Regenerate PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                loading={downloading}
+                disabled={!canDownload}
+                onClick={handleDownload}
+              >
+                Download PDF
+              </Button>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       {card?.pdfUrl ? (
         <div className="mt-4 space-y-2">
-          <CardRow label="Card no." value={card.cardNumber || '—'} />
-          <CardRow label="Status" value={card.status || '—'} />
+          <CardRow label="Press ID" value={pressIdDisplay(member) || '—'} />
+          <CardRow label="Card status" value={card.status || '—'} />
           <CardRow label="Expiry" value={formatDate(card.expiryDate)} />
-          <CardRow
-            label="PDF"
-            value={
-              <a href={card.pdfUrl} target="_blank" rel="noreferrer" className="text-brand underline text-sm">
-                Download ID card
-              </a>
-            }
-          />
-          <Button size="sm" variant="secondary" loading={regenerating} onClick={handleRegeneratePdf}>
-            Regenerate PDF
-          </Button>
-        </div>
-      ) : approved ? (
-        <div className="mt-4 space-y-3">
-          <p className="text-sm text-gray-600">
-            Membership is approved but no ID card PDF yet.
-            {readiness.ready
-              ? ' All required documents are approved — generate now.'
-              : ' Complete document approvals first.'}
-          </p>
-          <Button
-            size="sm"
-            loading={generating}
-            disabled={!readiness.ready}
-            onClick={handleGenerate}
-          >
-            Generate ID card
-          </Button>
         </div>
       ) : null}
 
-      {member.canDownloadIdCard === false && card?.pdfUrl ? (
-        <p className="mt-2 text-xs text-gray-500">
-          Member app download may stay locked until all required documents show APPROVED in API.
+      {member.canDownloadIdCard === false ? (
+        <p className="mt-2 text-xs text-amber-700">
+          Download blocked until all required documents are approved.
         </p>
       ) : null}
     </Card>

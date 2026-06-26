@@ -21,7 +21,9 @@ import {
   TenantAdsTab,
   TenantEpaperTab,
   TenantDomainSettingsTab,
-  TenantEditionsTab
+  TenantEditionsTab,
+  TenantWalletTab,
+  TenantReporterBillingTab,
 } from '../../../../components/admin/tabs'
 
 function TenantDetailContent() {
@@ -50,6 +52,10 @@ function TenantDetailContent() {
         return <TenantAdsTab tenantContext={tenantContext} />
       case 'payments':
         return <TenantPaymentsTab tenantContext={tenantContext} />
+      case 'tenant-wallet':
+        return <TenantWalletTab tenantContext={tenantContext} />
+      case 'reporter-billing':
+        return <TenantReporterBillingTab tenantContext={tenantContext} />
       case 'settings':
         return <TenantSettingsTab tenantContext={tenantContext} />
       case 'id-cards':
@@ -87,11 +93,8 @@ function TenantDetailContent() {
 }
 
 export default function TenantDetailPage() {
-  const router = useRouter()
-  const { id } = router.query
-  
   return (
-    <DashboardLayout title={`Tenant ${id || ''}`}>
+    <DashboardLayout title="Tenant settings">
       <TenantDetailContent />
     </DashboardLayout>
   )

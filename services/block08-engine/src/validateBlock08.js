@@ -3,6 +3,7 @@ import { countWords, normalizeHighlights, normalizeImageUrls } from './utils.js'
 import { calculateEstimatedHeight } from './calculateEstimatedHeight.js'
 
 export function validateBlock08(article, opts = {}) {
+  const layoutPreview = !!opts.layoutPreview
   const errors = []
   const title = String(article?.title || '').trim()
   const subtitle = String(article?.subtitle || '').trim()
@@ -22,11 +23,13 @@ export function validateBlock08(article, opts = {}) {
   }
 
   const wordCount = countWords(content)
-  if (wordCount < BLOCK_08A.minWords) {
-    errors.push(`minimum ${BLOCK_08A.minWords} words (got ${wordCount})`)
-  }
-  if (wordCount > BLOCK_08A.maxWords) {
-    errors.push(`maximum ${BLOCK_08A.maxWords} words (got ${wordCount})`)
+  if (!layoutPreview) {
+    if (wordCount < BLOCK_08A.minWords) {
+      errors.push(`minimum ${BLOCK_08A.minWords} words (got ${wordCount})`)
+    }
+    if (wordCount > BLOCK_08A.maxWords) {
+      errors.push(`maximum ${BLOCK_08A.maxWords} words (got ${wordCount})`)
+    }
   }
 
   const heightInput = {
@@ -40,7 +43,7 @@ export function validateBlock08(article, opts = {}) {
   const estimatedHeightMm =
     opts.estimatedHeightMm ?? calculateEstimatedHeight(heightInput).totalMm
 
-  if (estimatedHeightMm > BLOCK_08A.maxHeightMm) {
+  if (!layoutPreview && estimatedHeightMm > BLOCK_08A.maxHeightMm) {
     errors.push(
       `estimated height ${estimatedHeightMm.toFixed(1)}mm exceeds max ${BLOCK_08A.maxHeightMm}mm`
     )

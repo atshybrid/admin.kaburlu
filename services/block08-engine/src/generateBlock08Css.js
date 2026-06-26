@@ -72,7 +72,7 @@ export function generateBlock08Css(scopeId = 'block08a-root') {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: ${gap}px;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
 }
 
 .block08a__column {
@@ -80,7 +80,7 @@ export function generateBlock08Css(scopeId = 'block08a-root') {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  align-self: start;
+  align-self: stretch;
 }
 
 .block08a__highlights {
@@ -145,9 +145,9 @@ export function generateBlock08Css(scopeId = 'block08a-root') {
 }
 
 .block08a__body {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   font-size: ${BLOCK_08A.bodyFontPx}px;
-  line-height: 1.42;
+  line-height: ${BLOCK_08A.bodyLinePx}px;
   text-align: justify;
   text-justify: inter-word;
   text-align-last: left;
@@ -162,14 +162,22 @@ export function generateBlock08Css(scopeId = 'block08a-root') {
 }
 
 .block08a__body p {
-  margin: 0 0 4px;
-  line-height: 1.42;
+  margin: 0 0 7px;
+  padding: 0;
+  line-height: ${BLOCK_08A.bodyLinePx}px;
   text-align: inherit;
   text-align-last: inherit;
   word-spacing: normal;
+  break-inside: avoid-column;
+  page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
 }
 
 .block08a__body p:last-child { margin-bottom: 0; }
+
+.block08a__body.force-vertical-justify p {
+  margin-bottom: 7px;
+}
 
 .block08a__meta {
   font-family: ui-monospace, monospace;

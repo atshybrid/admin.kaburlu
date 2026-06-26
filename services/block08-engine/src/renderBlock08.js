@@ -18,17 +18,22 @@ export async function renderBlock08(body, opts = {}) {
 
   const template = await fetchBlockTemplate('BLOCK-08A')
 
-  const validation = validateBlock08({
-    title,
-    subtitle,
-    highlights: body?.highlights,
-    image: body?.image ?? body?.images,
-    content,
-  })
+  const layoutPreview = body?.layoutPreview === true || body?.previewMode === true
+
+  const validation = validateBlock08(
+    {
+      title,
+      subtitle,
+      highlights: body?.highlights,
+      image: body?.image ?? body?.images,
+      content,
+    },
+    { layoutPreview },
+  )
 
   const css = generateBlock08Css('block08a-root')
 
-  if (!validation.valid) {
+  if (!validation.valid && !layoutPreview) {
     return {
       valid: false,
       wordCount: validation.wordCount,
@@ -64,14 +69,21 @@ export async function renderBlock08(body, opts = {}) {
     indexable: seoIn.indexable === true,
   })
 
-  const html = generateBlock08Html(article, {
-    wordCount: validation.wordCount,
-    estimatedHeightMm: validation.estimatedHeightMm,
-    includeMeta: body?.includeMeta === true,
-    seoDescription: seo.context.description,
-    datePublished: seo.context.datePublished,
-    author: seo.context.author,
-  })
+  const warnBanner =
+    layoutPreview && validation.errors.length
+      ? `<div class="block08a__preview-warn" style="background:#fffbeb;color:#92400e;font:600 11px/1.3 system-ui;padding:6px 8px;margin-bottom:6px;border:1px solid #fde68a;border-radius:4px">Layout preview only: ${validation.errors.join(' · ')}</div>`
+      : ''
+
+  const html =
+    warnBanner +
+    generateBlock08Html(article, {
+      wordCount: validation.wordCount,
+      estimatedHeightMm: validation.estimatedHeightMm,
+      includeMeta: body?.includeMeta === true,
+      seoDescription: seo.context.description,
+      datePublished: seo.context.datePublished,
+      author: seo.context.author,
+    })
 
   const previewMeta = {
     wordCount: validation.wordCount,
@@ -81,10 +93,10 @@ export async function renderBlock08(body, opts = {}) {
   }
 
   return {
-    valid: true,
+    valid: validation.valid,
     wordCount: validation.wordCount,
     estimatedHeightMm: validation.estimatedHeightMm,
-    errors: [],
+    errors: validation.valid ? [] : validation.errors,
     template: {
       block_code: template.block_code || 'BLOCK-08A',
       width_mm: Number(template.width_mm) || BLOCK_08A.widthMm,

@@ -1,14 +1,12 @@
 /**
- * Member insurance wizard — accidental then health (Super Admin)
- * PATCH .../benefits · POST .../insurance
+ * Member insurance — application review → policy assign → card upload
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { journalistApi } from '../../../lib/api/services/journalistApi'
+import { unionAdminApi } from '../../../lib/api/services/unionAdminApi'
 import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
 import {
-  canAssignInsurance,
-  canForceHealthUnlock,
   canUnlockAccidental,
   canUnlockHealth,
   EMPTY_ASSIGN_FORM,
@@ -18,36 +16,29 @@ import {
   resolvePolicy,
 } from '../../../lib/journalist/insuranceFlow'
 import { formatDate } from '../../../lib/journalist/memberDisplay'
-import { Button, Card, CardRow, FormField, Input, StatusBadge, toast } from '../../ui'
+import { buildInsurancePrerequisites } from '../../../lib/journalist/insurancePrerequisites'
+import InsuranceApplicationPanel from './InsuranceApplicationPanel'
+import InsurancePrerequisitesChecklist from './InsurancePrerequisitesChecklist'
+import { Button, Card, FormField, Input, StatusBadge, toast } from '../../ui'
 
 function PolicyDetails({ policy }) {
-  if (!policy?.policyNumber) return <p className="text-sm text-gray-500">No policy on file.</p>
+  if (!policy?.policyNumber) return <p className="text-sm text-slate-500">No policy on file.</p>
   return (
-    <div className="text-sm text-gray-700 space-y-1 mt-2 rounded-lg bg-green-50 border border-green-100 p-3">
-      <p>
-        <span className="font-medium">Policy:</span> {policy.policyNumber}
-      </p>
-      {policy.insurer ? (
-        <p>
-          <span className="font-medium">Insurer:</span> {policy.insurer}
-        </p>
-      ) : null}
+    <div className="text-sm text-slate-700 space-y-1 mt-2 rounded-lg bg-emerald-50 border border-emerald-100 p-3">
+      <p><span className="font-medium">Policy:</span> {policy.policyNumber}</p>
+      {policy.insurer ? <p><span className="font-medium">Insurer:</span> {policy.insurer}</p> : null}
       {policy.coverAmount != null ? (
-        <p>
-          <span className="font-medium">Cover:</span> ₹{Number(policy.coverAmount).toLocaleString('en-IN')}
-        </p>
+        <p><span className="font-medium">Cover:</span> ₹{Number(policy.coverAmount).toLocaleString('en-IN')}</p>
       ) : null}
       {policy.validFrom || policy.validTo ? (
-        <p>
-          <span className="font-medium">Valid:</span> {formatDate(policy.validFrom)} — {formatDate(policy.validTo)}
-        </p>
+        <p><span className="font-medium">Valid:</span> {formatDate(policy.validFrom)} — {formatDate(policy.validTo)}</p>
       ) : null}
     </div>
   )
 }
 
-function AssignPolicyForm({ type, profileId, onSuccess, skipUnlockDefault = false }) {
-  const [form, setForm] = useState({ ...EMPTY_ASSIGN_FORM, skipUnlockCheck: skipUnlockDefault })
+function AssignPolicyForm({ type, profileId, onSuccess, applicationApproved, prerequisitesMet }) {
+  const [form, setForm] = useState({ ...EMPTY_ASSIGN_FORM })
   const [saving, setSaving] = useState(false)
 
   const submit = async (e) => {
@@ -57,9 +48,17 @@ function AssignPolicyForm({ type, profileId, onSuccess, skipUnlockDefault = fals
       toast.error('Policy number and insurer are required')
       return
     }
+    if (!applicationApproved && !form.skipApplicationCheck) {
+      toast.error('Approve the insurance application form first')
+      return
+    }
+    if (!prerequisitesMet && !form.skipApplicationCheck) {
+      toast.error('Complete all prerequisite steps above first')
+      return
+    }
     setSaving(true)
     try {
-      const res = await journalistApi.assignMemberInsurance(profileId, {
+      const res = await unionAdminApi.assignInsurance(profileId, {
         type,
         policyNumber: form.policyNumber.trim(),
         insurer: form.insurer.trim(),
@@ -68,10 +67,10 @@ function AssignPolicyForm({ type, profileId, onSuccess, skipUnlockDefault = fals
         validFrom: form.validFrom || undefined,
         validTo: form.validTo || undefined,
         notes: form.notes.trim() || undefined,
-        skipUnlockCheck: Boolean(form.skipUnlockCheck),
+        skipApplicationCheck: Boolean(form.skipApplicationCheck),
       })
-      toast.success(res?.message || `${type} insurance assigned`)
-      setForm({ ...EMPTY_ASSIGN_FORM, skipUnlockCheck: skipUnlockDefault })
+      toast.success(res?.message || `${type} policy assigned`)
+      setForm({ ...EMPTY_ASSIGN_FORM })
       onSuccess?.()
     } catch (err) {
       toast.error(formatJournalistApiError(err, 'Assign failed'))
@@ -80,71 +79,56 @@ function AssignPolicyForm({ type, profileId, onSuccess, skipUnlockDefault = fals
     }
   }
 
+  const canAssign = (applicationApproved && prerequisitesMet) || form.skipApplicationCheck
+
   return (
-    <form onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-brand/20 bg-brand/5 p-3">
-      <p className="text-xs font-semibold uppercase text-brand">Assign {type === 'ACCIDENTAL' ? 'accidental' : 'health'} policy</p>
+    <form onSubmit={submit} className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className="text-xs font-semibold uppercase text-slate-600">
+        Assign {type === 'ACCIDENTAL' ? 'accidental' : 'health'} policy
+      </p>
+      {!applicationApproved ? (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+          Approve the member&apos;s insurance application first, or use admin override below.
+        </p>
+      ) : !prerequisitesMet ? (
+        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5">
+          Complete prerequisite steps above (membership, docs, survey/unlock).
+        </p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField label="Policy number *">
-          <Input
-            value={form.policyNumber}
-            onChange={(e) => setForm((f) => ({ ...f, policyNumber: e.target.value }))}
-            placeholder="LIC/ACC/2026/00421"
-          />
+          <Input value={form.policyNumber} onChange={(e) => setForm((f) => ({ ...f, policyNumber: e.target.value }))} />
         </FormField>
         <FormField label="Insurer *">
-          <Input
-            value={form.insurer}
-            onChange={(e) => setForm((f) => ({ ...f, insurer: e.target.value }))}
-            placeholder="LIC of India"
-          />
+          <Input value={form.insurer} onChange={(e) => setForm((f) => ({ ...f, insurer: e.target.value }))} />
         </FormField>
-        <FormField label="Cover amount (₹)">
-          <Input
-            type="number"
-            value={form.coverAmount}
-            onChange={(e) => setForm((f) => ({ ...f, coverAmount: e.target.value }))}
-          />
+        <FormField label="Cover (₹)">
+          <Input type="number" value={form.coverAmount} onChange={(e) => setForm((f) => ({ ...f, coverAmount: e.target.value }))} />
         </FormField>
         <FormField label="Premium (₹)">
-          <Input
-            type="number"
-            value={form.premium}
-            onChange={(e) => setForm((f) => ({ ...f, premium: e.target.value }))}
-          />
+          <Input type="number" value={form.premium} onChange={(e) => setForm((f) => ({ ...f, premium: e.target.value }))} />
         </FormField>
         <FormField label="Valid from">
-          <Input
-            type="date"
-            value={form.validFrom}
-            onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
-          />
+          <Input type="date" value={form.validFrom} onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))} />
         </FormField>
         <FormField label="Valid to">
-          <Input
-            type="date"
-            value={form.validTo}
-            onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
-          />
+          <Input type="date" value={form.validTo} onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))} />
         </FormField>
       </div>
       <FormField label="Notes">
-        <Input
-          value={form.notes}
-          onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-          placeholder="Annual policy"
-        />
+        <Input value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
       </FormField>
-      <label className="flex items-center gap-2 text-xs text-gray-600">
+      <label className="flex items-center gap-2 text-xs text-slate-600">
         <input
           type="checkbox"
-          checked={form.skipUnlockCheck}
-          onChange={(e) => setForm((f) => ({ ...f, skipUnlockCheck: e.target.checked }))}
-          className="rounded border-gray-300"
+          checked={form.skipApplicationCheck}
+          onChange={(e) => setForm((f) => ({ ...f, skipApplicationCheck: e.target.checked }))}
+          className="rounded border-slate-300"
         />
-        Super Admin override (skip unlock check)
+        Admin override (skip application check)
       </label>
-      <Button type="submit" size="sm" loading={saving}>
-        Assign {type === 'ACCIDENTAL' ? 'accidental' : 'health'}
+      <Button type="submit" size="sm" loading={saving} disabled={!canAssign}>
+        Assign policy
       </Button>
     </form>
   )
@@ -155,15 +139,22 @@ function InsuranceLane({
   type,
   lane,
   otherLane,
-  survey,
+  member,
   allInsurances,
   profileId,
   onRefresh,
+  loadApplications = false,
 }) {
   const [benefitsSaving, setBenefitsSaving] = useState(false)
+  const [appStatus, setAppStatus] = useState(null)
+  const [uploadingCard, setUploadingCard] = useState(false)
+
+  const prereq = buildInsurancePrerequisites(member, type, appStatus)
   const meta = insuranceStatusMeta(lane?.status)
   const policy = resolvePolicy(lane, allInsurances, type)
   const hint = insuranceNextStepHint(lane?.nextStep)
+  const appApproved = appStatus === 'APPROVED'
+  const showAssignForm = lane?.status === 'UNLOCKED_CAN_APPLY' && !isInsuranceActive(lane)
 
   const unlockAccidental = async () => {
     setBenefitsSaving(true)
@@ -191,141 +182,151 @@ function InsuranceLane({
     }
   }
 
-  const forceHealth = async () => {
-    setBenefitsSaving(true)
+  const uploadCard = async (insuranceId, file) => {
+    if (!file || !profileId || !insuranceId) return
+    setUploadingCard(true)
     try {
-      await journalistApi.updateBenefits(profileId, {
-        healthInsuranceActive: true,
-        forceHealthUnlock: true,
-      })
-      toast.success('Health unlocked (forced)')
+      const fd = new FormData()
+      fd.append('insuranceCard', file)
+      await unionAdminApi.uploadInsuranceCard(profileId, insuranceId, fd)
+      toast.success('Insurance card uploaded')
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'Force unlock failed'))
+      toast.error(formatJournalistApiError(err, 'Upload failed'))
     } finally {
-      setBenefitsSaving(false)
+      setUploadingCard(false)
     }
   }
 
-  const showUnlockAccidental = type === 'ACCIDENTAL' && canUnlockAccidental(lane)
-  const showUnlockHealth = type === 'HEALTH' && canUnlockHealth(lane, otherLane)
-  const showForceHealth = type === 'HEALTH' && canForceHealthUnlock(lane, otherLane)
-  const showAssign = canAssignInsurance(lane)
-
   return (
-    <div className="rounded-xl border border-gray-200 p-4 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-        <h4 className="font-semibold text-gray-900">{title}</h4>
+    <div className="rounded-xl border border-slate-200 p-4 bg-white space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="font-semibold text-slate-900">{title}</h4>
         <StatusBadge label={meta.label} color={meta.color} />
       </div>
 
-      {hint ? <p className="text-xs text-gray-500 mb-2">{hint}</p> : null}
+      {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
 
-      {survey?.overallStatus === 'NO_CAMPAIGNS' && type === 'ACCIDENTAL' && lane?.status === 'LOCKED_SURVEY_REQUIRED' ? (
-        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5 mb-2">
-          No party surveys configured — use admin unlock to enable accidental insurance.
+      <InsurancePrerequisitesChecklist
+        member={member}
+        type={type}
+        applicationStatus={appStatus}
+      />
+
+      <InsuranceApplicationPanel
+        profileId={profileId}
+        type={type}
+        enabled={loadApplications && prereq.canShowApplicationReview}
+        onStatusChange={setAppStatus}
+      />
+
+      {loadApplications && !prereq.canShowApplicationReview ? (
+        <p className="text-xs text-slate-500 py-2">
+          Application review opens once membership and insurance documents are approved.
         </p>
       ) : null}
 
       {isInsuranceActive(lane) ? <PolicyDetails policy={policy} /> : null}
 
-      <div className="flex flex-wrap gap-2 mt-3">
-        {showUnlockAccidental ? (
+      <div className="flex flex-wrap gap-2">
+        {type === 'ACCIDENTAL' && canUnlockAccidental(lane) ? (
           <Button size="sm" variant="secondary" loading={benefitsSaving} onClick={unlockAccidental}>
-            Unlock accidental (skip survey)
+            Unlock accidental
           </Button>
         ) : null}
-        {showUnlockHealth ? (
+        {type === 'HEALTH' && canUnlockHealth(lane, otherLane) ? (
           <Button size="sm" variant="secondary" loading={benefitsSaving} onClick={unlockHealth}>
-            Unlock health (skip survey)
-          </Button>
-        ) : null}
-        {showForceHealth ? (
-          <Button size="sm" variant="ghost" loading={benefitsSaving} onClick={forceHealth}>
-            Force health unlock
+            Unlock health
           </Button>
         ) : null}
       </div>
 
-      {showAssign ? (
-        <AssignPolicyForm type={type} profileId={profileId} onSuccess={onRefresh} />
+      {showAssignForm ? (
+        <AssignPolicyForm
+          type={type}
+          profileId={profileId}
+          applicationApproved={appApproved}
+          prerequisitesMet={prereq.baseMet}
+          onSuccess={onRefresh}
+        />
       ) : null}
 
-      {lane?.status === 'LOCKED_REQUIRES_ACCIDENTAL' && type === 'HEALTH' ? (
-        <p className="text-xs text-gray-500 mt-2">
-          Complete accidental assignment first, or use force unlock above.
-        </p>
+      {policy?.id && isInsuranceActive(lane) ? (
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+          <span className="font-medium">Upload insurance card</span>
+          <input
+            type="file"
+            accept="image/*,.pdf"
+            disabled={uploadingCard}
+            className="text-xs"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadCard(policy.id, file)
+              e.target.value = ''
+            }}
+          />
+        </label>
       ) : null}
     </div>
   )
 }
 
-export default function MemberInsuranceSection({ profileId, member, onRefresh }) {
+export default function MemberInsuranceSection({ profileId, member, onRefresh, forceLoadApplications = false }) {
   const acc = member?.insurance?.accidental
   const health = member?.insurance?.health
   const allInsurances = member?.allInsurances || []
+  const sectionRef = useRef(null)
+  const [loadApplications, setLoadApplications] = useState(forceLoadApplications)
 
-  if (!member?.insurance && !allInsurances.length) {
-    return (
-      <div id="member-insurance">
-        <Card title="Insurance">
-          <p className="text-sm text-gray-500">No insurance data for this member.</p>
-        </Card>
-      </div>
+  useEffect(() => {
+    if (forceLoadApplications) setLoadApplications(true)
+  }, [forceLoadApplications])
+
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el || loadApplications) return undefined
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setLoadApplications(true)
+      },
+      { rootMargin: '120px' }
     )
-  }
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [loadApplications])
 
   return (
-    <div id="member-insurance">
-    <Card title="Insurance benefits">
-      <p className="text-xs text-gray-500 mb-4">
-        Flow: unlock accidental → assign accidental → unlock health → assign health.
-      </p>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <InsuranceLane
-          title="1. Accidental insurance"
-          type="ACCIDENTAL"
-          lane={acc}
-          otherLane={health}
-          survey={member.survey}
-          allInsurances={allInsurances}
-          profileId={profileId}
-          onRefresh={onRefresh}
-        />
-        <InsuranceLane
-          title="2. Health insurance"
-          type="HEALTH"
-          lane={health}
-          otherLane={acc}
-          survey={member.survey}
-          allInsurances={allInsurances}
-          profileId={profileId}
-          onRefresh={onRefresh}
-        />
-      </div>
-
-      {allInsurances.length > 0 ? (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          <p className="text-xs font-semibold uppercase text-gray-500 mb-2">All policies</p>
-          <ul className="space-y-2 text-sm">
-            {allInsurances.map((ins) => (
-              <li
-                key={ins.id || `${ins.type}-${ins.policyNumber}`}
-                className="flex flex-wrap justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2"
-              >
-                <span className="font-medium">{ins.type}</span>
-                <span className="text-gray-600">{ins.policyNumber}</span>
-                <StatusBadge
-                  label={ins.isActive ? 'Active' : 'Inactive'}
-                  color={ins.isActive ? 'green' : 'gray'}
-                />
-              </li>
-            ))}
-          </ul>
+    <div id="member-insurance" ref={sectionRef}>
+      <Card title="Insurance">
+        <p className="text-xs text-slate-500 mb-4">
+          Flow: membership + Aadhaar/PAN approved → survey/unlock → member fills form (personal, nominee,
+          questionnaire) → you approve form → assign policy → upload card.
+        </p>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <InsuranceLane
+            title="Accidental"
+            type="ACCIDENTAL"
+            lane={acc}
+            otherLane={health}
+            member={member}
+            allInsurances={allInsurances}
+            profileId={profileId}
+            onRefresh={onRefresh}
+            loadApplications={loadApplications}
+          />
+          <InsuranceLane
+            title="Health"
+            type="HEALTH"
+            lane={health}
+            otherLane={acc}
+            member={member}
+            allInsurances={allInsurances}
+            profileId={profileId}
+            onRefresh={onRefresh}
+            loadApplications={loadApplications}
+          />
         </div>
-      ) : null}
-    </Card>
+      </Card>
     </div>
   )
 }

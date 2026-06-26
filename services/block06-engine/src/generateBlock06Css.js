@@ -67,7 +67,7 @@ export function generateBlock06Css(scopeId = 'block06a-root') {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: ${gap}px;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
   position: relative;
   z-index: 1;
 }
@@ -78,7 +78,7 @@ export function generateBlock06Css(scopeId = 'block06a-root') {
   flex-direction: column;
   align-items: stretch;
   gap: 0;
-  align-self: start;
+  align-self: stretch;
 }
 
 .block06a__highlights {
@@ -151,9 +151,9 @@ export function generateBlock06Css(scopeId = 'block06a-root') {
 }
 
 .block06a__body {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   font-size: ${BLOCK_06A.bodyFontPx}px;
-  line-height: 1.42;
+  line-height: ${BLOCK_06A.bodyLinePx}px;
   text-align: justify;
   text-justify: inter-word;
   hyphens: none;
@@ -165,14 +165,23 @@ export function generateBlock06Css(scopeId = 'block06a-root') {
 }
 
 .block06a__body p {
-  margin: 0 0 4px;
-  line-height: 1.42;
+  margin: 0 0 7px;
+  padding: 0;
+  line-height: ${BLOCK_06A.bodyLinePx}px;
   text-align: justify;
   text-justify: inter-word;
+  break-inside: avoid-column;
+  page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
 }
 
 .block06a__body p:last-child {
   margin-bottom: 0;
+}
+
+/* Quark-style: threadBalance adds this when a small bottom gap remains */
+.block06a__body.force-vertical-justify p {
+  margin-bottom: 7px;
 }
 
 .block06a__body--col1 p {

@@ -5,19 +5,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { fetchPendingQueue, fetchMemberDirectory } from '../../../lib/journalist/fetchMemberLists'
 import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
-import { memberName, membershipPending, hasPendingDocuments } from '../../../lib/journalist/memberDisplay'
+import { memberName, membershipPending } from '../../../lib/journalist/memberDisplay'
 import { useUnionSettings } from './useUnionSettings'
 import MemberReviewPanel from './MemberReviewPanel'
-import MemberApprovalTable from './MemberApprovalTable'
+import UnionMembersTable from './UnionMembersTable'
 import { Button, Input, SlidePanel, Spinner } from '../../ui'
 
 const PAGE_SIZE = 50
 const QUEUE_FETCH_LIMIT = 100
 
 const QUEUE_FILTERS = [
-  { id: 'all', label: 'All', status: 'all_pending' },
+  { id: 'all', label: 'All pending', status: 'all_pending' },
   { id: 'membership', label: 'Membership', status: 'pending_membership' },
-  { id: 'documents', label: 'Documents', status: 'pending_documents' },
+  { id: 'verification', label: 'Photo / ID', status: 'pending_verification' },
+  { id: 'insurance', label: 'Aadhaar / PAN', status: 'pending_insurance_docs' },
 ]
 
 function Segmented({ options, value, onChange }) {
@@ -64,6 +65,7 @@ export default function JournalistUnionMembers({ variant = 'queue', refreshToken
   const [searchInput, setSearchInput] = useState('')
 
   const [selectedId, setSelectedId] = useState(null)
+  const [selectedRow, setSelectedRow] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
 
   // Reset pagination when switching queue ↔ directory
@@ -116,7 +118,12 @@ export default function JournalistUnionMembers({ variant = 'queue', refreshToken
     () => ({
       all: allRows.length,
       membership: allRows.filter((r) => membershipPending(r)).length,
-      documents: allRows.filter((r) => hasPendingDocuments(r)).length,
+      verification: allRows.filter((r) =>
+        ['photo', 'workingIdCard'].some((k) => r.documents?.[k]?.status === 'PENDING')
+      ).length,
+      insurance: allRows.filter((r) =>
+        ['aadhaar', 'pan'].some((k) => r.documents?.[k]?.status === 'PENDING')
+      ).length,
     }),
     [allRows]
   )
@@ -124,6 +131,7 @@ export default function JournalistUnionMembers({ variant = 'queue', refreshToken
   const openReview = (row) => {
     if (!row?.id) return
     setSelectedId(row.id)
+    setSelectedRow(row)
     setPanelOpen(true)
   }
 
@@ -256,10 +264,9 @@ export default function JournalistUnionMembers({ variant = 'queue', refreshToken
           <p className="text-sm text-slate-400 mt-1">Try a different filter or search term.</p>
         </div>
       ) : (
-        <MemberApprovalTable
+        <UnionMembersTable
           rows={allRows}
           showDirectoryCols={!isQueue}
-          onRefresh={load}
           onOpenReview={openReview}
         />
       )}
@@ -293,12 +300,19 @@ export default function JournalistUnionMembers({ variant = 'queue', refreshToken
         onClose={() => {
           setPanelOpen(false)
           setSelectedId(null)
+          setSelectedRow(null)
         }}
         title="Member profile"
         subtitle={memberName(allRows.find((r) => r.id === selectedId) || {})}
         width="xl"
       >
-        {selectedId ? <MemberReviewPanel profileId={selectedId} onUpdated={load} /> : null}
+        {selectedId ? (
+          <MemberReviewPanel
+            profileId={selectedId}
+            initialMember={selectedRow}
+            onUpdated={load}
+          />
+        ) : null}
       </SlidePanel>
     </div>
   )

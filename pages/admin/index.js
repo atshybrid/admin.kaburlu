@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import { getToken } from '../../utils/auth'
-import { isReporter } from '../../utils/roleUtils'
+import { isReporter, isUnionModerator } from '../../utils/roleUtils'
 
 // Check if user is DESK_EDITOR only
 function isDeskEditorOnly(user) {
@@ -138,6 +138,12 @@ export default function AdminDashboard() {
     // Redirect DESK_EDITOR to ePaper section
     if (isDeskEditorOnly(user)) {
       router.replace('/admin/epaper/editions')
+      return
+    }
+    
+    // Union Moderator — land on journalist union dashboard
+    if (isUnionModerator(user)) {
+      router.replace('/admin/journalist-union')
       return
     }
     

@@ -4,8 +4,13 @@
  */
 
 import { useState } from 'react'
-import { journalistApi } from '../../../lib/api/services/journalistApi'
-import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
+import {
+  patchMemberDocuments,
+  approveMembership,
+  generateUnionIdCard,
+  regenerateUnionIdCard,
+  formatDocActionError,
+} from '../../../lib/journalist/memberDocumentActions'
 import {
   DOC_KEYS,
   memberName,
@@ -170,11 +175,11 @@ export default function MemberApprovalTable({
   const handleDoc = async (profileId, docKey, action) => {
     setSavingKey(`${profileId}:${docKey}`)
     try {
-      const res = await journalistApi.updateMemberDocuments(profileId, { [docKey]: action })
+      const res = await patchMemberDocuments(profileId, [docKey], action)
       toast.success(res?.message || `${DOC_SHORT[docKey]} ${action}d`)
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'Document update failed'))
+      toast.error(formatDocActionError(err, 'Document update failed'))
     } finally {
       setSavingKey(null)
     }
@@ -183,7 +188,7 @@ export default function MemberApprovalTable({
   const handleMembership = async (profileId, approved) => {
     setMembershipSaving(profileId)
     try {
-      const res = await journalistApi.approveMembership(profileId, {
+      const res = await approveMembership(profileId, {
         approved,
         generateIdCard: approved,
       })
@@ -200,7 +205,7 @@ export default function MemberApprovalTable({
       }
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'Membership action failed'))
+      toast.error(formatDocActionError(err, 'Membership action failed'))
     } finally {
       setMembershipSaving(null)
     }
@@ -209,13 +214,13 @@ export default function MemberApprovalTable({
   const handleGenerateCard = async (profileId) => {
     setCardBusy(profileId)
     try {
-      const res = await journalistApi.generatePressCard({ profileId })
+      const res = await generateUnionIdCard(profileId)
       const info = parseApproveIdCardResult(res)
       if (info.generated) toast.success(info.message)
       else toast.error(info.message || 'Generate failed — approve all required KYC docs')
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'ID card generate failed'))
+      toast.error(formatDocActionError(err, 'ID card generate failed'))
     } finally {
       setCardBusy(null)
     }
@@ -224,11 +229,11 @@ export default function MemberApprovalTable({
   const handleRegenerateCard = async (profileId) => {
     setCardBusy(profileId)
     try {
-      await journalistApi.regenerateMemberPdf(profileId)
+      await regenerateUnionIdCard(profileId)
       toast.success('ID card PDF regenerated')
       onRefresh?.()
     } catch (err) {
-      toast.error(formatJournalistApiError(err, 'Regenerate failed'))
+      toast.error(formatDocActionError(err, 'Regenerate failed'))
     } finally {
       setCardBusy(null)
     }

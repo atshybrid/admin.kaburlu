@@ -7,7 +7,7 @@ const MM_PER_IN = 25.4
 const PX_PER_MM = 96 / MM_PER_IN
 
 export const BLOCK_08A_LOCKED = true
-export const BLOCK_08A_ENGINE_VERSION = 'threaded-v1.7'
+export const BLOCK_08A_ENGINE_VERSION = 'threaded-v1.9'
 
 export const BLOCK_08A = {
   code: 'BLOCK-08A',

@@ -19,4 +19,6 @@ export { default as TenantAdsTab } from './TenantAdsTab'
 export { default as TenantEpaperTab } from './TenantEpaperTab'
 export { default as TenantDomainSettingsTab } from './TenantDomainSettingsTab'
 export { default as TenantEditionsTab } from './TenantEditionsTab'
+export { default as TenantWalletTab } from './TenantWalletTab'
+export { default as TenantReporterBillingTab } from './TenantReporterBillingTab'
 

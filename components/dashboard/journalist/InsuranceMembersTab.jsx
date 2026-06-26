@@ -1,112 +1,116 @@
 /**
- * DJFW Insurance — card list from GET /journalist/admin/members
- * Filter by accidental / health status; open MemberReviewPanel for assign/unlock
+ * Insurance — pending applications queue + member directory
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { insuranceApplicationApi } from '../../../lib/api/services/insuranceApplicationApi'
 import { fetchMemberDirectory } from '../../../lib/journalist/fetchMemberLists'
 import { formatJournalistApiError } from '../../../lib/journalist/memberErrors'
+import { applicationStatusMeta } from '../../../lib/journalist/insuranceApplicationDisplay'
 import {
   memberName,
   memberMobile,
-  memberLocation,
   pressIdDisplay,
 } from '../../../lib/journalist/memberDisplay'
-import { insuranceStatusMeta } from '../../../lib/journalist/insuranceFlow'
 import { useUnionSettings } from './useUnionSettings'
 import MemberReviewPanel from './MemberReviewPanel'
 import { Button, Input, SlidePanel, Spinner, StatusBadge } from '../../ui'
 
 const PAGE_SIZE = 20
 
-const ACC_FILTERS = [
-  { id: 'ALL', label: 'All accidental' },
-  { id: 'LOCKED_SURVEY_REQUIRED', label: 'Locked (survey)' },
-  { id: 'UNLOCKED_CAN_APPLY', label: 'Ready to assign' },
-  { id: 'ACTIVE', label: 'Active' },
+const TYPE_FILTERS = [
+  { id: '', label: 'All types' },
+  { id: 'ACCIDENTAL', label: 'Accidental' },
+  { id: 'HEALTH', label: 'Health' },
 ]
 
-const HEALTH_FILTERS = [
-  { id: 'ALL', label: 'All health' },
-  { id: 'LOCKED_REQUIRES_ACCIDENTAL', label: 'Needs accidental' },
-  { id: 'LOCKED_SURVEY_REQUIRED', label: 'Locked (survey)' },
-  { id: 'UNLOCKED_CAN_APPLY', label: 'Ready to assign' },
-  { id: 'ACTIVE', label: 'Active' },
-]
-
-function InsuranceLaneBadge({ lane }) {
-  const meta = insuranceStatusMeta(lane?.status)
-  return <StatusBadge label={meta.label} color={meta.color} />
+function applicationToMemberFallback(item) {
+  if (item?.member && typeof item.member === 'object') return item.member
+  return {
+    id: item.profileId || item.memberId,
+    fullName: item.fullName,
+    mobileNumber: item.mobile || item.mobileNumber,
+  }
 }
 
-function InsuranceMemberCard({ row, onOpen }) {
-  const acc = row?.insurance?.accidental
-  const health = row?.insurance?.health
+function ApplicationRow({ item, onOpen }) {
+  const meta = applicationStatusMeta(item.status || 'SUBMITTED')
+  const name = item.fullName || memberName(item.member || item) || item.memberName || '—'
+  const mobile = item.mobile || memberMobile(item.member || item)
 
   return (
-    <article
-      role="button"
-      tabIndex={0}
-      onClick={() => onOpen(row)}
-      onKeyDown={(e) => e.key === 'Enter' && onOpen(row)}
-      className="rounded-xl border border-gray-200 bg-white p-4 hover:border-brand/30 hover:shadow-md transition-all cursor-pointer"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-gray-900">{memberName(row)}</h3>
-          <p className="text-sm text-gray-500">{memberMobile(row)}</p>
-          {pressIdDisplay(row) ? (
-            <p className="text-xs font-mono text-brand mt-0.5">{pressIdDisplay(row)}</p>
-          ) : null}
-        </div>
-        <span className="text-sm font-medium text-brand">Manage →</span>
-      </div>
-
-      <p className="text-xs text-gray-500 mt-2 truncate">{memberLocation(row)}</p>
-
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Accidental</p>
-          <div className="mt-1">
-            <InsuranceLaneBadge lane={acc} />
-          </div>
-          {acc?.nextStep ? (
-            <p className="text-[10px] text-slate-500 mt-1 leading-tight">{acc.nextStep}</p>
-          ) : null}
-        </div>
-        <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase text-slate-500">Health</p>
-          <div className="mt-1">
-            <InsuranceLaneBadge lane={health} />
-          </div>
-          {health?.nextStep ? (
-            <p className="text-[10px] text-slate-500 mt-1 leading-tight">{health.nextStep}</p>
-          ) : null}
-        </div>
-      </div>
-    </article>
+    <tr className="hover:bg-slate-50/70 border-t border-slate-100">
+      <td className="px-4 py-3">
+        <p className="font-medium text-sm text-slate-900">{name}</p>
+        <p className="text-xs text-slate-500 tabular-nums">{mobile}</p>
+        {pressIdDisplay(item.member || item) ? (
+          <p className="text-[11px] text-brand mt-0.5">{pressIdDisplay(item.member || item)}</p>
+        ) : null}
+      </td>
+      <td className="px-3 py-3 text-xs font-medium text-slate-700">
+        {item.type === 'HEALTH' ? 'Health' : 'Accidental'}
+      </td>
+      <td className="px-3 py-3">
+        <StatusBadge label={meta.label} color={meta.color} />
+      </td>
+      <td className="px-3 py-3 text-xs text-slate-500">
+        {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-IN') : '—'}
+      </td>
+      <td className="px-4 py-3 text-right">
+        <button
+          type="button"
+          onClick={() =>
+            onOpen(
+              item.profileId || item.memberId || item.member?.id,
+              applicationToMemberFallback(item)
+            )
+          }
+          className="text-xs font-medium text-slate-900 underline underline-offset-2 hover:text-brand"
+        >
+          Review
+        </button>
+      </td>
+    </tr>
   )
 }
 
 export default function InsuranceMembersTab({ refreshToken = 0 }) {
   const { unionName } = useUnionSettings()
 
+  const [view, setView] = useState('applications')
+  const [applications, setApplications] = useState([])
+  const [appLoading, setAppLoading] = useState(false)
+  const [typeFilter, setTypeFilter] = useState('')
+
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-
-  const [accFilter, setAccFilter] = useState('UNLOCKED_CAN_APPLY')
-  const [healthFilter, setHealthFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
   const [selectedId, setSelectedId] = useState(null)
+  const [selectedMember, setSelectedMember] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
 
-  const load = useCallback(async () => {
+  const loadApplications = useCallback(async () => {
+    setAppLoading(true)
+    try {
+      const params = { status: 'SUBMITTED', page: 1, limit: 50 }
+      if (typeFilter) params.type = typeFilter
+      const raw = await insuranceApplicationApi.listPending(params)
+      const items = raw?.items || raw?.data?.items || raw?.data || []
+      setApplications(Array.isArray(items) ? items : [])
+    } catch (err) {
+      setApplications([])
+      if (err?.status !== 404) setError(formatJournalistApiError(err, 'Failed to load applications'))
+    } finally {
+      setAppLoading(false)
+    }
+  }, [typeFilter])
+
+  const loadMembers = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -116,11 +120,8 @@ export default function InsuranceMembersTab({ refreshToken = 0 }) {
         limit: PAGE_SIZE,
         q: search,
         membershipStatus: 'APPROVED',
-        insuranceAccidental: accFilter,
-        insuranceHealth: healthFilter,
       })
       setRows(parsed.items)
-      setTotal(parsed.total)
       setTotalPages(parsed.totalPages)
     } catch (err) {
       setError(formatJournalistApiError(err, 'Failed to load members'))
@@ -128,173 +129,186 @@ export default function InsuranceMembersTab({ refreshToken = 0 }) {
     } finally {
       setLoading(false)
     }
-  }, [unionName, page, search, accFilter, healthFilter])
+  }, [unionName, page, search])
 
   useEffect(() => {
-    load()
-  }, [load, refreshToken])
+    loadApplications()
+  }, [loadApplications, refreshToken])
 
-  const readyCount = rows.filter((r) => r?.insurance?.accidental?.status === 'UNLOCKED_CAN_APPLY').length
-  const activeAcc = rows.filter((r) => r?.insurance?.accidental?.status === 'ACTIVE').length
+  useEffect(() => {
+    if (view === 'members') loadMembers()
+  }, [view, loadMembers, refreshToken])
+
+  const openMember = (id, row = null) => {
+    if (!id) return
+    setSelectedId(id)
+    setSelectedMember(row)
+    setPanelOpen(true)
+  }
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-900">
-        <strong>Why insurance?</strong> Party surveys unlock accidental cover; accidental must be active
-        before health. Use <em>Ready to assign</em> filter → open member → PATCH benefits (manual unlock)
-        or POST insurance (assign LIC policy). Survey approval auto-unlocks when configured.
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-3 p-4 rounded-xl bg-slate-50 border border-slate-200">
-        <form
-          className="flex gap-2 flex-1"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setSearch(searchInput)
-            setPage(1)
-          }}
-        >
-          <Input
-            placeholder="Name, mobile, press ID…"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="bg-white"
-          />
-          <Button type="submit" variant="secondary" size="sm">
-            Search
-          </Button>
-        </form>
-        <Button variant="ghost" size="sm" onClick={load} loading={loading}>
-          Refresh
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border bg-white px-4 py-3">
-          <p className="text-2xl font-bold text-gray-900">{total}</p>
-          <p className="text-xs text-gray-500">Matching members</p>
-        </div>
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-          <p className="text-2xl font-bold text-green-900">{readyCount}</p>
-          <p className="text-xs text-green-800">Ready (this page)</p>
-        </div>
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-          <p className="text-2xl font-bold text-blue-900">{activeAcc}</p>
-          <p className="text-xs text-blue-800">Active accidental (page)</p>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase text-slate-500">Accidental filter</p>
-        <div className="flex flex-wrap gap-2">
-          {ACC_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => {
-                setAccFilter(f.id)
-                setPage(1)
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                accFilter === f.id
-                  ? 'bg-brand text-white'
-                  : 'bg-white border border-gray-200 text-gray-600'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase text-slate-500">Health filter</p>
-        <div className="flex flex-wrap gap-2">
-          {HEALTH_FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => {
-                setHealthFilter(f.id)
-                setPage(1)
-              }}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-                healthFilter === f.id
-                  ? 'bg-brand text-white'
-                  : 'bg-white border border-gray-200 text-gray-600'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" />
-        </div>
-      ) : rows.length === 0 ? (
-        <p className="text-center text-gray-500 py-12 border border-dashed rounded-xl">
-          No approved members match these insurance filters
+      <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white px-4 py-4">
+        <p className="text-sm text-slate-700">
+          <strong>Insurance flow:</strong> KYC docs approved → member submits application form →
+          you approve form → assign policy → upload insurance card.
         </p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {rows.map((row) => (
-            <InsuranceMemberCard
-              key={row.id}
-              row={row}
-              onOpen={(r) => {
-                setSelectedId(r.id)
-                setPanelOpen(true)
-              }}
-            />
-          ))}
-        </div>
-      )}
+      </div>
 
-      {totalPages > 1 ? (
-        <div className="flex items-center justify-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+      <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+        {[
+          { id: 'applications', label: `Pending forms (${applications.length})` },
+          { id: 'members', label: 'All members' },
+        ].map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setView(v.id)}
+            className={`px-4 py-1.5 text-xs font-medium rounded-md ${
+              view === v.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+            }`}
           >
-            Previous
-          </Button>
-          <span className="text-sm text-gray-600">
-            Page {page} / {totalPages}
-          </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => p + 1)}
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'applications' ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {TYPE_FILTERS.map((f) => (
+              <button
+                key={f.id || 'all'}
+                type="button"
+                onClick={() => setTypeFilter(f.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                  typeFilter === f.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-white border border-slate-200 text-slate-600'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+            <Button variant="ghost" size="sm" onClick={loadApplications} loading={appLoading}>
+              Refresh
+            </Button>
+          </div>
+
+          {appLoading ? (
+            <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+          ) : applications.length === 0 ? (
+            <p className="text-center text-slate-500 py-12 border border-dashed rounded-xl">
+              No insurance applications awaiting review
+            </p>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-3 font-semibold">Member</th>
+                    <th className="px-3 py-3 font-semibold">Type</th>
+                    <th className="px-3 py-3 font-semibold">Status</th>
+                    <th className="px-3 py-3 font-semibold">Submitted</th>
+                    <th className="px-4 py-3 font-semibold text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((item) => (
+                    <ApplicationRow
+                      key={item.id || `${item.profileId}-${item.type}`}
+                      item={item}
+                      onOpen={openMember}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <form
+            className="flex gap-2 max-w-md"
+            onSubmit={(e) => {
+              e.preventDefault()
+              setSearch(searchInput)
+              setPage(1)
+            }}
           >
-            Next
-          </Button>
-        </div>
-      ) : null}
+            <Input
+              placeholder="Search name, mobile, press ID…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+            <Button type="submit" variant="secondary" size="sm">Search</Button>
+          </form>
+
+          {error ? (
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+          ) : null}
+
+          {loading ? (
+            <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+          ) : rows.length === 0 ? (
+            <p className="text-center text-slate-500 py-12 border border-dashed rounded-xl">No members found</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {rows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => openMember(row.id, row)}
+                  className="text-left rounded-xl border border-slate-200 bg-white p-4 hover:border-slate-300 hover:shadow-sm transition-all"
+                >
+                  <p className="font-medium text-slate-900">{memberName(row)}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{memberMobile(row)}</p>
+                  <div className="flex gap-2 mt-2">
+                    <StatusBadge
+                      label={row?.insurance?.accidental?.status === 'ACTIVE' ? 'Acc active' : 'Acc —'}
+                      color={row?.insurance?.accidental?.status === 'ACTIVE' ? 'green' : 'gray'}
+                    />
+                    <StatusBadge
+                      label={row?.insurance?.health?.status === 'ACTIVE' ? 'Health active' : 'Health —'}
+                      color={row?.insurance?.health?.status === 'ACTIVE' ? 'green' : 'gray'}
+                    />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {totalPages > 1 ? (
+            <div className="flex justify-center gap-3">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Button>
+              <span className="text-sm text-slate-600 self-center">{page} / {totalPages}</span>
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Button>
+            </div>
+          ) : null}
+        </>
+      )}
 
       <SlidePanel
         isOpen={panelOpen}
         onClose={() => {
           setPanelOpen(false)
           setSelectedId(null)
+          setSelectedMember(null)
         }}
-        title="Insurance & benefits"
-        subtitle={memberName(rows.find((r) => r.id === selectedId) || {})}
+        title="Insurance review"
         width="xl"
       >
         {selectedId ? (
-          <MemberReviewPanel profileId={selectedId} onUpdated={load} initialSection="insurance" />
+          <MemberReviewPanel
+            profileId={selectedId}
+            initialMember={selectedMember}
+            onUpdated={() => { loadApplications(); loadMembers() }}
+            initialSection="insurance"
+          />
         ) : null}
       </SlidePanel>
     </div>

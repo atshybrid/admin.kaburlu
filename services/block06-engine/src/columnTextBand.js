@@ -1,7 +1,7 @@
 import { BLOCK_06A, columnWidthMm, mmToPx } from './constants.js'
 
 const PX_TO_MM = 25.4 / 96
-const BODY_LINE_PX = BLOCK_06A.bodyFontPx * 1.42
+const BODY_LINE_PX = BLOCK_06A.bodyLinePx
 
 /** Obstacles in CSS pixels (matches generateBlock06Css). */
 export function measureObstacleHeightsPx({ highlights = [], hasImage = false } = {}) {
@@ -20,13 +20,20 @@ export function measureObstacleHeightsPx({ highlights = [], hasImage = false } =
   }
 }
 
-function charsPerLinePx(colWidthPx) {
-  return Math.max(12, Math.floor(colWidthPx / 8.2))
+const TELUGU_SCRIPT_RE = /[\u0C00-\u0C7F]/
+
+/** Mandali 11px — Telugu glyphs need fewer chars/line than Latin heuristic. */
+function charsPerLinePx(colWidthPx, text = '') {
+  const sample = String(text || '')
+  const teluguChars = (sample.match(TELUGU_SCRIPT_RE) || []).length
+  const teluguHeavy = teluguChars > 0 && teluguChars / Math.max(1, sample.length) >= 0.35
+  const pxPerChar = teluguHeavy ? 11.4 : 8.2
+  return Math.max(8, Math.floor(colWidthPx / pxPerChar))
 }
 
 export function wordsPerLineForColumn(colWidthMm = columnWidthMm()) {
   const colWidthPx = mmToPx(colWidthMm)
-  return Math.max(3, Math.floor(charsPerLinePx(colWidthPx) / 6.5))
+  return Math.max(3, Math.floor(charsPerLinePx(colWidthPx, 'తెలుగు') / 6.5))
 }
 
 export function lineHeightPx() {
@@ -40,7 +47,7 @@ export function lineHeightMm() {
 export function textLinesForWordSlice(wordSlice, colWidthPx) {
   const text = wordSlice.join(' ').trim()
   if (!text) return 0
-  const cpl = charsPerLinePx(colWidthPx)
+  const cpl = charsPerLinePx(colWidthPx, text)
   return Math.max(1, Math.ceil(text.length / cpl))
 }
 
@@ -90,6 +97,7 @@ function scoreSplit(w1, words, obsPx, colWidthPx) {
     spread: spreadPx * PX_TO_MM,
     spreadPx,
     bottomMm: Math.max(b1, b2) * PX_TO_MM,
+    score,
   }
 }
 

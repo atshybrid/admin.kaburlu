@@ -34,7 +34,7 @@ export const adminNavigation = {
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'roles', href: '/admin/roles', label: 'Roles', icon: IconShield, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
-    { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...CARTOON_ROLES] },
+    { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'UNION_MODERATOR', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...CARTOON_ROLES] },
   ],
   platform: [
     {
@@ -64,9 +64,22 @@ export const adminNavigation = {
   ],
   tenants: [
     { key: 'tenants', href: '/admin/tenants', label: 'All Tenants', icon: IconBuilding, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    {
+      key: 'tenant-wallets',
+      href: '/admin/tenant-wallets',
+      label: 'Tenant Wallet System',
+      icon: IconCreditCard,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN'],
+    },
   ],
   journalist: [
-    { key: 'journalist-union', href: '/admin/journalist-union', label: 'Journalist Union', icon: IconNewspaper, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
+    {
+      key: 'journalist-union',
+      href: '/admin/journalist-union',
+      label: 'Journalist Union',
+      icon: IconNewspaper,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'UNION_MODERATOR'],
+    },
   ],
   political: [
     {
@@ -95,7 +108,7 @@ export const adminNavigation = {
       href: '/admin/union-surveys',
       label: 'Union Surveys',
       icon: IconNewspaper,
-      roles: ['SUPER_ADMIN', 'SUPERADMIN'],
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'UNION_MODERATOR'],
     },
   ],
   settings: [

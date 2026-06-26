@@ -8,7 +8,7 @@ const PX_PER_MM = 96 / MM_PER_IN
 
 /** Bump only with explicit approval; must match block06LockedRules.js */
 export const BLOCK_06A_LOCKED = true
-export const BLOCK_06A_ENGINE_VERSION = 'threaded-v3.4'
+export const BLOCK_06A_ENGINE_VERSION = 'threaded-v3.6'
 
 export const BLOCK_06A = {
   code: 'BLOCK-06A',
