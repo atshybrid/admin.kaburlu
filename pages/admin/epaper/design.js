@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import Image from 'next/image'
+import Link from 'next/link'
 import DashboardLayout from '../../../components/dashboard/DashboardLayout'
 import { getToken, logout } from '../../../utils/auth'
 import { useRouter } from 'next/router'
@@ -3496,12 +3497,12 @@ export default function EPaperDesignPage() {
                         )
                       })}
                     </div>
-                    <a
+                    <Link
                       href="/admin/epaper/block-templates"
                       className="mt-2 inline-block text-[10px] font-semibold text-blue-700 hover:underline"
                     >
                       Block preview studio →
-                    </a>
+                    </Link>
                   </div>
 
                   {/* Auto-fill buttons */}
