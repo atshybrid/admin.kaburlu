@@ -6,7 +6,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { idCardSettingsApi } from '../../../lib/api/services/idCardSettingsApi'
 import { formatWalletError } from '../../../lib/tenantWallet/walletErrors'
 import { looksLikeInternalId } from '../../../lib/tenantWallet/displayLabels'
-import { getToken } from '../../../utils/auth'
+import { uploadMedia } from '../../../lib/api/services/mediaApi'
+
+const MAX_UPLOAD_MB = 2
 
 const DEFAULT_ALLOWED_VALIDITY_DAYS = [30, 90, 180, 365]
 
@@ -576,29 +578,27 @@ export default function TenantIdCardsTab({ tenantContext }) {
   // Upload image
   const uploadImage = useCallback(async (file, fieldKey) => {
     if (!file || !tenant?.id) return
-    
+
+    if (!file.type?.startsWith('image/')) {
+      showMessage('error', 'Please select a valid image file (PNG, JPG)')
+      return
+    }
+    if (file.size / (1024 * 1024) > MAX_UPLOAD_MB) {
+      showMessage('error', `Image must be under ${MAX_UPLOAD_MB}MB`)
+      return
+    }
+
     setUploading(prev => ({ ...prev, [fieldKey]: true }))
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('folder', `tenants/${tenant.id}/id-card`)
-      
-      const token = getToken()
-      const res = await fetch('/api/admin/media/upload', {
-        method: 'POST',
-        headers: token?.token ? { Authorization: `Bearer ${token.token}` } : {},
-        body: fd,
-      })
-      if (!res.ok) throw new Error('Upload failed')
-      
-      const data = await res.json()
-      const url = data.publicUrl || data.url
+      const { url } = await uploadMedia(file, `tenants/${tenant.id}/id-card`)
       if (url) {
         handleChange(fieldKey, url)
         showMessage('success', 'Image uploaded!')
+      } else {
+        showMessage('error', 'Upload succeeded but no URL returned')
       }
     } catch (e) {
-      showMessage('error', e.message || 'Upload failed')
+      showMessage('error', e?.message || 'Upload failed')
     } finally {
       setUploading(prev => ({ ...prev, [fieldKey]: false }))
     }

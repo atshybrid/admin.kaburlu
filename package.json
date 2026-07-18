@@ -15,7 +15,8 @@
     "block08:start": "cd services/block08-engine && npm start",
     "block08:test": "cd services/block08-engine && npm run test:render",
     "header-html:dev": "cd services/epaper-header-html && npm run dev",
-    "header-html:start": "cd services/epaper-header-html && npm start"
+    "header-html:start": "cd services/epaper-header-html && npm start",
+    "deploy:droplet": "bash scripts/deploy_droplet.sh"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.14",
