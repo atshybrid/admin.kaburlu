@@ -1,5 +1,6 @@
 import '../styles/globals.css'
-import { Component as ReactComponent, useEffect } from 'react'
+import { Component as ReactComponent, useEffect, useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MpinReLoginModal from '../components/auth/MpinReLoginModal'
 import useSessionExpiry from '../hooks/useSessionExpiry'
 import { initSessionTracking } from '../utils/sessionTracker'
@@ -55,9 +56,15 @@ function AppContent({ Component, pageProps }) {
 }
 
 export default function App({ Component, pageProps, ...rest }) {
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  }))
+
   return (
     <ErrorBoundary>
-      <AppContent Component={Component} pageProps={pageProps} {...rest} />
+      <QueryClientProvider client={queryClient}>
+        <AppContent Component={Component} pageProps={pageProps} {...rest} />
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }
