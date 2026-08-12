@@ -10,8 +10,9 @@ import DashboardLayout from '../../components/dashboard/DashboardLayout'
 import EmpanelmentPdfDocument from '../../components/ipr/EmpanelmentPdfDocument'
 import { toast } from '../../components/ui'
 import { iprEmpanelmentApi } from '../../lib/api/services/iprEmpanelmentApi'
-import { tenantsApi } from '../../lib/api/tenantApi'
+import { reportersApi, tenantsApi } from '../../lib/api/tenantApi'
 import { getToken } from '../../utils/auth'
+import { getUserTenantId } from '../../utils/roleUtils'
 import {
   IPR_DRAFT_KEY,
   applyAutoStaff,
@@ -151,7 +152,7 @@ function StaffTable({ staff, onChange }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div><h2 className="font-semibold text-slate-900">Part D · Staff</h2><p className="mt-1 text-sm text-slate-500">Publisher, Editor, Designer, Marketing Executive and Reporter are prepared automatically.</p></div>
+        <div><h2 className="font-semibold text-slate-900">Part D · Staff</h2><p className="mt-1 text-sm text-slate-500">Publisher and Editor fill from form data. Reporters auto-fill from the selected tenant.</p></div>
         <button type="button" onClick={add} className="rounded-lg border border-brand px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand/5">Add staff</button>
       </div>
       <div className="overflow-x-auto">
@@ -188,7 +189,7 @@ function DocumentChecklist({ items, documents, onChange }) {
 
 export default function IprEmpanelmentApplication() {
   const router = useRouter()
-  const { watch, reset, setValue } = useForm({ defaultValues: initialForm, resolver: zodResolver(iprSchema) })
+  const { watch, reset, setValue, getValues } = useForm({ defaultValues: initialForm, resolver: zodResolver(iprSchema) })
   const form = watch()
   const [exporting, setExporting] = useState(false)
   const [draftRestored, setDraftRestored] = useState(false)
@@ -199,6 +200,7 @@ export default function IprEmpanelmentApplication() {
   const [saveState, setSaveState] = useState('Local draft')
   const exportDocumentRef = useRef(null)
   const applicationIdRef = useRef('')
+  const reportersFilledForRef = useRef('')
   const savingRef = useRef(false)
   const tenantId = selectedTenantId || (typeof router.query.tenantId === 'string' ? router.query.tenantId : '')
   const prgiLookup = useMutation({ mutationFn: findPrgiRecord })
@@ -211,6 +213,15 @@ export default function IprEmpanelmentApplication() {
       return Array.isArray(items) ? items : []
     },
   })
+  const reportersQuery = useQuery({
+    queryKey: ['ipr-empanelment-reporters', tenantId],
+    queryFn: async () => {
+      const data = await reportersApi.list(tenantId)
+      return Array.isArray(data) ? data : (data?.data || data?.items || [])
+    },
+    enabled: Boolean(tenantId),
+  })
+  const reporters = reportersQuery.data || []
   const update = (name, value) => setValue(name, value, { shouldDirty: true })
   const warnings = useMemo(() => getValidationWarnings(form), [form])
   const documentChecklist = useMemo(() => getDocumentChecklist(form), [form])
@@ -245,6 +256,20 @@ export default function IprEmpanelmentApplication() {
       savingRef.current = false
     }
   }, [form, tenantId])
+
+  useEffect(() => {
+    const user = getToken()?.user || getToken()?.data?.user
+    const userTenantId = getUserTenantId(user)
+    if (userTenantId) setSelectedTenantId((current) => current || userTenantId)
+  }, [])
+
+  useEffect(() => {
+    if (!draftRestored || !tenantId || !reportersQuery.isSuccess || !reporters.length) return
+    const key = `${tenantId}:${reporters.map((reporter) => reporter.id).join(',')}`
+    if (reportersFilledForRef.current === key) return
+    reportersFilledForRef.current = key
+    setValue('staff', applyAutoStaff(getValues(), reporters), { shouldDirty: true })
+  }, [draftRestored, tenantId, reportersQuery.isSuccess, reporters, getValues, setValue])
 
   useEffect(() => {
     try {
@@ -284,7 +309,7 @@ export default function IprEmpanelmentApplication() {
   const applySmartDefaults = () => {
     const defaults = createSmartDefaults(form.dailyPrintCount)
     const next = { ...form, ...defaults }
-    next.staff = applyAutoStaff({ ...next, ...form })
+    next.staff = applyAutoStaff({ ...next, ...form }, reporters)
     reset(next)
     toast.success('Smart defaults applied')
   }
@@ -292,7 +317,7 @@ export default function IprEmpanelmentApplication() {
   const applyRecord = (record) => {
     const mapped = toIprFormValues(record)
     const next = { ...form, ...mergeKnownValues(form, mapped) }
-    next.staff = applyAutoStaff(next)
+    next.staff = applyAutoStaff(next, reporters)
     next.districtMandalCirculation = next.dailyPrintCount
       ? createSmartDefaults(next.dailyPrintCount).districtMandalCirculation
       : form.districtMandalCirculation
@@ -471,7 +496,7 @@ export default function IprEmpanelmentApplication() {
           </div>
           <label className="mt-4 block text-sm font-medium text-slate-700">
             Tenant <span className="font-normal text-slate-500">(required only for Super Admin create)</span>
-            <select value={tenantId} onChange={(event) => setSelectedTenantId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
+            <select value={tenantId} onChange={(event) => { reportersFilledForRef.current = ''; setSelectedTenantId(event.target.value) }} className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20">
               <option value="">{tenantsQuery.isPending ? 'Loading tenants…' : 'Select tenant'}</option>
               {tenantsQuery.data?.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name || tenant.slug || 'Unnamed tenant'}{tenant.prgiNumber ? ` · ${tenant.prgiNumber}` : ''}</option>)}
             </select>
