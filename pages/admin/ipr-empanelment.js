@@ -12,7 +12,7 @@ import { toast } from '../../components/ui'
 import { iprEmpanelmentApi } from '../../lib/api/services/iprEmpanelmentApi'
 import { reportersApi, tenantsApi } from '../../lib/api/tenantApi'
 import { getToken } from '../../utils/auth'
-import { getUserTenantId } from '../../utils/roleUtils'
+import { getUserTenantId, normalizeRole } from '../../utils/roleUtils'
 import {
   IPR_DRAFT_KEY,
   applyAutoStaff,
@@ -41,6 +41,17 @@ const initialForm = {
     printerCertificate: { present: false, name: '' }, ownerProof: { present: false, name: '' }, addressProof: { present: false, name: '' },
   },
   declarationDate: '', declarationPlace: '', signatoryName: '',
+}
+
+const BACKEND_AUTOSAVE_MS = 30000
+
+function canSyncToBackend({ tenantId, applicationId }) {
+  const token = getToken()?.token
+  if (!token) return false
+  const user = getToken()?.user || getToken()?.data?.user
+  const role = normalizeRole(user)
+  if ((role === 'SUPERADMIN' || role === 'ADMIN') && !tenantId && !applicationId) return false
+  return true
 }
 
 const iprSchema = z.object({
@@ -202,6 +213,8 @@ export default function IprEmpanelmentApplication() {
   const applicationIdRef = useRef('')
   const reportersFilledForRef = useRef('')
   const savingRef = useRef(false)
+  const lastBackendSyncRef = useRef(0)
+  const backendErrorToastRef = useRef(0)
   const tenantId = selectedTenantId || (typeof router.query.tenantId === 'string' ? router.query.tenantId : '')
   const prgiLookup = useMutation({ mutationFn: findPrgiRecord })
   const recordSearch = useMutation({ mutationFn: searchIprRecords })
@@ -226,15 +239,14 @@ export default function IprEmpanelmentApplication() {
   const warnings = useMemo(() => getValidationWarnings(form), [form])
   const documentChecklist = useMemo(() => getDocumentChecklist(form), [form])
 
-  const saveToBackend = useCallback(async (snapshot = form) => {
-    const user = getToken()?.user || getToken()?.data?.user
-    const role = String(user?.role?.name || user?.role || user?.roleName || '').toUpperCase().replace(/[_\s-]/g, '')
-    if ((role === 'SUPERADMIN' || role === 'ADMIN') && !tenantId && !applicationIdRef.current) {
-      const message = 'Enter Tenant ID before saving this Super Admin draft'
-      setSaveState(message)
-      throw new Error(message)
+  const saveToBackend = useCallback(async (snapshot = form, { silent = false } = {}) => {
+    if (!canSyncToBackend({ tenantId, applicationId: applicationIdRef.current })) {
+      const message = 'Select a tenant before saving this draft to the backend'
+      setSaveState('Local draft')
+      if (!silent) throw new Error(message)
+      return null
     }
-    if (savingRef.current) return applicationIdRef.current
+    if (savingRef.current) return applicationIdRef.current || null
     savingRef.current = true
     setSaveState('Saving to backend…')
     try {
@@ -251,7 +263,13 @@ export default function IprEmpanelmentApplication() {
       return id
     } catch (error) {
       setSaveState('Local draft only')
-      throw error
+      if (!silent) throw error
+      const now = Date.now()
+      if (now - backendErrorToastRef.current > 60000) {
+        backendErrorToastRef.current = now
+        toast.error(error.message || 'Backend autosave failed — saved locally')
+      }
+      return null
     } finally {
       savingRef.current = false
     }
@@ -268,7 +286,7 @@ export default function IprEmpanelmentApplication() {
     const key = `${tenantId}:${reporters.map((reporter) => reporter.id).join(',')}`
     if (reportersFilledForRef.current === key) return
     reportersFilledForRef.current = key
-    setValue('staff', applyAutoStaff(getValues(), reporters), { shouldDirty: true })
+    setValue('staff', applyAutoStaff(getValues(), reporters), { shouldDirty: false })
   }, [draftRestored, tenantId, reportersQuery.isSuccess, reporters, getValues, setValue])
 
   useEffect(() => {
@@ -299,12 +317,23 @@ export default function IprEmpanelmentApplication() {
   useEffect(() => {
     if (!draftRestored) return undefined
     const saveDraft = window.setTimeout(() => {
-      window.localStorage.setItem(IPR_DRAFT_KEY, JSON.stringify({ form, applicationId: applicationIdRef.current, savedAt: new Date().toISOString() }))
-      setLastSaved(new Date())
-      saveToBackend(form).catch((error) => toast.error(error.message || 'Backend autosave failed'))
+      void (async () => {
+        try {
+          const snapshot = getValues()
+          window.localStorage.setItem(IPR_DRAFT_KEY, JSON.stringify({ form: snapshot, applicationId: applicationIdRef.current, savedAt: new Date().toISOString() }))
+          setLastSaved(new Date())
+          setSaveState((current) => (current === 'Saving to backend…' ? current : 'Saved locally'))
+          const now = Date.now()
+          if (now - lastBackendSyncRef.current < BACKEND_AUTOSAVE_MS) return
+          lastBackendSyncRef.current = now
+          await saveToBackend(snapshot, { silent: true })
+        } catch {
+          setSaveState('Local draft only')
+        }
+      })()
     }, 5000)
     return () => window.clearTimeout(saveDraft)
-  }, [form, draftRestored, saveToBackend])
+  }, [form, draftRestored, getValues, saveToBackend])
 
   const applySmartDefaults = () => {
     const defaults = createSmartDefaults(form.dailyPrintCount)
