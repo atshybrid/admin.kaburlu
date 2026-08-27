@@ -311,6 +311,13 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   const [adManagerNetworkCode, setAdManagerNetworkCode] = useState('')
   const [webPushVapidPublicKey, setWebPushVapidPublicKey] = useState('')
   const [fcmSenderId, setFcmSenderId] = useState('')
+
+  // Google Publisher Center (NEWS domains only)
+  const [googlePublisherEnabled, setGooglePublisherEnabled] = useState(false)
+  const [googlePublisherPublicationId, setGooglePublisherPublicationId] = useState('')
+  const [googlePublisherProductId, setGooglePublisherProductId] = useState('')
+  const [googlePublisherSwgTheme, setGooglePublisherSwgTheme] = useState('light')
+  const [googlePublisherSwgLang, setGooglePublisherSwgLang] = useState('te')
   
   // =========== SECRETS ===========
   const [webPushVapidPrivateKey, setWebPushVapidPrivateKey] = useState('')
@@ -329,8 +336,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   // Detect if selected domain is ePaper
   const selectedDomain = useMemo(() => domains.find(d => d.id === domainId), [domains, domainId])
   const isEpaperDomain = useMemo(() => {
-    if (!selectedDomain?.domain) return false
-    return selectedDomain.domain.startsWith('epaper.') || selectedDomain.type === 'EPAPER'
+    if (!selectedDomain) return false
+    return selectedDomain.kind === 'EPAPER' || selectedDomain.domain?.startsWith('epaper.') || selectedDomain.type === 'EPAPER'
   }, [selectedDomain])
   
   // =========== API FUNCTIONS ===========
@@ -446,6 +453,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       setAdManagerNetworkCode(cfg?.integrations?.ads?.adManagerNetworkCode || '')
       setWebPushVapidPublicKey(cfg?.integrations?.push?.webPushVapidPublicKey || '')
       setFcmSenderId(cfg?.integrations?.push?.fcmSenderId || '')
+      setGooglePublisherEnabled(Boolean(cfg?.integrations?.googlePublisher?.enabled))
+      setGooglePublisherPublicationId(cfg?.integrations?.googlePublisher?.publicationId || '')
+      setGooglePublisherProductId(cfg?.integrations?.googlePublisher?.subscribeWithGoogleProductId || '')
+      setGooglePublisherSwgTheme(cfg?.integrations?.googlePublisher?.swgTheme || 'light')
+      setGooglePublisherSwgLang(cfg?.integrations?.googlePublisher?.swgLang || 'te')
       setWebPushVapidPrivateKey(cfg?.secrets?.push?.webPushVapidPrivateKey || '')
       setFcmServerKey(cfg?.secrets?.push?.fcmServerKey || '')
       setGoogleServiceAccountJson(cfg?.secrets?.google?.serviceAccountJson || '')
@@ -593,6 +605,13 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
         webPushVapidPublicKey: webPushVapidPublicKey || null,
         fcmSenderId: fcmSenderId || null,
       },
+      googlePublisher: {
+        enabled: googlePublisherEnabled,
+        publicationId: googlePublisherPublicationId || null,
+        subscribeWithGoogleProductId: googlePublisherProductId || null,
+        swgTheme: googlePublisherSwgTheme || 'light',
+        swgLang: googlePublisherSwgLang || 'te',
+      },
     },
     secrets: {
       push: {
@@ -614,6 +633,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     googleSiteVerification, bingSiteVerification, adsenseClientId, googleAdsConversionId,
     googleAdsConversionLabel, adManagerNetworkCode, webPushVapidPublicKey, fcmSenderId,
     webPushVapidPrivateKey, fcmServerKey, googleServiceAccountJson,
+    googlePublisherEnabled, googlePublisherPublicationId, googlePublisherProductId,
+    googlePublisherSwgTheme, googlePublisherSwgLang,
     enableComments, enableBookmarks, customCss
   ])
   
@@ -1370,6 +1391,56 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
           </FormField>
         </div>
       </Section>
+
+      {!isEpaperDomain && (
+        <Section title="Google Publisher Center" description="Subscribe with Google (SwG) — domain-specific publication settings">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-xs text-blue-900">
+              Settings for <strong>{selectedDomain?.domain || 'this news domain'}</strong>. Each domain (e.g. daxintimes.com) has its own Publisher Center publication.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <Toggle
+              label="Enable Google Publisher Center"
+              checked={googlePublisherEnabled}
+              onChange={setGooglePublisherEnabled}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField label="Publication ID" description="From Google Publisher Center">
+                <Input
+                  value={googlePublisherPublicationId}
+                  onChange={setGooglePublisherPublicationId}
+                  placeholder="CAow3dXHDA"
+                />
+              </FormField>
+              <FormField label="Subscribe with Google Product ID" description="Copy from Publisher Center → Subscribe with Google">
+                <Input
+                  value={googlePublisherProductId}
+                  onChange={setGooglePublisherProductId}
+                  placeholder="CAow3dXHDA:openaccess"
+                />
+              </FormField>
+              <FormField label="SwG Theme">
+                <Select
+                  value={googlePublisherSwgTheme}
+                  onChange={setGooglePublisherSwgTheme}
+                  options={[
+                    { value: 'light', label: 'Light' },
+                    { value: 'dark', label: 'Dark' },
+                  ]}
+                />
+              </FormField>
+              <FormField label="SwG Language" description="BCP-47 code (e.g. te, en)">
+                <Input
+                  value={googlePublisherSwgLang}
+                  onChange={setGooglePublisherSwgLang}
+                  placeholder="te"
+                />
+              </FormField>
+            </div>
+          </div>
+        </Section>
+      )}
       
       {/* Ads Integration */}
       <Section title="Ads Integration" description="Google AdSense, Google Ads, and Ad Manager settings">
@@ -1625,9 +1696,9 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
                 active={activeTab === 'advanced'} 
                 onClick={() => setActiveTab('advanced')} 
                 icon="⚙️"
-                verified={!!(analyticsId || customCss)}
+                verified={!!(analyticsId || googlePublisherPublicationId || googlePublisherProductId)}
               >
-                Advanced
+                Integrations
               </TabButton>
             </>
           )}
