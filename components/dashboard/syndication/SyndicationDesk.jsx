@@ -9,6 +9,12 @@ import syndicationApi, { SyndicationApiError } from '../../../lib/api/services/s
 import { categoriesService, languagesService } from '../../../lib/api/services'
 import { resolveTenantId } from '../../../lib/article/resolveAuthTenants'
 import { buildPublishPrepPatch, resolvePublishDomain } from '../../../lib/syndication/publishPrep'
+import {
+  extractSyndicationErrorMessage,
+  tenantWebHeadline,
+  validateGeneratedJob,
+} from '../../../lib/syndication/apiResponse'
+import { getAuthUser } from '../../../utils/auth'
 import SyndicationImageSection, { syndicationHasCoverImage } from './SyndicationImageSection'
 import SyndicationAiLoader from './SyndicationAiLoader'
 import SyndicationStepper from './SyndicationStepper'
@@ -24,6 +30,19 @@ function unwrapList(raw) {
 }
 
 const DEFAULT_SHORT_NEWS_TENANT_ID = process.env.NEXT_PUBLIC_SHORT_NEWS_TENANT_ID || 'cmk7e7tg401ezlp22wkz5rxky'
+
+const FALLBACK_CATEGORY_NAMES = [
+  'రాజకీయం',
+  'క్రైమ్',
+  'క్రీడలు',
+  'వ్యాపారం',
+  'విద్య',
+  'ఆరోగ్యం',
+  'మనోరంజనం',
+  'Politics',
+  'Crime',
+  'Sports',
+]
 
 function normalizeTenantRecord(tenant) {
   const id = resolveTenantId(tenant)
@@ -149,10 +168,10 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
     [tenants, selectedTenantIds],
   )
 
-  const categoryNames = useMemo(
-    () => categories.map((cat) => cat.name || cat.translatedName).filter(Boolean),
-    [categories],
-  )
+  const categoryNames = useMemo(() => {
+    const fromApi = categories.map((cat) => cat.name || cat.translatedName).filter(Boolean)
+    return fromApi.length ? fromApi : FALLBACK_CATEGORY_NAMES
+  }, [categories])
 
   const staleJobTenants = useMemo(
     () => jobHasStaleTenants(job, selectedTenantIds, shortNewsTenantId),
@@ -203,20 +222,30 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
 
   const loadCategories = useCallback(async () => {
     try {
-      const languages = await languagesService.getAll()
-      const telugu = languages.find(
-        (lang) => (lang.code || lang.languageCode || '').toLowerCase() === 'te',
-      ) || languages[0]
-
+      const authUser = getAuthUser()
       let categoryList = []
-      if (telugu?.id) {
-        const byLanguageId = await apiClient.get('/categories', { languageId: telugu.id })
-        categoryList = unwrapList(byLanguageId)
+
+      if (authUser?.languageId) {
+        const byUserLanguage = await apiClient.get('/categories', { languageId: authUser.languageId })
+        categoryList = unwrapList(byUserLanguage)
       }
-      if (!categoryList.length && telugu?.code) {
-        const byLanguageCode = await apiClient.get('/categories', { languageCode: telugu.code })
-        categoryList = unwrapList(byLanguageCode)
+
+      if (!categoryList.length) {
+        const languages = await languagesService.getAll()
+        const telugu = languages.find(
+          (lang) => (lang.code || lang.languageCode || '').toLowerCase() === 'te',
+        ) || languages[0]
+
+        if (telugu?.id) {
+          const byLanguageId = await apiClient.get('/categories', { languageId: telugu.id })
+          categoryList = unwrapList(byLanguageId)
+        }
+        if (!categoryList.length && telugu?.code) {
+          const byLanguageCode = await apiClient.get('/categories', { languageCode: telugu.code })
+          categoryList = unwrapList(byLanguageCode)
+        }
       }
+
       if (!categoryList.length) {
         const allCategories = await categoriesService.getAll()
         categoryList = unwrapList(allCategories)
@@ -349,10 +378,10 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
 
   const buildPayload = () => {
     const category = resolveCategoryPayload(categories, job)
+    const resolvedCategoryNames = categoryNames.length ? categoryNames : FALLBACK_CATEGORY_NAMES
     return {
       rawText: rawText.trim(),
       category,
-      categories: categoryNames,
       ...(rawTime.trim() ? { rawTime: rawTime.trim() } : {}),
       ...(postTime.trim() ? { postTime: postTime.trim() } : {}),
       images: {
@@ -370,11 +399,35 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
         alternateTitlesCount: 10,
         languageCode: 'te',
         showSourceLinkOnWeb: false,
-        categoryNames,
+        categoryNames: resolvedCategoryNames,
+        model: '5.2',
+        temperature: 0.2,
         ...(rawTime.trim() ? { rawTime: rawTime.trim() } : {}),
         ...(postTime.trim() ? { postTime: postTime.trim() } : {}),
       },
     }
+  }
+
+  const applyGeneratedJob = (response) => {
+    const nextJob = response?.job || response
+    if (!nextJob?.jobId) {
+      throw new Error('Generate succeeded but job payload was missing')
+    }
+    const issues = validateGeneratedJob(nextJob)
+    if (issues.length) {
+      throw new SyndicationApiError(
+        `AI preview incomplete — missing: ${issues.join(', ')}`,
+        500,
+        { missingSections: issues },
+      )
+    }
+    setJob(nextJob)
+    setJobId(nextJob.jobId)
+    setSharedImageUrl(nextJob.images?.sharedImageUrl || sharedImageUrl)
+    setSelectedTitleIndex(nextJob.selectedTitleIndex || 0)
+    onJobChange?.(nextJob.jobId)
+    setStep(2)
+    toast.success('AI preview ready')
   }
 
   const onGenerate = async () => {
@@ -392,25 +445,34 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
     setLoading(true)
     setMissingElements([])
     try {
-      const response = await syndicationApi.generate(payload)
-      if (response.blocked) {
+      let response
+      if (jobId) {
+        await syndicationApi.patchJob(jobId, payload)
+        response = await syndicationApi.generateJob(jobId)
+      } else {
+        const draft = await syndicationApi.createJob({
+          ...payload,
+          options: { ...payload.options, autoGenerate: false },
+        })
+        const draftJobId = draft?.job?.jobId
+        if (!draftJobId) throw new Error('Failed to create syndication draft job')
+        setJobId(draftJobId)
+        response = await syndicationApi.generateJob(draftJobId)
+      }
+
+      if (response?.blocked) {
         setMissingElements(response.missingElements || [])
         toast.error('5W data missing — add WHO/WHAT/WHERE/WHEN and retry')
         return
       }
-      setJob(response.job)
-      setJobId(response.job?.jobId || '')
-      setSharedImageUrl(response.job?.images?.sharedImageUrl || sharedImageUrl)
-      setSelectedTitleIndex(response.job?.selectedTitleIndex || 0)
-      onJobChange?.(response.job?.jobId)
-      setStep(2)
-      toast.success('AI preview ready')
+
+      applyGeneratedJob(response)
     } catch (error) {
       if (error instanceof SyndicationApiError && error.status === 422) {
         setMissingElements(error.data?.missingElements || [])
-        toast.error('Insufficient data (5W). Update raw text and retry.')
+        toast.error(extractSyndicationErrorMessage(error))
       } else {
-        toast.error(error.message || 'Generate failed')
+        toast.error(extractSyndicationErrorMessage(error))
       }
     } finally {
       setAiLoading(false)
@@ -512,8 +574,14 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
   const canNext = () => {
     if (step === 0) return Boolean(rawText.trim())
     if (step === 1) return selectedTenantIds.length > 0
+    if (step === 2) return Boolean(job?.masterPrint?.headline)
     return true
   }
+
+  const hasPreviewReady = Boolean(
+    job?.masterPrint?.headline
+    && (job?.alternateTitles?.length || 0) > 0,
+  )
 
   return (
     <div className="max-w-4xl mx-auto space-y-5 pb-24">
@@ -625,7 +693,12 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
           {!job && !aiLoading && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
               <p className="font-medium text-slate-700">Preview ready kaadu</p>
-              <p className="text-sm mt-1">Generate AI preview click cheyandi — Lottie animation chupistundi</p>
+              <p className="text-sm mt-1">Generate AI preview click cheyandi — WHO/WHAT/WHERE/WHEN raw text lo undali</p>
+            </div>
+          )}
+          {job && !hasPreviewReady && !aiLoading && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              AI preview incomplete — <strong>Regenerate preview</strong> click cheyandi. Error unte raw text lo 5W details add cheyandi.
             </div>
           )}
           {job?.alternateTitles?.length > 0 && (
@@ -654,7 +727,7 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
               {job.tenants.map((tenant) => (
                 <div key={tenant.tenantId} className="rounded-lg border border-slate-100 p-3">
                   <p className="text-xs text-slate-500">{tenant.nativeName}</p>
-                  <p className="font-medium text-slate-900">{tenant.webArticle?.headline || '—'}</p>
+                  <p className="font-medium text-slate-900">{tenantWebHeadline(tenant) || '—'}</p>
                 </div>
               ))}
             </div>
@@ -824,7 +897,7 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
                   toast.error(error.message || 'Failed to save images')
                 }
               }}
-              disabled={!job || aiLoading}
+              disabled={!job || aiLoading || !hasPreviewReady}
             >
               Continue to publish
             </Button>
