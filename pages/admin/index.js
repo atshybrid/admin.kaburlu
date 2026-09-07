@@ -7,8 +7,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
-import { getToken } from '../../utils/auth'
+import { getToken, getAuthUser } from '../../utils/auth'
 import { isReporter, isUnionModerator } from '../../utils/roleUtils'
+import { isPlatformDeskUser, PLATFORM_DESK_HOME } from '../../lib/platformDesk'
 
 // Check if user is DESK_EDITOR only
 function isDeskEditorOnly(user) {
@@ -132,9 +133,13 @@ export default function AdminDashboard() {
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const tokenData = getToken()
-    const user = tokenData?.user || tokenData?.data?.user || null
+    const user = getAuthUser()
     
+    if (isPlatformDeskUser(user)) {
+      router.replace(PLATFORM_DESK_HOME)
+      return
+    }
+
     // Redirect DESK_EDITOR to ePaper section
     if (isDeskEditorOnly(user)) {
       router.replace('/admin/epaper/editions')

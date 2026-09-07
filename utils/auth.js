@@ -1,10 +1,19 @@
 export function saveToken(jwt, data) {
+  const enrichedUser = data?.user
+    ? {
+        ...data.user,
+        tenantId: data.tenantId ?? data.user.tenantId ?? null,
+        domainId: data.domainId ?? data.user.domainId ?? null,
+        platformDesk: data.platformDesk ?? data.user.platformDesk ?? false,
+      }
+    : null
+
   const payload = {
     token: jwt,
     refreshToken: data.refreshToken || null,
     sessionId: data.sessionId || null, // 🆕 Working hours tracking
     data,
-    user: data.user || null,
+    user: enrichedUser,
     expiresIn: data.expiresIn || 86400, // Default 24 hours
     savedAt: Date.now()
   }
@@ -40,10 +49,33 @@ export function getToken() {
       })
       return null
     }
+
+    if (parsed.user) {
+      parsed.user = {
+        ...parsed.user,
+        tenantId: parsed.user.tenantId ?? parsed.data?.tenantId ?? null,
+        domainId: parsed.user.domainId ?? parsed.data?.domainId ?? null,
+        platformDesk: parsed.user.platformDesk ?? parsed.data?.platformDesk ?? false,
+      }
+    }
     
     return parsed
   } catch (e) {
     return null
+  }
+}
+
+/** User object merged with login payload (tenantId, platformDesk, etc.) */
+export function getAuthUser() {
+  const tokenData = getToken()
+  if (!tokenData) return null
+  const user = tokenData.user || tokenData.data?.user || null
+  if (!user) return null
+  return {
+    ...user,
+    tenantId: user.tenantId ?? tokenData.data?.tenantId ?? null,
+    domainId: user.domainId ?? tokenData.data?.domainId ?? null,
+    platformDesk: user.platformDesk ?? tokenData.data?.platformDesk ?? false,
   }
 }
 

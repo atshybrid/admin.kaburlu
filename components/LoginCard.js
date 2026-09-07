@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { saveToken } from '../utils/auth'
+import { saveToken, getAuthUser } from '../utils/auth'
+import { getDashboardRoute } from '../utils/roleUtils'
 import { useRouter } from 'next/router'
 import AnimatedKaburluLogo from './AnimatedKaburluLogo'
 
@@ -32,7 +33,8 @@ export default function LoginCard() {
       if (res.data && res.data.success) {
         const { jwt } = res.data.data
         saveToken(jwt, res.data.data)
-        router.push('/admin')
+        const user = getAuthUser()
+        router.push(getDashboardRoute(user))
       } else {
         setError(res.data?.message || 'Login failed')
       }

@@ -12,6 +12,7 @@ import {
   IconLogout,
   IconChevronDown
 } from '../ui/icons'
+import { getRoleDisplayName } from '../../utils/roleUtils'
 
 export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashboard' }) {
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -92,8 +93,8 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
               className="flex items-center gap-2 p-1.5 pl-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-gray-700">{user?.name || 'Admin'}</p>
-                <p className="text-[10px] text-gray-500">Super Admin</p>
+                <p className="text-sm font-medium text-gray-700">{user?.name || user?.fullName || 'Admin'}</p>
+                <p className="text-[10px] text-gray-500">{getRoleDisplayName(user)}</p>
               </div>
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand to-brand/80 flex items-center justify-center text-white font-semibold shadow-md">
                 {(user?.name || 'A').charAt(0).toUpperCase()}

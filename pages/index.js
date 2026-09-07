@@ -3,7 +3,8 @@ import { useRouter } from 'next/router'
 import LoginCard from '../components/LoginCard'
 import AnimatedHeadline from '../components/AnimatedHeadline'
 import Head from 'next/head'
-import { getToken } from '../utils/auth'
+import { getToken, getAuthUser } from '../utils/auth'
+import { getDashboardRoute } from '../utils/roleUtils'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -12,7 +13,8 @@ export default function LoginPage() {
   useEffect(() => {
     const token = getToken()
     if (token?.token) {
-      router.replace('/admin')
+      const user = getAuthUser()
+      router.replace(getDashboardRoute(user))
     }
   }, [router])
 

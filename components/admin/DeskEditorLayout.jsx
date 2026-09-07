@@ -48,6 +48,13 @@ const ARTICLE_NAV_ITEMS = [
     icon: 'plus',
     description: 'Create new article'
   },
+  { 
+    id: 'platform-syndication', 
+    label: 'Platform Syndication', 
+    href: '/admin/platform-syndication', 
+    icon: 'articles',
+    description: 'Multi-tenant AI syndication desk'
+  },
 ]
 
 // Modern Icons

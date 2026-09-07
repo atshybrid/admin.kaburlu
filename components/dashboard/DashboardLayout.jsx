@@ -6,9 +6,11 @@
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react'
-import { getToken, logout } from '../../utils/auth'
+import { getToken, logout, getAuthUser } from '../../utils/auth'
 import { canAccessNewsCartoons, normalizePlatformRole } from '../../lib/newsCartoons/platformRoles'
+import { canAccessSyndication } from '../../lib/syndication/platformRoles'
 import { canAccessJournalistUnion } from '../../utils/roleUtils'
+import { isPlatformDeskRouteAllowed, isPlatformDeskUser, PLATFORM_DESK_HOME } from '../../lib/platformDesk'
 import ModernSidebar from './ModernSidebar'
 import ModernMobileSidebar from './ModernMobileSidebar'
 import ModernHeader from './ModernHeader'
@@ -31,7 +33,7 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
       if (!tokenData || !tokenData.token) {
         router.replace('/')
       } else {
-        setUser(tokenData.user || tokenData.data?.user || null)
+        setUser(getAuthUser())
         // Ensure httpOnly cookie exists for BFF routes (e.g. /api/admin/media/upload)
         if (typeof window !== 'undefined') {
           const key = 'kab_admin_cookie_synced'
@@ -50,6 +52,13 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
     }
   }, [router])
 
+  useEffect(() => {
+    if (!user || !isPlatformDeskUser(user)) return
+    if (!isPlatformDeskRouteAllowed(router.pathname)) {
+      router.replace(PLATFORM_DESK_HOME)
+    }
+  }, [user, router, router.pathname])
+
   const handleLogout = () => {
     logout()
     router.push('/')
@@ -57,11 +66,15 @@ export default function DashboardLayout({ children, title = 'Dashboard' }) {
 
   const hasAccess = (() => {
     if (!user) return false
+    if (isPlatformDeskUser(user)) {
+      return canAccessNewsCartoons(user) || canAccessSyndication(user)
+    }
     const roleStr = normalizePlatformRole(user)
     const legacyRoles = ['SUPERADMIN', 'ADMIN', 'DESKEDITOR', 'NEWSDESK', 'TENANTADMIN', 'REPORTER']
     if (legacyRoles.some((r) => roleStr === r || roleStr.includes(r))) return true
     if (canAccessJournalistUnion(user)) return true
-    return canAccessNewsCartoons(user)
+    if (canAccessNewsCartoons(user)) return true
+    return canAccessSyndication(user)
   })()
 
   if (checking) {

@@ -8,6 +8,7 @@ import { useRouter } from 'next/router'
 import { IconLogout, IconChevronDown } from '../ui/icons'
 import { useState } from 'react'
 import { getFilteredAdminNavigation, isNavHrefActive } from './dashboardNavConfig'
+import { getRoleDisplayName } from '../../utils/roleUtils'
 
 function NavGroup({ title, items, collapsed, onToggle }) {
   const router = useRouter()
@@ -157,8 +158,8 @@ export default function ModernSidebar({ user, onLogout }) {
             <span className="text-brand font-semibold">{(user?.name || 'A').charAt(0).toUpperCase()}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Admin'}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email || 'Super Admin'}</p>
+            <p className="text-sm font-medium text-gray-900 truncate">{user?.name || user?.fullName || 'Admin'}</p>
+            <p className="text-xs text-gray-500 truncate">{getRoleDisplayName(user)}</p>
           </div>
         </div>
         <button

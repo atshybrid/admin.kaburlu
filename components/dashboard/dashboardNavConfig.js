@@ -19,9 +19,12 @@ import {
   IconArticles,
 } from '../ui/icons'
 import { PLATFORM_CARTOON_ROLES } from '../../lib/newsCartoons/platformRoles'
+import { PLATFORM_SYNDICATION_ROLES } from '../../lib/syndication/platformRoles'
+import { isPlatformDeskUser } from '../../lib/platformDesk'
 
 /** Roles that can access Short News cartoon posting */
 const CARTOON_ROLES = PLATFORM_CARTOON_ROLES
+const SYNDICATION_ROLES = PLATFORM_SYNDICATION_ROLES
 
 export const adminNavigation = {
   main: [
@@ -38,6 +41,13 @@ export const adminNavigation = {
     { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'UNION_MODERATOR', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...CARTOON_ROLES] },
   ],
   platform: [
+    {
+      key: 'platform-syndication',
+      href: '/admin/platform-syndication',
+      label: 'Platform Syndication',
+      icon: IconNewspaper,
+      roles: SYNDICATION_ROLES,
+    },
     {
       key: 'news-cartoons',
       href: '/admin/news-cartoons',
@@ -131,7 +141,7 @@ export function hasAccess(item, userRole) {
 
 export function getFilteredAdminNavigation(user) {
   const userRole = normalizeRole(user)
-  return {
+  const navigation = {
     main: adminNavigation.main.filter(item => hasAccess(item, userRole)),
     epaper: adminNavigation.epaper.filter(item => hasAccess(item, userRole)),
     location: adminNavigation.location.filter(item => hasAccess(item, userRole)),
@@ -141,6 +151,21 @@ export function getFilteredAdminNavigation(user) {
     platform: adminNavigation.platform.filter(item => hasAccess(item, userRole)),
     settings: adminNavigation.settings.filter(item => hasAccess(item, userRole)),
   }
+
+  if (isPlatformDeskUser(user)) {
+    return {
+      main: navigation.main.filter((item) => item.key === 'profile'),
+      epaper: [],
+      location: [],
+      tenants: [],
+      journalist: [],
+      political: [],
+      platform: navigation.platform,
+      settings: [],
+    }
+  }
+
+  return navigation
 }
 
 /** Active link: exact match, or sub-route — except /admin and /admin/epaper stay exact-only */

@@ -2,6 +2,8 @@
  * Role Utilities - Centralized role management and access control
  */
 
+import { isPlatformDeskUser, PLATFORM_DESK_HOME } from '../lib/platformDesk'
+
 /**
  * Normalize role string to uppercase without special characters
  * @param {Object|string} user - User object or role string
@@ -52,6 +54,7 @@ export function isReporter(user) {
  */
 export function isDeskEditor(user) {
   const role = normalizeRole(user)
+  if (isPlatformDeskUser(user)) return false
   return role === 'DESKEDITOR' || role === 'NEWSDESK'
 }
 
@@ -114,6 +117,10 @@ export function getUserTenantId(user) {
  * @returns {string} Dashboard route
  */
 export function getDashboardRoute(user) {
+  if (isPlatformDeskUser(user)) {
+    return PLATFORM_DESK_HOME
+  }
+
   if (isSuperAdmin(user)) {
     return '/admin'
   }
@@ -180,7 +187,9 @@ export function getRoleDisplayName(user) {
     'TENANTADMIN': 'Tenant Admin',
     'REPORTER': 'Reporter',
     'DESKEDITOR': 'Desk Editor',
-    'NEWSDESK': 'News Desk'
+    'NEWSDESK': 'News Desk',
+    'NEWSDESKADMIN': 'News Desk Admin',
+    'NEWSMODERATOR': 'News Moderator',
   }
   
   return roleNames[role] || role || 'User'
