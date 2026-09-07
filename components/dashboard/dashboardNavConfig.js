@@ -155,7 +155,7 @@ export function getFilteredAdminNavigation(user) {
   if (isPlatformDeskUser(user)) {
     return {
       main: navigation.main.filter((item) => item.key === 'profile'),
-      epaper: [],
+      epaper: navigation.epaper,
       location: [],
       tenants: [],
       journalist: [],
