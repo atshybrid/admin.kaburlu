@@ -44,6 +44,64 @@ const FALLBACK_CATEGORY_NAMES = [
   'Sports',
 ]
 
+function categoryLabel(cat) {
+  return (cat?.translatedName || cat?.name || '').trim()
+}
+
+function normalizeCategoryKey(name) {
+  return String(name || '').trim().toLowerCase()
+}
+
+/** Merge API categories with Telugu fallbacks so the desk always has a full pick list */
+function mergeCategoryOptions(apiCategories) {
+  const map = new Map()
+  ;(apiCategories || []).forEach((cat) => {
+    const label = categoryLabel(cat)
+    if (!label) return
+    const key = normalizeCategoryKey(label)
+    if (!map.has(key)) {
+      map.set(key, {
+        id: cat.id,
+        name: cat.name || label,
+        translatedName: cat.translatedName || cat.name || label,
+      })
+    }
+  })
+  FALLBACK_CATEGORY_NAMES.forEach((label) => {
+    const key = normalizeCategoryKey(label)
+    if (!map.has(key)) {
+      map.set(key, {
+        id: `name:${label}`,
+        name: label,
+        translatedName: label,
+      })
+    }
+  })
+  return Array.from(map.values())
+}
+
+function isSportsCategory(cat) {
+  const label = categoryLabel(cat)
+  return /క్రీడ|sport/i.test(label)
+}
+
+function pickDefaultCategoryId(categoryList) {
+  const sports = categoryList.find(isSportsCategory)
+  return sports?.id || categoryList[0]?.id || ''
+}
+
+function categoryPayloadFromSelection(categoryList, selectedCategoryId, existingJob) {
+  const selected = categoryList.find((cat) => cat.id === selectedCategoryId)
+  if (selected) {
+    const name = categoryLabel(selected)
+    if (selected.id && !String(selected.id).startsWith('name:')) {
+      return { categoryId: selected.id, categoryName: name }
+    }
+    return { categoryName: name }
+  }
+  return resolveCategoryPayload(categoryList, existingJob)
+}
+
 function normalizeTenantRecord(tenant) {
   const id = resolveTenantId(tenant)
   if (!id) return null
@@ -145,6 +203,7 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
   const [metaLoading, setMetaLoading] = useState(true)
   const [tenants, setTenants] = useState([])
   const [categories, setCategories] = useState([])
+  const [selectedCategoryId, setSelectedCategoryId] = useState('')
   const [rawText, setRawText] = useState('')
   const [rawTime, setRawTime] = useState('')
   const [postTime, setPostTime] = useState('')
@@ -251,10 +310,18 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
         categoryList = unwrapList(allCategories)
       }
 
-      setCategories(categoryList)
+      const shortNewsTenantForCategories = DEFAULT_SHORT_NEWS_TENANT_ID
+      try {
+        const tenantCategories = await apiClient.get(`/tenants/${shortNewsTenantForCategories}/categories`)
+        categoryList = [...categoryList, ...unwrapList(tenantCategories)]
+      } catch {
+        // optional — platform users may not have tenant-scoped list
+      }
+
+      setCategories(mergeCategoryOptions(categoryList))
     } catch (error) {
       console.warn('Syndication: failed to load Telugu categories for AI context', error)
-      setCategories([])
+      setCategories(mergeCategoryOptions([]))
     }
   }, [])
 
@@ -310,6 +377,25 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
   useEffect(() => {
     loadMeta()
   }, [loadMeta])
+
+  useEffect(() => {
+    if (!categories.length || selectedCategoryId) return
+    setSelectedCategoryId(pickDefaultCategoryId(categories))
+  }, [categories, selectedCategoryId])
+
+  useEffect(() => {
+    if (!job?.category || !categories.length) return
+    if (job.category.categoryId) {
+      const match = categories.find((cat) => cat.id === job.category.categoryId)
+      setSelectedCategoryId(match?.id || job.category.categoryId)
+      return
+    }
+    if (job.category.categoryName) {
+      const key = normalizeCategoryKey(job.category.categoryName)
+      const match = categories.find((cat) => normalizeCategoryKey(categoryLabel(cat)) === key)
+      if (match) setSelectedCategoryId(match.id)
+    }
+  }, [job?.category, categories])
 
   useEffect(() => {
     if (initialJobId) loadJob(initialJobId)
@@ -377,7 +463,7 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
   )
 
   const buildPayload = () => {
-    const category = resolveCategoryPayload(categories, job)
+    const category = categoryPayloadFromSelection(categories, selectedCategoryId, job)
     const resolvedCategoryNames = categoryNames.length ? categoryNames : FALLBACK_CATEGORY_NAMES
     return {
       rawText: rawText.trim(),
@@ -571,8 +657,13 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
     }
   }
 
+  const selectedCategoryLabel = useMemo(() => {
+    const cat = categories.find((item) => item.id === selectedCategoryId)
+    return cat ? categoryLabel(cat) : ''
+  }, [categories, selectedCategoryId])
+
   const canNext = () => {
-    if (step === 0) return Boolean(rawText.trim())
+    if (step === 0) return Boolean(rawText.trim() && selectedCategoryId)
     if (step === 1) return selectedTenantIds.length > 0
     if (step === 2) return Boolean(job?.masterPrint?.headline)
     return true
@@ -601,6 +692,32 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
           </div>
           <FormField label="News text">
             <Textarea value={rawText} onChange={(e) => setRawText(e.target.value)} rows={12} placeholder="హైదరాబాద్: ..." className="text-base" />
+          </FormField>
+          <FormField
+            label="News category"
+            description="AI + publish ki category — default క్రీడలు (Sports); ivvalante change cheyandi"
+          >
+            {metaLoading && !categories.length ? (
+              <div className="flex items-center gap-2 text-sm text-slate-500 py-2">
+                <Spinner size="sm" />
+                Loading categories…
+              </div>
+            ) : (
+              <Select
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+              >
+                <option value="">— Select category —</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {categoryLabel(cat)}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {selectedCategoryLabel ? (
+              <p className="text-xs text-slate-500 mt-1">Selected: {selectedCategoryLabel}</p>
+            ) : null}
           </FormField>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField label="Raw time (optional)" description="When the event happened">
@@ -680,7 +797,24 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
         <section className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 space-y-5 shadow-sm">
           <div className="rounded-xl bg-gradient-to-r from-brand/10 via-orange-50 to-amber-50 border border-brand/20 p-4 sm:p-5">
             <h2 className="text-lg font-semibold text-slate-900">AI rewrite & preview</h2>
-            <p className="text-sm text-slate-600 mt-1">One click — print + web + short news for all selected tenants</p>
+            <p className="text-sm text-slate-600 mt-1">
+              One click — print + web + short news for all selected tenants
+              {selectedCategoryLabel ? ` · Category: ${selectedCategoryLabel}` : ''}
+            </p>
+            <div className="mt-3 max-w-sm">
+              <FormField label="Category for this job">
+                <Select
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                >
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {categoryLabel(cat)}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
             <div className="flex flex-wrap gap-2 mt-4">
               <Button type="button" onClick={onGenerate} disabled={loading || !rawText.trim() || !selectedTenantIds.length}>
                 {aiLoading ? 'Rewriting…' : job ? 'Regenerate preview' : 'Generate AI preview'}
