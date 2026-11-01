@@ -6,14 +6,24 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tenantsApi } from '../../../lib/api/tenantApi'
 import { newspaperTenantFeedApi } from '../../../lib/api/services/newspaperTenantFeedApi'
 import {
+  articleBodyParagraphs,
   articleDisplayTitle,
   articleHighlightsList,
+  articleMediaImages,
+  BULLET_CHAR,
+  copyRichClipboard,
   copyToClipboard,
   flattenGroupedArticles,
-  formatBodyCopy,
+  formatArticleAfterDatelineRich,
+  formatBodyPlain,
   formatDatelineCopy,
-  formatFullArticleCopy,
+  formatFullArticleRich,
+  formatHighlightsHtml,
+  formatHighlightLine,
   formatHighlightsCopy,
+  formatImageBlockCopy,
+  formatImageCaptionCopy,
+  formatImageUrlCopy,
   todayIstDateString,
 } from '../../../lib/newspaperFeed/articleCopy'
 import { getAuthUser } from '../../../utils/auth'
@@ -42,12 +52,18 @@ function priorityClass(bucket) {
   return 'border-l-slate-300 bg-white'
 }
 
-function CopyButton({ label, getText, size = 'sm' }) {
+function CopyButton({ label, getText, getRich, size = 'sm' }) {
   const [copied, setCopied] = useState(false)
   const onCopy = async () => {
     try {
-      const text = typeof getText === 'function' ? getText() : getText
-      const ok = await copyToClipboard(text)
+      let ok = false
+      if (getRich) {
+        const { plain, html } = getRich()
+        ok = await copyRichClipboard({ plain, html })
+      } else {
+        const text = typeof getText === 'function' ? getText() : getText
+        ok = await copyToClipboard(text)
+      }
       if (!ok) {
         toast.error('Nothing to copy')
         return
@@ -76,7 +92,10 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
   const title = articleDisplayTitle(article)
   const highlights = articleHighlightsList(article)
   const dateline = formatDatelineCopy(article)
-  const body = formatBodyCopy(article)
+  const paragraphs = articleBodyParagraphs(article)
+  const mediaImages = articleMediaImages(article)
+  const articleRich = () => formatArticleAfterDatelineRich(article)
+  const fullRich = () => formatFullArticleRich(article)
 
   return (
     <article
@@ -103,41 +122,90 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
               .join(' · ')}
           </p>
         </div>
-        <CopyButton label="all" getText={() => formatFullArticleCopy(article)} />
+        <CopyButton label="all" getRich={fullRich} />
       </div>
 
       <div className="px-4 py-3 space-y-3 bg-white">
         <div className="flex flex-wrap gap-2">
           <CopyButton label="title" getText={() => title} size="xs" />
           {highlights.length > 0 ? (
-            <CopyButton label="bullets" getText={() => formatHighlightsCopy(article)} size="xs" />
+            <CopyButton
+              label="bullets"
+              getText={() => formatHighlightsCopy(article)}
+              getRich={() => ({
+                plain: formatHighlightsCopy(article),
+                html: formatHighlightsHtml(article),
+              })}
+              size="xs"
+            />
           ) : null}
           {dateline ? <CopyButton label="dateline" getText={() => dateline} size="xs" /> : null}
-          {body ? <CopyButton label="article" getText={() => body} size="xs" /> : null}
+          {paragraphs.length > 0 ? (
+            <CopyButton label="article" getRich={articleRich} size="xs" />
+          ) : null}
         </div>
 
         {highlights.length > 0 ? (
           <div>
             <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points</p>
-            <ul className="list-disc pl-5 text-sm text-slate-800 space-y-0.5">
+            <ul className="text-sm text-slate-800 space-y-0.5 list-none pl-0">
               {highlights.map((line, i) => (
-                <li key={i}>{line}</li>
+                <li key={i} className="flex gap-2">
+                  <span className="text-slate-500 shrink-0">{BULLET_CHAR}</span>
+                  <span>{String(line).replace(/^[\s•*\u2022\-–]+/, '').trim()}</span>
+                </li>
               ))}
             </ul>
           </div>
         ) : null}
 
-        {dateline ? (
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline</p>
-            <p className="text-sm font-medium text-slate-800">{dateline}</p>
+        {mediaImages.length > 0 ? (
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold text-slate-500 uppercase">Photos</p>
+            {mediaImages.map((img, index) => (
+              <div key={img.url || index} className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.url}
+                  alt={img.alt || img.caption || `Photo ${index + 1}`}
+                  className="w-full max-h-72 object-contain bg-black/5"
+                  loading="lazy"
+                />
+                {img.caption ? (
+                  <p className="px-3 py-2 text-sm text-slate-800 border-t border-slate-200 bg-white">
+                    {img.caption}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2 px-3 py-2 border-t border-slate-100 bg-white">
+                  <CopyButton label="image URL" getText={() => formatImageUrlCopy(img)} size="xs" />
+                  {img.caption ? (
+                    <CopyButton label="caption" getText={() => formatImageCaptionCopy(img)} size="xs" />
+                  ) : null}
+                  <CopyButton label="photo block" getText={() => formatImageBlockCopy(img, index)} size="xs" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : null}
 
-        {body ? (
+        {(dateline || paragraphs.length > 0) ? (
           <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Article</p>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{body}</p>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline &amp; article</p>
+            <div className="text-sm text-slate-800 leading-relaxed">
+              {dateline ? (
+                <p className="font-medium text-slate-900">{dateline}</p>
+              ) : null}
+              {paragraphs.map((para, i) => (
+                <p
+                  key={i}
+                  className={`font-bold text-slate-800 ${
+                    i === 0 && dateline ? 'mt-1' : i > 0 ? 'mt-2' : ''
+                  }`}
+                >
+                  {para}
+                </p>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>
@@ -242,7 +310,7 @@ export default function DailyNewspaperNewsView() {
       const hay = [
         articleDisplayTitle(a),
         formatDatelineCopy(a),
-        formatBodyCopy(a),
+        formatBodyPlain(a),
         ...(articleHighlightsList(a)),
       ]
         .join(' ')
