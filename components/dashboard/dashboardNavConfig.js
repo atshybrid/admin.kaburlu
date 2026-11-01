@@ -34,6 +34,13 @@ export const adminNavigation = {
     { key: 'users', href: '/admin/users', label: 'Users', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'desk-editors', href: '/admin/desk-editors', label: 'Desk Editor Analytics', icon: IconUsers, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
     { key: 'news-banners', href: '/admin/news-banners', label: 'News Banners', icon: IconLayers, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
+    {
+      key: 'daily-newspaper-news',
+      href: '/admin/daily-newspaper-news',
+      label: 'Daily Newspaper News',
+      icon: IconNewspaper,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
+    },
     { key: 'ipr-empanelment', href: '/admin/ipr-empanelment', label: 'I&PR Empanelment', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
@@ -41,6 +48,13 @@ export const adminNavigation = {
     { key: 'profile', href: '/admin/profile', label: 'My Profile', icon: IconUser, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'UNION_MODERATOR', 'TENANT_ADMIN', 'TENANTADMIN', 'REPORTER', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...CARTOON_ROLES] },
   ],
   platform: [
+    {
+      key: 'daily-newspaper-news',
+      href: '/admin/daily-newspaper-news',
+      label: 'Daily Newspaper News',
+      icon: IconNewspaper,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
+    },
     {
       key: 'platform-syndication',
       href: '/admin/platform-syndication',
