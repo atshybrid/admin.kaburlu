@@ -20,8 +20,33 @@ import {
   Spinner,
   StatCard,
   StatusBadge,
+  Switch,
   toast,
 } from '../../ui'
+
+function resolveGstPercent(stored) {
+  if (stored == null || stored === '') return 18
+  const n = Number(stored)
+  return Number.isFinite(n) ? n : 18
+}
+
+function parseGstInput(value, { gstExempt }) {
+  if (gstExempt) return 0
+  if (value === '' || value == null) return 18
+  const n = Number(value)
+  if (!Number.isFinite(n) || n < 0) return 18
+  return Math.min(100, n)
+}
+
+function formatMonthlyDeductionPreview(base, gstPercent, gstExempt) {
+  if (!Number.isFinite(base) || base < 0) return null
+  const gst = gstExempt ? 0 : parseGstInput(String(gstPercent), { gstExempt: false })
+  const total = base * (1 + gst / 100)
+  if (gstExempt || gst === 0) {
+    return `₹${total.toLocaleString('en-IN', { maximumFractionDigits: 0 })} / month (GST exempt — base only)`
+  }
+  return `₹${total.toLocaleString('en-IN', { maximumFractionDigits: 0 })} / month (incl. ${gst}% GST)`
+}
 
 const FEE_PRESETS = [
   { label: 'Small paper — ₹8,000 + GST', base: 8000 },
@@ -42,6 +67,7 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
   const [feePreset, setFeePreset] = useState('8000')
   const [customFee, setCustomFee] = useState('8000')
   const [gstPercent, setGstPercent] = useState('18')
+  const [gstExempt, setGstExempt] = useState(false)
   const [billingDay, setBillingDay] = useState('1')
   const [rechargeAmount, setRechargeAmount] = useState('')
   const [rechargeNote, setRechargeNote] = useState('')
@@ -83,7 +109,9 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
     const preset = base === 12000 ? '12000' : base === 8000 ? '8000' : 'custom'
     setFeePreset(preset)
     setCustomFee(String(base))
-    setGstPercent(String(row?.monthlyPlatformFeeGstPercent ?? 18))
+    const gst = resolveGstPercent(row?.monthlyPlatformFeeGstPercent)
+    setGstExempt(gst === 0)
+    setGstPercent(String(gst))
     setBillingDay(String(row?.monthlyPlatformFeeBillingDay ?? 1))
     setSettingsOpen(true)
   }
@@ -106,9 +134,10 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
     }
     setSaving(true)
     try {
+      const gstToSave = parseGstInput(gstPercent, { gstExempt })
       await tenantWalletApi.updateSettings(tenantId, {
         monthlyPlatformFeeRupees: base,
-        monthlyPlatformFeeGstPercent: Number(gstPercent) || 18,
+        monthlyPlatformFeeGstPercent: gstToSave,
         monthlyPlatformFeeBillingDay: day,
       })
       toast.success('Monthly fee updated')
@@ -195,11 +224,12 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
   const settingsGstPreview = (() => {
     const base =
       feePreset === 'custom' ? Number(customFee) : feePreset === '12000' ? 12000 : 8000
-    if (!Number.isFinite(base) || base < 0) return null
-    const gst = Number(gstPercent) || 0
-    const total = base * (1 + gst / 100)
-    return `₹${total.toLocaleString('en-IN', { maximumFractionDigits: 0 })} / month (incl. ${gst}% GST)`
+    return formatMonthlyDeductionPreview(base, gstPercent, gstExempt)
   })()
+
+  const monthlyFeeStatLabel = row.monthlyPlatformFeeGstPercent === 0
+    ? 'Monthly fee (GST exempt)'
+    : 'Monthly fee (incl. GST)'
 
   return (
     <div className="space-y-6">
@@ -225,7 +255,7 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard title="Wallet balance" value={row.formattedBalance} />
-        <StatCard title="Monthly fee (incl. GST)" value={monthlyTotal} />
+        <StatCard title={monthlyFeeStatLabel} value={monthlyTotal} />
         <StatCard
           title="Platform fee deduct day"
           value={billingDayLabel(row.monthlyPlatformFeeBillingDay || 1)}
@@ -312,7 +342,7 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-500">
-            Set base fee before GST. Deduction each month = base + GST%.
+            Set base fee before GST. Deduction each month = base + GST% (or base only when GST exempt).
           </p>
           <FormField label="Fee preset">
             <Select value={feePreset} onChange={(e) => setFeePreset(e.target.value)}>
@@ -333,13 +363,40 @@ export default function TenantWalletPanel({ tenantId, tenantName, tenantSlug, pr
               />
             </FormField>
           ) : null}
-          <FormField label="GST %">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+            <div>
+              <p className="text-sm font-medium text-slate-800">GST exemption</p>
+              <p className="text-xs text-slate-500 mt-0.5">No GST on monthly deduction (0% — saves as exempt)</p>
+            </div>
+            <Switch
+              checked={gstExempt}
+              onChange={(checked) => {
+                setGstExempt(checked)
+                if (checked) {
+                  setGstPercent('0')
+                } else if (Number(gstPercent) === 0) {
+                  setGstPercent('18')
+                }
+              }}
+              aria-label="GST exemption"
+            />
+          </div>
+          <FormField label="GST %" hint={gstExempt ? 'Disabled while GST exempt' : 'Enter 0 for no GST, or use exemption switch'}>
             <Input
               type="number"
               min={0}
               max={100}
               value={gstPercent}
-              onChange={(e) => setGstPercent(e.target.value)}
+              disabled={gstExempt}
+              onChange={(e) => {
+                const next = e.target.value
+                setGstPercent(next)
+                if (next === '' || Number(next) === 0) {
+                  setGstExempt(true)
+                } else {
+                  setGstExempt(false)
+                }
+              }}
             />
           </FormField>
           <FormField label="Monthly deduction day" hint="Day 1–28 of each month (platform fee auto-deduct)">
