@@ -24,6 +24,7 @@ import {
   formatImageBlockCopy,
   formatImageCaptionCopy,
   formatImageUrlCopy,
+  resolveArticleParts,
   todayIstDateString,
 } from '../../../lib/newspaperFeed/articleCopy'
 import { getAuthUser } from '../../../utils/auth'
@@ -91,8 +92,10 @@ function CopyButton({ label, getText, getRich, size = 'sm' }) {
 function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
   const title = articleDisplayTitle(article)
   const highlights = articleHighlightsList(article)
-  const dateline = formatDatelineCopy(article)
-  const paragraphs = articleBodyParagraphs(article)
+  const { datelineTag, bodyParagraphs, newspaperLabel } = resolveArticleParts(article)
+  const dateline = datelineTag
+  const paragraphs = bodyParagraphs
+  const articleCopyPreview = formatBodyPlain(article)
   const mediaImages = articleMediaImages(article)
   const articleRich = () => formatArticleAfterDatelineRich(article)
   const fullRich = () => formatFullArticleRich(article)
@@ -140,7 +143,7 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
             />
           ) : null}
           {dateline ? <CopyButton label="dateline" getText={() => dateline} size="xs" /> : null}
-          {paragraphs.length > 0 ? (
+          {paragraphs.length > 0 || dateline ? (
             <CopyButton label="article" getRich={articleRich} size="xs" />
           ) : null}
         </div>
@@ -170,6 +173,7 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
                   alt={img.alt || img.caption || `Photo ${index + 1}`}
                   className="w-full max-h-72 object-contain bg-black/5"
                   loading="lazy"
+                  referrerPolicy="no-referrer"
                 />
                 {img.caption ? (
                   <p className="px-3 py-2 text-sm text-slate-800 border-t border-slate-200 bg-white">
@@ -189,23 +193,24 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
         ) : null}
 
         {(dateline || paragraphs.length > 0) ? (
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline &amp; article</p>
-            <div className="text-sm text-slate-800 leading-relaxed">
-              {dateline ? (
-                <p className="font-medium text-slate-900">{dateline}</p>
-              ) : null}
-              {paragraphs.map((para, i) => (
-                <p
-                  key={i}
-                  className={`font-bold text-slate-800 ${
-                    i === 0 && dateline ? 'mt-1' : i > 0 ? 'mt-2' : ''
-                  }`}
-                >
-                  {para}
+          <div className="space-y-3">
+            {dateline ? (
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline</p>
+                <p className="text-sm font-semibold text-slate-900">{dateline}</p>
+              </div>
+            ) : null}
+            {(paragraphs.length > 0 || dateline) ? (
+              <div>
+                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">
+                  Article (copy — no line breaks)
                 </p>
-              ))}
-            </div>
+                <p className="text-sm font-bold text-slate-800 leading-relaxed">{articleCopyPreview}</p>
+              </div>
+            ) : null}
+            {newspaperLabel ? (
+              <p className="text-[11px] text-slate-400">Newspaper field in API: {newspaperLabel}</p>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -474,6 +479,20 @@ export default function DailyNewspaperNewsView() {
                 </div>
               ))}
             </div>
+          ))}
+        </div>
+      ) : null}
+
+      {!search.trim() && !(feed?.districts?.length) && filteredFlat.length > 0 ? (
+        <div className="space-y-4">
+          {filteredFlat.map((article) => (
+            <ArticleCard
+              key={article.id}
+              article={article}
+              reporterName={article._reporterName || article.reporter?.name}
+              districtName={article._districtName}
+              priorityBucket={article._priorityBucket || article.priorityBucket}
+            />
           ))}
         </div>
       ) : null}
