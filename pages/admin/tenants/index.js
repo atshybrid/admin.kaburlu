@@ -14,6 +14,10 @@ import Badge from '../../../components/ui/Badge'
 import { tenantsApi } from '../../../lib/api/tenantApi'
 import { tenantLifecycleApi } from '../../../lib/api/services/tenantLifecycleApi'
 import TenantLifecycleActions, { TenantAvailabilityBadge } from '../../../components/admin/TenantLifecycleActions'
+import {
+  EMPTY_TENANT_STATS,
+  fetchTenantAvailabilityStats,
+} from '../../../lib/tenant/fetchTenantAvailabilityStats'
 
 // Status Badge Component
 function StatusBadge({ status }) {
@@ -62,6 +66,19 @@ export default function TenantsListPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [listMode, setListMode] = useState('active') // active | suspended | trash
+  const [stats, setStats] = useState(EMPTY_TENANT_STATS)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  const loadStats = async () => {
+    setStatsLoading(true)
+    try {
+      setStats(await fetchTenantAvailabilityStats())
+    } catch {
+      setStats(EMPTY_TENANT_STATS)
+    } finally {
+      setStatsLoading(false)
+    }
+  }
 
   const fetchTenants = async () => {
     setLoading(true)
@@ -97,9 +114,17 @@ export default function TenantsListPage() {
     }
   }
 
+  const refreshPage = async () => {
+    await Promise.all([fetchTenants(), loadStats()])
+  }
+
   useEffect(() => {
     fetchTenants()
   }, [listMode])
+
+  useEffect(() => {
+    loadStats()
+  }, [])
 
   // Filter tenants based on search
   const filteredTenants = useMemo(() => {
@@ -141,6 +166,88 @@ export default function TenantsListPage() {
             </svg>
             Create Tenant
           </Button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[
+            {
+              id: 'all',
+              mode: null,
+              label: 'Total tenants',
+              value: stats.total,
+              desc: 'All newspapers on platform',
+              ring: 'ring-slate-300',
+              accent: 'from-slate-800 to-slate-600',
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              ),
+            },
+            {
+              id: 'active',
+              mode: 'active',
+              label: 'Active',
+              value: stats.active,
+              desc: 'Live on public & domains',
+              ring: 'ring-emerald-400',
+              accent: 'from-emerald-600 to-emerald-500',
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              ),
+            },
+            {
+              id: 'suspended',
+              mode: 'suspended',
+              label: 'Suspended',
+              value: stats.suspended,
+              desc: 'Domains off · billing locked',
+              ring: 'ring-amber-400',
+              accent: 'from-amber-600 to-amber-500',
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              ),
+            },
+            {
+              id: 'deleted',
+              mode: 'trash',
+              label: 'Deleted',
+              value: stats.deleted,
+              desc: 'Soft-deleted (trash)',
+              ring: 'ring-rose-400',
+              accent: 'from-rose-600 to-rose-500',
+              icon: (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              ),
+            },
+          ].map((card) => {
+            const activeCard = card.mode != null && listMode === card.mode
+            const displayValue = statsLoading ? '…' : (card.value ?? 0).toLocaleString('en-IN')
+            return (
+              <button
+                key={card.id}
+                type="button"
+                disabled={card.id === 'all'}
+                onClick={() => card.mode && setListMode(card.mode)}
+                className={`text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md ${
+                  card.mode ? 'cursor-pointer' : 'cursor-default'
+                } ${activeCard && card.mode ? `ring-2 ${card.ring}` : ''}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{card.label}</p>
+                    <p className="text-3xl font-bold text-slate-900 mt-1 tabular-nums">{displayValue}</p>
+                    <p className="text-xs text-slate-500 mt-2">{card.desc}</p>
+                  </div>
+                  <div
+                    className={`w-11 h-11 rounded-xl bg-gradient-to-br ${card.accent} text-white flex items-center justify-center shrink-0`}
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {card.icon}
+                    </svg>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
         </div>
 
         <div className="mb-4 flex flex-wrap gap-2">
@@ -287,7 +394,7 @@ export default function TenantsListPage() {
                             View Details
                           </Link>
                         </div>
-                        <TenantLifecycleActions tenant={tenant} onDone={fetchTenants} compact />
+                        <TenantLifecycleActions tenant={tenant} onDone={refreshPage} compact />
                       </td>
                     </tr>
                   ))}
