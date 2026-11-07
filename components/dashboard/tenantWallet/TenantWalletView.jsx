@@ -66,7 +66,37 @@ export default function TenantWalletView() {
     })
   }, [items, search])
 
-  if (!hasRole(user, ['SUPER_ADMIN', 'SUPERADMIN'])) {
+  const walletTotals = useMemo(() => {
+    let netBalanceMinor = 0
+    let dueMinor = 0
+    let monthlyFeeMinor = 0
+
+    items.forEach((row) => {
+      const bal = Number(row.balanceMinor ?? 0)
+      netBalanceMinor += bal
+      if (bal < 0) dueMinor += -bal
+
+      let fee = Number(row.monthlyFeeTotalMinor ?? 0)
+      if (!fee && row.monthlyPlatformFeeMinor) {
+        const base = row.monthlyPlatformFeeMinor
+        const pct = Number(row.monthlyPlatformFeeGstPercent ?? 0)
+        fee = Math.round(base * (1 + pct / 100))
+      }
+      monthlyFeeMinor += fee
+    })
+
+    return {
+      formattedDue: formatRupees(dueMinor),
+      formattedNet: formatRupees(netBalanceMinor),
+      formattedMonthly: formatRupees(monthlyFeeMinor),
+      dueMinor,
+      netBalanceMinor,
+    }
+  }, [items])
+
+  const isSuperAdmin = hasRole(user, ['SUPER_ADMIN', 'SUPERADMIN'])
+
+  if (!isSuperAdmin) {
     return (
       <div className="max-w-lg mx-auto mt-16 rounded-xl border border-rose-200 bg-rose-50 p-6 text-center">
         <h2 className="text-lg font-semibold text-rose-900">Super admin only</h2>
@@ -110,34 +140,6 @@ export default function TenantWalletView() {
 
   const active = items.filter((i) => i.status === 'ACTIVE').length
   const expired = items.filter((i) => i.status === 'EXPIRED').length
-
-  const walletTotals = useMemo(() => {
-    let netBalanceMinor = 0
-    let dueMinor = 0
-    let monthlyFeeMinor = 0
-
-    items.forEach((row) => {
-      const bal = Number(row.balanceMinor ?? 0)
-      netBalanceMinor += bal
-      if (bal < 0) dueMinor += -bal
-
-      let fee = Number(row.monthlyFeeTotalMinor ?? 0)
-      if (!fee && row.monthlyPlatformFeeMinor) {
-        const base = row.monthlyPlatformFeeMinor
-        const pct = Number(row.monthlyPlatformFeeGstPercent ?? 0)
-        fee = Math.round(base * (1 + pct / 100))
-      }
-      monthlyFeeMinor += fee
-    })
-
-    return {
-      formattedDue: formatRupees(dueMinor),
-      formattedNet: formatRupees(netBalanceMinor),
-      formattedMonthly: formatRupees(monthlyFeeMinor),
-      dueMinor,
-      netBalanceMinor,
-    }
-  }, [items])
 
   return (
     <div className="space-y-6 max-w-6xl">
