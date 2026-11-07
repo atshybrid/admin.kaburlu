@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { platformBillingApi } from '../../../lib/api/services/platformBillingApi'
 import { istMonthBounds, rupeesLabel } from '../../../lib/billing/dateRange'
+import {
+  downloadReporterSubscriptionsCsv,
+  monthsDueCount,
+  outstandingMonthsList,
+  reporterDisplayName,
+  reporterMobile,
+  reporterDueRupees,
+  reporterTotalPayable,
+} from '../../../lib/billing/reporterSubscriptionRow'
 import BillingDateRangeBar from './BillingDateRangeBar'
 import { Button, FormField, Input, Modal, Select, Spinner, toast } from '../../ui'
 
@@ -22,7 +31,7 @@ function bucketBadge(bucket) {
   return map[bucket] || 'bg-slate-100 text-slate-700'
 }
 
-export default function BillingReportersTab({ tenantId, initialBucket = 'all' }) {
+export default function BillingReportersTab({ tenantId, tenantSlug, initialBucket = 'all' }) {
   const bounds = istMonthBounds()
   const [from, setFrom] = useState(bounds.from)
   const [to, setTo] = useState(bounds.to)
@@ -129,21 +138,35 @@ export default function BillingReportersTab({ tenantId, initialBucket = 'all' })
     <div className="space-y-4">
       <BillingDateRangeBar from={from} to={to} onFrom={setFrom} onTo={setTo} onApply={load} loading={loading} />
 
-      <div className="flex flex-wrap gap-2">
-        {BUCKETS.map((b) => (
-          <button
-            key={b.id}
-            type="button"
-            onClick={() => setBucket(b.id)}
-            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-              bucket === b.id
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {BUCKETS.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => setBucket(b.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                bucket === b.id
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={!rows.length || loading}
+          onClick={() => {
+            downloadReporterSubscriptionsCsv(rows, { tenantSlug, bucket, from, to })
+            toast.success(`Exported ${rows.length} row(s) to CSV`)
+          }}
+        >
+          Export CSV
+        </Button>
       </div>
 
       {loading ? (
@@ -156,34 +179,46 @@ export default function BillingReportersTab({ tenantId, initialBucket = 'all' })
             <thead>
               <tr className="bg-slate-900 text-left text-[11px] uppercase tracking-wider text-slate-300">
                 <th className="px-4 py-3">Reporter</th>
+                <th className="px-4 py-3">Mobile</th>
                 <th className="px-4 py-3">Bucket</th>
+                <th className="px-4 py-3">Months due</th>
                 <th className="px-4 py-3">Base ₹</th>
                 <th className="px-4 py-3">Total payable</th>
-                <th className="px-4 py-3">Due</th>
+                <th className="px-4 py-3">Due ₹</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => {
                 const id = row.reporterId || row.id
-                const name = row.fullName || row.name || row.user?.profile?.fullName || '—'
-                const mobile = row.mobileNumber || row.user?.mobileNumber || ''
-                const total = row.feeBreakdown?.totalAmount ?? row.feeBreakdown?.total
+                const name = reporterDisplayName(row)
+                const mobile = reporterMobile(row) || '—'
+                const total = reporterTotalPayable(row)
+                const dueCount = monthsDueCount(row)
+                const monthLabels = outstandingMonthsList(row)
                 return (
                   <tr key={id} className="hover:bg-slate-50/80">
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{name}</div>
-                      <div className="text-xs text-slate-400">{mobile}</div>
                     </td>
+                    <td className="px-4 py-3 tabular-nums text-slate-700">{mobile}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${bucketBadge(row.bucket)}`}>
                         {row.bucket || '—'}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold tabular-nums text-slate-900">{dueCount || '—'}</div>
+                      {monthLabels.length ? (
+                        <div className="text-[11px] text-slate-500 max-w-[10rem] truncate" title={monthLabels.join(', ')}>
+                          {monthLabels.join(', ')}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 tabular-nums">{rupeesLabel(row.monthlySubscriptionAmountRupees)}</td>
-                    <td className="px-4 py-3 tabular-nums">{total != null ? rupeesLabel(total) : '—'}</td>
+                    <td className="px-4 py-3 tabular-nums">{total !== '' && total != null ? rupeesLabel(total) : '—'}</td>
                     <td className="px-4 py-3 tabular-nums text-amber-800 font-medium">
-                      {row.dueAmountRupees != null ? rupeesLabel(row.dueAmountRupees) : '—'}
+                      {reporterDueRupees(row) !== '' ? rupeesLabel(reporterDueRupees(row)) : '—'}
                     </td>
                     <td className="px-4 py-3 text-right space-x-1">
                       <Button type="button" size="sm" variant="ghost" onClick={() => openEdit(row)}>

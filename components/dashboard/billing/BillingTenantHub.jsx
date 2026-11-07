@@ -94,7 +94,11 @@ export default function BillingTenantHub({ tenantId, tenantName, tenantSlug, prg
       ) : null}
       {tab === 'wallet' ? <BillingWalletTab tenantId={tenantId} tenantMeta={tenantMeta} /> : null}
       {tab === 'reporters' ? (
-        <BillingReportersTab tenantId={tenantId} initialBucket={reporterBucket} />
+        <BillingReportersTab
+          tenantId={tenantId}
+          tenantSlug={tenantSlug}
+          initialBucket={reporterBucket}
+        />
       ) : null}
       {tab === 'settings' ? <BillingSettingsTab tenantId={tenantId} /> : null}
     </div>
