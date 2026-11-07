@@ -7,7 +7,7 @@ import TenantWalletView from '../../components/dashboard/tenantWallet/TenantWall
 
 export default function TenantWalletsPage() {
   return (
-    <DashboardLayout title="Tenant Wallet System">
+    <DashboardLayout title="Platform Billing">
       <TenantWalletView />
     </DashboardLayout>
   )

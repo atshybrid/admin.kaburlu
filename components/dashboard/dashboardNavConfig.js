@@ -92,7 +92,7 @@ export const adminNavigation = {
     {
       key: 'tenant-wallets',
       href: '/admin/tenant-wallets',
-      label: 'Tenant Wallet System',
+      label: 'Platform Billing',
       icon: IconCreditCard,
       roles: ['SUPER_ADMIN', 'SUPERADMIN'],
     },

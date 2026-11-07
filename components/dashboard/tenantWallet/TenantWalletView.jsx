@@ -146,10 +146,10 @@ export default function TenantWalletView() {
           <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             Super Admin · Billing
           </p>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">Tenant Wallet System</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">Platform Billing</h1>
           <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-            Prepaid wallets for all newspapers — manual recharge, monthly platform fee (₹8,000 / ₹12,000 +
-            GST), and transaction history.
+            Tenant wallets + reporter subscriptions. Open <strong>Billing hub</strong> per newspaper for
+            dated dashboard, ledger, and subscription console.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -269,11 +269,18 @@ export default function TenantWalletView() {
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); openTenant(row) }}
                       >
-                        Manage
+                        Quick wallet
                       </Button>
                       <Link
+                        href={`/admin/billing/${row.tenantId}`}
+                        className="text-xs font-medium text-brand hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Billing hub
+                      </Link>
+                      <Link
                         href={`/admin/tenants/${row.tenantId}/tenant-wallet`}
-                        className="text-xs text-brand hover:underline"
+                        className="text-xs text-slate-500 hover:underline"
                         onClick={(e) => e.stopPropagation()}
                       >
                         Tenant page
