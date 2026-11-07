@@ -8,6 +8,7 @@ import { apiClient } from '../../../lib/api/client'
 import syndicationApi, { SyndicationApiError } from '../../../lib/api/services/syndicationApi'
 import { categoriesService, languagesService } from '../../../lib/api/services'
 import { resolveTenantId } from '../../../lib/article/resolveAuthTenants'
+import { filterActiveTenants } from '../../../lib/tenant/isActiveTenant'
 import { buildPublishPrepPatch, resolvePublishDomain } from '../../../lib/syndication/publishPrep'
 import {
   extractSyndicationErrorMessage,
@@ -261,7 +262,9 @@ export default function SyndicationDesk({ jobId: initialJobId, onJobChange, onPu
   const loadTenants = useCallback(async () => {
     try {
       const response = await tenantsApi.list(true)
-      const normalized = unwrapList(response).map(normalizeTenantRecord).filter(Boolean)
+      const normalized = filterActiveTenants(unwrapList(response))
+        .map(normalizeTenantRecord)
+        .filter(Boolean)
       const shortNews = findShortNewsTenant(normalized)
       const resolvedShortNewsId = resolveTenantId(shortNews) || DEFAULT_SHORT_NEWS_TENANT_ID
       setShortNewsTenantId(resolvedShortNewsId)

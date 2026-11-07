@@ -16,14 +16,24 @@ export default function LoginCard() {
   // Use local API proxy to avoid CORS issues
   const loginUrl = '/api/auth/login'
 
+  function formatLoginError(data, status, fallback) {
+    if (Array.isArray(data?.errors) && data.errors.length) {
+      const messages = data.errors
+        .flatMap((err) => Object.values(err.constraints || {}))
+        .filter(Boolean)
+      if (messages.length) return messages.join('. ')
+    }
+    return data?.message || data?.error || (status ? `Request failed (${status})` : fallback)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!/^\d{10}$/.test(mobileNumber)) {
       setError('Enter valid 10 digit mobile number')
       return
     }
-    if (!/^\d{4,6}$/.test(mpin)) {
-      setError('MPIN must be 4-6 digits')
+    if (!/^\d{4}$/.test(mpin)) {
+      setError('MPIN must be exactly 4 digits')
       return
     }
     setLoading(true)
@@ -41,9 +51,8 @@ export default function LoginCard() {
     } catch (err) {
       const status = err?.response?.status
       const data = err?.response?.data
-      const backendMessage = data?.message || data?.error || (typeof data === 'string' ? data : '')
       const fallback = err?.message || 'Network error'
-      setError(status ? `${status}: ${backendMessage || fallback}` : (backendMessage || fallback))
+      setError(formatLoginError(data, status, fallback))
     } finally {
       setLoading(false)
     }
@@ -99,9 +108,11 @@ export default function LoginCard() {
             <input
               required
               value={mpin}
-              onChange={e => setMpin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={e => setMpin(e.target.value.replace(/\D/g, '').slice(0, 4))}
               type={showMpin ? 'text' : 'password'}
-              placeholder="4-6 digit MPIN"
+              placeholder="4 digit MPIN"
+              inputMode="numeric"
+              maxLength={4}
               className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-12 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all outline-none"
             />
             <button

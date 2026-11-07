@@ -12,6 +12,8 @@ import Spinner from '../../../components/ui/Spinner'
 import EmptyState from '../../../components/ui/EmptyState'
 import Badge from '../../../components/ui/Badge'
 import { tenantsApi } from '../../../lib/api/tenantApi'
+import { tenantLifecycleApi } from '../../../lib/api/services/tenantLifecycleApi'
+import TenantLifecycleActions, { TenantAvailabilityBadge } from '../../../components/admin/TenantLifecycleActions'
 
 // Status Badge Component
 function StatusBadge({ status }) {
@@ -59,17 +61,37 @@ export default function TenantsListPage() {
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [listMode, setListMode] = useState('active') // active | suspended | trash
 
-  // Fetch tenants
   const fetchTenants = async () => {
     setLoading(true)
     setError('')
     try {
-      const data = await tenantsApi.list(true)
-      setTenants(Array.isArray(data) ? data : (data?.data || []))
+      const res = await tenantLifecycleApi.list({
+          page: 1,
+          pageSize: 200,
+          includeSuspended: listMode === 'suspended' || listMode === 'trash',
+          includeDeleted: listMode === 'trash',
+        })
+        const rows = res?.data ?? []
+        let list = Array.isArray(rows) ? rows : []
+        if (listMode === 'active') {
+          list = list.filter((t) => (t.availability || 'active') === 'active')
+        } else if (listMode === 'suspended') {
+          list = list.filter((t) => t.availability === 'suspended')
+        } else if (listMode === 'trash') {
+          list = list.filter((t) => t.availability === 'deleted')
+        }
+        setTenants(list)
     } catch (err) {
       console.error('Failed to fetch tenants:', err)
       setError(err.message || 'Failed to load tenants')
+      try {
+        const data = await tenantsApi.list(true)
+        setTenants(Array.isArray(data) ? data : (data?.data || []))
+      } catch {
+        setTenants([])
+      }
     } finally {
       setLoading(false)
     }
@@ -77,7 +99,7 @@ export default function TenantsListPage() {
 
   useEffect(() => {
     fetchTenants()
-  }, [])
+  }, [listMode])
 
   // Filter tenants based on search
   const filteredTenants = useMemo(() => {
@@ -119,6 +141,27 @@ export default function TenantsListPage() {
             </svg>
             Create Tenant
           </Button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[
+            { id: 'active', label: 'Active only' },
+            { id: 'suspended', label: 'Suspended' },
+            { id: 'trash', label: 'Deleted (trash)' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setListMode(m.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                listMode === m.id
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
 
         {/* Search Bar */}
@@ -191,6 +234,9 @@ export default function TenantsListPage() {
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Availability
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Created
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -226,16 +272,22 @@ export default function TenantsListPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <StatusBadge status={tenant.prgiStatus} />
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <TenantAvailabilityBadge tenant={tenant} />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(tenant.createdAt)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <Link
-                          href={`/admin/tenants/${tenant.id}`}
-                          className="text-blue-600 hover:text-blue-900 font-medium"
-                        >
-                          View Details
-                        </Link>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-y-2">
+                        <div>
+                          <Link
+                            href={`/admin/tenants/${tenant.id}`}
+                            className="text-blue-600 hover:text-blue-900 font-medium"
+                          >
+                            View Details
+                          </Link>
+                        </div>
+                        <TenantLifecycleActions tenant={tenant} onDone={fetchTenants} compact />
                       </td>
                     </tr>
                   ))}

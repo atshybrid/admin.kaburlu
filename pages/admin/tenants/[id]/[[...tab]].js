@@ -24,6 +24,7 @@ import {
   TenantEditionsTab,
   TenantWalletTab,
   TenantReporterBillingTab,
+  TenantSeoTab,
 } from '../../../../components/admin/tabs'
 
 function TenantDetailContent() {
@@ -46,6 +47,8 @@ function TenantDetailContent() {
         return <TenantCategoriesTab tenantContext={tenantContext} />
       case 'branding':
         return <TenantBrandingTab tenantContext={tenantContext} />
+      case 'seo':
+        return <TenantSeoTab tenantContext={tenantContext} />
       case 'homepage':
         return <TenantHomepageTab tenantContext={tenantContext} />
       case 'ads':

@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'react'
 import DashboardLayout from '../../components/dashboard/DashboardLayout'
+import Spinner from '../../components/ui/Spinner'
 import ReporterLayout from '../../components/dashboard/ReporterLayout'
 import ArticlesListView from '../../components/dashboard/ArticlesListView'
 import { getToken } from '../../utils/auth'
@@ -27,7 +28,7 @@ export default function ArticlesPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="w-10 h-10 border-3 border-slate-200 border-t-brand rounded-full animate-spin" />
+        <Spinner size="xl" />
       </div>
     )
   }

@@ -4,7 +4,10 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { idCardSettingsApi } from '../../../lib/api/services/idCardSettingsApi'
+import { idCardAdminApi } from '../../../lib/api/services/idCardAdminApi'
 import { formatWalletError } from '../../../lib/tenantWallet/walletErrors'
+import { useLayout } from '../../dashboard/DashboardLayout'
+import { hasRole } from '../../../utils/roleUtils'
 import { looksLikeInternalId } from '../../../lib/tenantWallet/displayLabels'
 import { uploadMedia } from '../../../lib/api/services/mediaApi'
 
@@ -480,9 +483,13 @@ function IdCardPreview({ form, tenantName }) {
 // ============================================================================
 export default function TenantIdCardsTab({ tenantContext }) {
   const { tenant, refreshTenant } = tenantContext
+  const { user } = useLayout()
+  const isSuperAdmin = hasRole(user, ['SUPER_ADMIN', 'SUPERADMIN'])
   
   // UI State
   const [activeTab, setActiveTab] = useState('template')
+  const [renewBusy, setRenewBusy] = useState(false)
+  const [renewSummary, setRenewSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState({})
@@ -526,6 +533,30 @@ export default function TenantIdCardsTab({ tenantContext }) {
     setMessage({ type, text })
     setTimeout(() => setMessage({ type: '', text: '' }), 3000)
   }, [])
+
+  const runRenewExpiredForTenant = useCallback(async () => {
+    if (!tenant?.id) return
+    setRenewBusy(true)
+    setRenewSummary(null)
+    try {
+      const res = await idCardAdminApi.renewExpiredBatch({ tenantId: tenant.id, limit: 50 })
+      const summary = {
+        scanned: res?.scanned ?? 0,
+        renewed: res?.renewed ?? 0,
+        skipped: res?.skipped ?? 0,
+        failed: res?.failed ?? 0,
+      }
+      setRenewSummary(summary)
+      showMessage(
+        'success',
+        `Renewal run: ${summary.renewed} renewed, ${summary.skipped} skipped, ${summary.failed} failed (scanned ${summary.scanned})`,
+      )
+    } catch (e) {
+      showMessage('error', formatWalletError(e) || e?.message || 'Renewal failed (is API deployed?)')
+    } finally {
+      setRenewBusy(false)
+    }
+  }, [tenant?.id, showMessage])
   
   // Fetch settings
   const fetchSettings = useCallback(async () => {
@@ -812,9 +843,32 @@ export default function TenantIdCardsTab({ tenantContext }) {
                     value: d,
                     label: VALIDITY_DAY_LABELS[d] || `${d} days`,
                   }))}
-                  hint="Allowed: 30, 90, 180, or 365 days from issue date"
+                  hint="Allowed: 30, 90, 180, or 365 days from issue date. Auto-renew (daily cron) uses this value when subscription is ON."
                 />
               </FormSection>
+
+              {isSuperAdmin ? (
+                <FormSection
+                  title="Auto-renew (Super Admin)"
+                  description="Expired card + subscription ON → same number, new dates, PDF + WhatsApp. Cron ~9:30 AM IST; use this for catch-up."
+                >
+                  <button
+                    type="button"
+                    onClick={runRenewExpiredForTenant}
+                    disabled={renewBusy}
+                    className="px-4 py-2 text-sm font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {renewBusy ? Icons.spinner : null}
+                    Renew expired (this tenant, limit 50)
+                  </button>
+                  {renewSummary ? (
+                    <p className="mt-2 text-xs text-slate-600">
+                      Last run: scanned {renewSummary.scanned}, renewed {renewSummary.renewed}, skipped{' '}
+                      {renewSummary.skipped}, failed {renewSummary.failed}
+                    </p>
+                  ) : null}
+                </FormSection>
+              ) : null}
             </div>
           )}
           

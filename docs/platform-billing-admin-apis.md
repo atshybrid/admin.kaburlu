@@ -7,6 +7,29 @@ Auth: `Authorization: Bearer <SUPER_ADMIN JWT>`
 
 ---
 
+## Production deploy (admin vs API)
+
+Admin `main` Vercel కి push అయినా, **API droplet deploy లేకుండా** కింది routes **404**:
+
+| Admin feature | Backend routes (under `/api/v1`) |
+|---------------|----------------------------------|
+| Platform Billing hub tabs | `/admin/billing/tenants/:id/dashboard`, `wallet-transactions`, `reporters-subscriptions`, subscription PATCH, `wallet-billing-flags`, … |
+| Tenant suspend / soft delete | `GET /admin/tenants`, `POST .../suspend`, `soft-delete`, `restore` |
+| Wallet date range | `GET /admin/tenants/:id/tenant-wallet/transactions?from&to` |
+| ID card auto-renew (manual batch) | `POST /admin/id-cards/renew-expired-active-subscriptions` |
+
+**One command (includes Prisma migrate on droplet):**
+
+```bash
+cd kaburlu_media_backend && npm run deploy:droplet
+```
+
+After deploy: hard refresh → **Platform Billing** → pick tenant → hub tabs. Still 404 = deploy pending or wrong API base URL.
+
+See also: `docs/reporter-id-card-auto-renewal.md`
+
+---
+
 ## Existing (unchanged — still use these)
 
 | API | Purpose |

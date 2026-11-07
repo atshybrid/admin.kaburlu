@@ -29,6 +29,7 @@ import {
 } from '../../../lib/newspaperFeed/articleCopy'
 import { getAuthUser } from '../../../utils/auth'
 import { isSuperAdmin } from '../../../utils/roleUtils'
+import { filterActiveTenants } from '../../../lib/tenant/isActiveTenant'
 import { Button, FormField, Input, Select, Spinner, toast } from '../../ui'
 
 function unwrapTenants(raw) {
@@ -239,7 +240,7 @@ export default function DailyNewspaperNewsView() {
       setTenantsLoading(true)
       try {
         const raw = await tenantsApi.list(true)
-        const list = unwrapTenants(raw)
+        const list = filterActiveTenants(unwrapTenants(raw))
         if (cancelled) return
         setTenants(list)
         if (!canPickTenant && authUser?.tenantId) {

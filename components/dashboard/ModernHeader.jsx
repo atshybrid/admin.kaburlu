@@ -3,6 +3,8 @@
  */
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/router'
+import Link from 'next/link'
 import {
   IconMenu,
   IconSearch,
@@ -13,10 +15,22 @@ import {
   IconChevronDown
 } from '../ui/icons'
 import { getRoleDisplayName } from '../../utils/roleUtils'
+import { checkBackendHealth } from '../../lib/dashboard/overviewStats'
+
+const SEARCH_TARGETS = [
+  { label: 'Tenants', href: '/admin/tenants', keywords: ['tenant', 'newspaper', 'domain'] },
+  { label: 'Articles', href: '/admin/articles', keywords: ['article', 'news', 'story'] },
+  { label: 'Users', href: '/admin/users', keywords: ['user', 'reporter', 'admin'] },
+  { label: 'Categories', href: '/admin/categories', keywords: ['category', 'section'] },
+  { label: 'ePaper', href: '/admin/epaper', keywords: ['epaper', 'pdf', 'edition'] },
+]
 
 export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashboard' }) {
+  const router = useRouter()
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [backendStatus, setBackendStatus] = useState('checking')
   const userMenuRef = useRef(null)
 
   useEffect(() => {
@@ -28,6 +42,40 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    checkBackendHealth().then((status) => {
+      if (!cancelled) setBackendStatus(status)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const filteredSearch = searchQuery.trim()
+    ? SEARCH_TARGETS.filter((item) => {
+        const q = searchQuery.trim().toLowerCase()
+        return item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q) || q.includes(k))
+      })
+    : []
+
+  function handleSearchSubmit(e) {
+    e.preventDefault()
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return
+    const match = SEARCH_TARGETS.find((item) =>
+      item.label.toLowerCase().includes(q) || item.keywords.some((k) => k.includes(q) || q.includes(k)),
+    )
+    router.push(match?.href || '/admin/tenants')
+    setShowSearch(false)
+  }
+
+  const statusStyles = {
+    online: { dot: 'bg-emerald-500', bg: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-700', label: 'API Online' },
+    degraded: { dot: 'bg-amber-500', bg: 'bg-amber-50 border-amber-100', text: 'text-amber-700', label: 'API Degraded' },
+    offline: { dot: 'bg-red-500', bg: 'bg-red-50 border-red-100', text: 'text-red-700', label: 'API Offline' },
+    checking: { dot: 'bg-slate-400', bg: 'bg-slate-50 border-slate-200', text: 'text-slate-600', label: 'Checking API' },
+  }
+  const status = statusStyles[backendStatus] || statusStyles.checking
 
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-gray-200 bg-white/90 backdrop-blur-md">
@@ -55,16 +103,32 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
         {/* Right Section */}
         <div className="flex items-center gap-2 lg:gap-3">
           {/* Search */}
-          <div className="hidden md:flex items-center">
+          <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center">
             <div className="relative">
               <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tenants, articles..."
                 className="w-48 lg:w-64 pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-all"
               />
+              {filteredSearch.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+                  {filteredSearch.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setSearchQuery('')}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          </form>
 
           {/* Mobile search button */}
           <button
@@ -75,16 +139,15 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
           </button>
 
           {/* Status indicator */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-medium text-emerald-700">System Healthy</span>
+          <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border ${status.bg}`}>
+            <span className={`w-2 h-2 rounded-full ${status.dot} ${backendStatus === 'online' ? 'animate-pulse' : ''}`} />
+            <span className={`text-xs font-medium ${status.text}`}>{status.label}</span>
           </div>
 
           {/* Notifications */}
-          <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
+          <Link href="/admin/articles" className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors" title="Articles">
             <IconBell className="w-5 h-5 text-gray-600" />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white" />
-          </button>
+          </Link>
 
           {/* User Menu */}
           <div className="relative" ref={userMenuRef}>
@@ -107,17 +170,25 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden">
                 <div className="px-4 py-3 border-b border-gray-100 bg-gray-50/50">
                   <p className="text-sm font-medium text-gray-900">{user?.name || 'Admin'}</p>
-                  <p className="text-xs text-gray-500">{user?.email || 'admin@kaburlumedia.com'}</p>
+                  <p className="text-xs text-gray-500">{user?.mobileNumber || user?.email || 'Signed in'}</p>
                 </div>
                 <div className="py-2">
-                  <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <Link
+                    href="/admin/profile"
+                    onClick={() => setShowUserMenu(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
                     <IconUser className="w-4 h-4 text-gray-400" />
                     <span>Profile</span>
-                  </button>
-                  <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  </Link>
+                  <Link
+                    href="/admin/settings/razorpay"
+                    onClick={() => setShowUserMenu(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
                     <IconSettings className="w-4 h-4 text-gray-400" />
                     <span>Settings</span>
-                  </button>
+                  </Link>
                 </div>
                 <div className="border-t border-gray-100 py-2">
                   <button
@@ -136,17 +207,19 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
 
       {/* Mobile Search */}
       {showSearch && (
-        <div className="md:hidden absolute top-full left-0 right-0 p-4 bg-white border-b border-gray-200 shadow-sm">
+        <form onSubmit={handleSearchSubmit} className="md:hidden absolute top-full left-0 right-0 p-4 bg-white border-b border-gray-200 shadow-sm">
           <div className="relative">
             <IconSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tenants, articles..."
               className="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
               autoFocus
             />
           </div>
-        </div>
+        </form>
       )}
     </header>
   )

@@ -85,6 +85,10 @@ export default function CreateTenantModal({ isOpen, onClose, onSuccess }) {
       setError('Please select a state')
       return
     }
+    if (!formData.prgiNumber.trim()) {
+      setError('PRGI registration number is required (e.g. TGTEL/25/A0482)')
+      return
+    }
 
     setLoading(true)
     setError('')
@@ -94,11 +98,7 @@ export default function CreateTenantModal({ isOpen, onClose, onSuccess }) {
         name: formData.name.trim(),
         slug: generateSlug(formData.name),
         stateId: formData.stateId,
-      }
-      
-      // Only include PRGI number if provided
-      if (formData.prgiNumber.trim()) {
-        payload.prgiNumber = formData.prgiNumber.trim()
+        prgiNumber: formData.prgiNumber.trim(),
       }
 
       const result = await tenantsApi.create(payload)
@@ -170,10 +170,10 @@ export default function CreateTenantModal({ isOpen, onClose, onSuccess }) {
           </div>
         )}
 
-        {/* PRGI Number (Optional) */}
+        {/* PRGI Number (Required by API) */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            PRGI Number <span className="text-gray-400 text-xs">(Optional)</span>
+            PRGI Number <span className="text-red-500">*</span>
           </label>
           <input
             type="text"

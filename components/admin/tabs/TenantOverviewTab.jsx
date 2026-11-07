@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { getToken } from '../../../utils/auth'
+import TenantOnboardingGuide from '../TenantOnboardingGuide'
 
 // Use local proxy to avoid CORS
 function getApiBase() {
@@ -204,6 +205,8 @@ export default function TenantOverviewTab({ tenantContext }) {
   
   return (
     <div className="space-y-6">
+      <TenantOnboardingGuide tenantId={tenantId} tenantContext={tenantContext} />
+
       {/* Quick Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border p-4">

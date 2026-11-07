@@ -721,16 +721,19 @@ function DomainSettingsModal({ isOpen, onClose, tenantId, domain }) {
               <div className="space-y-6">
                 {/* Theme Style Selector */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Theme Style</label>
+                  <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Homepage Theme</label>
                   <select
                     value={settings.themeStyle || 'style1'}
                     onChange={(e) => setSettings({ ...settings, themeStyle: e.target.value })}
-                    className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none"
+                    className="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-blue-500 outline-none"
                   >
-                    <option value="style1">Style 1</option>
-                    <option value="style2">Style 2</option>
+                    <option value="style1">Sakshi Classic — traditional newspaper</option>
+                    <option value="style2">Times of India (TOI) — 3-column grid</option>
+                    <option value="style3">TV9 Breaking — trending &amp; top stories</option>
+                    <option value="style4">Samayam Lifestyle — metro &amp; cards</option>
+                    <option value="style5">Call Kaburlu Modern — app UI</option>
                   </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Choose the overall design theme for your website</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Per-domain homepage layout. Full picker in Domain Settings → Appearance.</p>
                 </div>
 
                 <div>

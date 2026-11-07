@@ -4,6 +4,8 @@
  */
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { getToken } from '../../../utils/auth'
+import { ThemeStylePicker } from '../ThemeStylePicker'
+import { normalizeThemeStyleId } from '../../../lib/newsThemeCatalog'
 
 // ============================================================================
 // CONSTANTS
@@ -416,7 +418,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       }
       
       // Populate state with safe defaults
-      setThemeStyle(cfg?.themeStyle || 'style1')
+      setThemeStyle(normalizeThemeStyleId(cfg?.themeStyle || 'style1'))
       setLogoUrl(cfg?.branding?.logoUrl || '')
       setFaviconUrl(cfg?.branding?.faviconUrl || '')
       setPrimaryColor(cfg?.theme?.colors?.primary || '#3b82f6')
@@ -567,7 +569,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     theme: {
       colors: { primary: primaryColor, secondary: secondaryColor, accent: accentColor },
       typography: { fontFamily: `${fontFamily}, Arial, sans-serif` },
-      layout: { header: headerStyle, footer: footerStyle, showTopBar, showTicker },
+      layout: { header: headerStyle, footer: footerStyle, showTopBar, showTicker, style: themeStyle },
     },
     navigation: { menu: menuItems },
     content: { defaultLanguage, supportedLanguages },
@@ -841,15 +843,12 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   // =========== TAB CONTENT ===========
   const renderAppearanceTab = () => (
     <div className="space-y-6">
-      <Section title="Theme Style" description="Choose the overall look and feel">
-        <Select
-          value={themeStyle}
-          onChange={setThemeStyle}
-          options={[
-            { value: 'style1', label: 'Style 1 - Classic' },
-            { value: 'style2', label: 'Style 2 - Modern' },
-          ]}
-        />
+      <Section title="Homepage Theme" description="Publisher-inspired layout — Sakshi, TOI, TV9, Samayam styles. Each tenant domain can use a different theme.">
+        <ThemeStylePicker value={themeStyle} onChange={setThemeStyle} />
+        <p className="text-xs text-slate-500 mt-3">
+          Stored as <code className="font-mono bg-slate-100 px-1 rounded">themeStyle</code> in domain settings.
+          Preview: <code className="font-mono bg-slate-100 px-1 rounded">/news?tenant=yourdomain.com</code>
+        </p>
       </Section>
       
       <Section title="Branding" description="Logo and favicon for the website">

@@ -25,6 +25,8 @@ const TENANT_TABS = [
   { id: 'entity', label: 'Entity', icon: 'building', description: 'Business registration' },
   { id: 'domains', label: 'Domains', icon: 'globe', description: 'Domain management' },
   { id: 'domain-settings', label: 'Domain Settings', icon: 'settings', description: 'Theme, branding, navigation per domain' },
+  { id: 'branding', label: 'Branding', icon: 'palette', description: 'Logo, colors, fonts' },
+  { id: 'seo', label: 'SEO', icon: 'search', description: 'Meta tags, OG, analytics' },
   { id: 'categories', label: 'Categories', icon: 'folder', description: 'Content categories' },
   { id: 'homepage', label: 'Homepage', icon: 'layout', description: 'Homepage config' },
   { id: 'ads', label: 'Ads', icon: 'megaphone', description: 'Advertisement slots' },

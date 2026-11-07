@@ -1035,8 +1035,11 @@ export default function TenantDetailView({ tenantId }) {
                 value={themeStyle}
                 onChange={e => setThemeStyle(e.target.value)}
               >
-                <option value="style1">style1</option>
-                <option value="style2">style2</option>
+                <option value="style1">Sakshi Classic (style1)</option>
+                <option value="style2">TOI Grid (style2)</option>
+                <option value="style3">TV9 Breaking (style3)</option>
+                <option value="style4">Samayam Lifestyle (style4)</option>
+                <option value="style5">Call Kaburlu Modern (style5)</option>
               </select>
             </div>
           )}
