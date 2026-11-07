@@ -97,6 +97,7 @@ export default function BillingTenantHub({ tenantId, tenantName, tenantSlug, prg
         <BillingReportersTab
           tenantId={tenantId}
           tenantSlug={tenantSlug}
+          tenantName={tenantName}
           initialBucket={reporterBucket}
         />
       ) : null}

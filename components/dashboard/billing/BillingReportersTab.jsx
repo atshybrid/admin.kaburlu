@@ -10,6 +10,7 @@ import {
   reporterDueRupees,
   reporterTotalPayable,
 } from '../../../lib/billing/reporterSubscriptionRow'
+import { downloadReporterSubscriptionsPdf } from '../../../lib/billing/reporterSubscriptionsPdf'
 import BillingDateRangeBar from './BillingDateRangeBar'
 import { Button, FormField, Input, Modal, Select, Spinner, toast } from '../../ui'
 
@@ -31,7 +32,7 @@ function bucketBadge(bucket) {
   return map[bucket] || 'bg-slate-100 text-slate-700'
 }
 
-export default function BillingReportersTab({ tenantId, tenantSlug, initialBucket = 'all' }) {
+export default function BillingReportersTab({ tenantId, tenantSlug, tenantName, initialBucket = 'all' }) {
   const bounds = istMonthBounds()
   const [from, setFrom] = useState(bounds.from)
   const [to, setTo] = useState(bounds.to)
@@ -45,6 +46,7 @@ export default function BillingReportersTab({ tenantId, tenantSlug, initialBucke
     monthlySubscriptionAmount: '',
     subscriptionActivationDate: '',
   })
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   useEffect(() => {
     setBucket(initialBucket)
@@ -155,18 +157,40 @@ export default function BillingReportersTab({ tenantId, tenantSlug, initialBucke
             </button>
           ))}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          disabled={!rows.length || loading}
-          onClick={() => {
-            downloadReporterSubscriptionsCsv(rows, { tenantSlug, bucket, from, to })
-            toast.success(`Exported ${rows.length} row(s) to CSV`)
-          }}
-        >
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={!rows.length || loading}
+            onClick={() => {
+              downloadReporterSubscriptionsCsv(rows, { tenantSlug, tenantName, bucket, from, to })
+              toast.success(`Exported ${rows.length} row(s) to CSV`)
+            }}
+          >
+            Export CSV
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!rows.length || loading || exportingPdf}
+            loading={exportingPdf}
+            onClick={async () => {
+              setExportingPdf(true)
+              try {
+                await downloadReporterSubscriptionsPdf(rows, { tenantSlug, tenantName, bucket, from, to })
+                toast.success(`Exported ${rows.length} row(s) to PDF`)
+              } catch (err) {
+                toast.error(err?.message || 'PDF export failed')
+              } finally {
+                setExportingPdf(false)
+              }
+            }}
+          >
+            Export PDF
+          </Button>
+        </div>
       </div>
 
       {loading ? (
