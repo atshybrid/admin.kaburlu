@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useLayout } from '../DashboardLayout'
 import { hasRole } from '../../../utils/roleUtils'
 import { tenantWalletApi } from '../../../lib/api/services/tenantWalletApi'
-import { normalizeWalletList, walletStatusColor } from '../../../lib/tenantWallet/normalize'
+import { formatRupees, normalizeWalletList, walletStatusColor } from '../../../lib/tenantWallet/normalize'
 import { formatWalletError } from '../../../lib/tenantWallet/walletErrors'
 import { billingDayLabel } from '../../../lib/tenantWallet/displayLabels'
 import TenantWalletPanel from './TenantWalletPanel'
@@ -111,6 +111,34 @@ export default function TenantWalletView() {
   const active = items.filter((i) => i.status === 'ACTIVE').length
   const expired = items.filter((i) => i.status === 'EXPIRED').length
 
+  const walletTotals = useMemo(() => {
+    let netBalanceMinor = 0
+    let dueMinor = 0
+    let monthlyFeeMinor = 0
+
+    items.forEach((row) => {
+      const bal = Number(row.balanceMinor ?? 0)
+      netBalanceMinor += bal
+      if (bal < 0) dueMinor += -bal
+
+      let fee = Number(row.monthlyFeeTotalMinor ?? 0)
+      if (!fee && row.monthlyPlatformFeeMinor) {
+        const base = row.monthlyPlatformFeeMinor
+        const pct = Number(row.monthlyPlatformFeeGstPercent ?? 0)
+        fee = Math.round(base * (1 + pct / 100))
+      }
+      monthlyFeeMinor += fee
+    })
+
+    return {
+      formattedDue: formatRupees(dueMinor),
+      formattedNet: formatRupees(netBalanceMinor),
+      formattedMonthly: formatRupees(monthlyFeeMinor),
+      dueMinor,
+      netBalanceMinor,
+    }
+  }, [items])
+
   return (
     <div className="space-y-6 max-w-6xl">
       <header className="flex flex-wrap items-end justify-between gap-4">
@@ -136,6 +164,34 @@ export default function TenantWalletView() {
           </Button>
         </div>
       </header>
+
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 sm:p-5 shadow-sm space-y-4">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+          Platform totals ({items.length} wallets loaded)
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatCard
+            title="Total due balance"
+            value={walletTotals.formattedDue}
+            description="Sum of all negative wallet balances (amount owed)"
+            trend="down"
+            className="border-rose-100 bg-rose-50/40"
+          />
+          <StatCard
+            title="Current balance (net)"
+            value={walletTotals.formattedNet}
+            description="Combined balance across all tenants"
+            trend={walletTotals.netBalanceMinor < 0 ? 'down' : walletTotals.netBalanceMinor > 0 ? 'up' : 'neutral'}
+            className="border-slate-200"
+          />
+          <StatCard
+            title="Monthly fee total"
+            value={walletTotals.formattedMonthly}
+            description="Total monthly deduction (incl. GST) if all run"
+            className="border-amber-100 bg-amber-50/30"
+          />
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard title="Total tenants" value={items.length} />
