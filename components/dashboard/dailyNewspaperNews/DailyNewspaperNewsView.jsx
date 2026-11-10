@@ -151,16 +151,9 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
           ) : null}
         </div>
 
-        {dateline ? (
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline (bold in paste)</p>
-            <p className="text-sm font-bold text-slate-900">{dateline}</p>
-          </div>
-        ) : null}
-
         {highlights.length > 0 ? (
           <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points (after dateline)</p>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points (first in paste)</p>
             <ul className="text-sm text-slate-800 space-y-0.5 list-none pl-0">
               {highlights.map((line, i) => (
                 <li key={i} className="flex gap-2">
@@ -209,7 +202,6 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
                 Paste sample (Copy article / Copy all)
               </p>
               <main className="text-sm text-slate-800 space-y-2 leading-relaxed">
-                {dateline ? <p className="font-bold text-slate-900">{dateline}</p> : null}
                 {highlights.length > 0 ? (
                   <ul className="list-none pl-0 space-y-0.5 font-normal">
                     {highlights.map((line, i) => (
@@ -217,8 +209,10 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
                     ))}
                   </ul>
                 ) : null}
-                {articleBodyOnly ? (
-                  <p className="font-bold">{articleBodyOnly}</p>
+                {dateline || articleBodyOnly ? (
+                  <p className="font-bold text-slate-900">
+                    {[dateline, articleBodyOnly].filter(Boolean).join('')}
+                  </p>
                 ) : null}
               </main>
             </div>
