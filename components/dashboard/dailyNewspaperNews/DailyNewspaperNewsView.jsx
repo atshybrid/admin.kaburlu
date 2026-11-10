@@ -147,7 +147,7 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
           ) : null}
           {dateline ? <CopyButton label="dateline" getText={() => dateline} size="xs" /> : null}
           {paragraphs.length > 0 || dateline ? (
-            <CopyButton label="article" getRich={articleRich} size="xs" />
+            <CopyButton label="article (board)" getRich={articleRich} size="xs" />
           ) : null}
         </div>
 
@@ -210,8 +210,22 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
                   </ul>
                 ) : null}
                 {dateline || articleBodyOnly ? (
-                  <p className="font-bold text-slate-900">
-                    {[dateline, articleBodyOnly].filter(Boolean).join('')}
+                  <p className="text-slate-800">
+                    {dateline ? (
+                      <>
+                        <span className="font-bold text-slate-900">{dateline}</span>
+                        {articleBodyOnly ? (
+                          <>
+                            <span> : </span>
+                            <span className="font-normal">{articleBodyOnly}</span>
+                          </>
+                        ) : (
+                          <span className="font-bold"> :</span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="font-normal">{articleBodyOnly}</span>
+                    )}
                   </p>
                 ) : null}
               </main>
