@@ -15,6 +15,7 @@ import {
   copyToClipboard,
   flattenGroupedArticles,
   formatArticleAfterDatelineRich,
+  formatArticleBodyFlowOnly,
   formatBodyPlain,
   formatDatelineCopy,
   formatFullArticleRich,
@@ -96,6 +97,7 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
   const { datelineTag, bodyParagraphs, newspaperLabel } = resolveArticleParts(article)
   const dateline = datelineTag
   const paragraphs = bodyParagraphs
+  const articleBodyOnly = formatArticleBodyFlowOnly(article)
   const articleCopyPreview = formatBodyPlain(article)
   const mediaImages = articleMediaImages(article)
   const articleRich = () => formatArticleAfterDatelineRich(article)
@@ -149,9 +151,16 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
           ) : null}
         </div>
 
+        {dateline ? (
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline (bold in paste)</p>
+            <p className="text-sm font-bold text-slate-900">{dateline}</p>
+          </div>
+        ) : null}
+
         {highlights.length > 0 ? (
           <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points</p>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points (after dateline)</p>
             <ul className="text-sm text-slate-800 space-y-0.5 list-none pl-0">
               {highlights.map((line, i) => (
                 <li key={i} className="flex gap-2">
@@ -193,22 +202,26 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
           </div>
         ) : null}
 
-        {(dateline || paragraphs.length > 0) ? (
+        {(dateline || articleBodyOnly || articleCopyPreview) ? (
           <div className="space-y-3">
-            {dateline ? (
-              <div>
-                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Dateline</p>
-                <p className="text-sm font-semibold text-slate-900">{dateline}</p>
-              </div>
-            ) : null}
-            {(paragraphs.length > 0 || dateline) ? (
-              <div>
-                <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                  Article (copy — no line breaks)
-                </p>
-                <p className="text-sm font-bold text-slate-800 leading-relaxed">{articleCopyPreview}</p>
-              </div>
-            ) : null}
+            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2">
+                Paste sample (Copy article / Copy all)
+              </p>
+              <main className="text-sm text-slate-800 space-y-2 leading-relaxed">
+                {dateline ? <p className="font-bold text-slate-900">{dateline}</p> : null}
+                {highlights.length > 0 ? (
+                  <ul className="list-none pl-0 space-y-0.5 font-normal">
+                    {highlights.map((line, i) => (
+                      <li key={i}>{formatHighlightLine(line)}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {articleBodyOnly ? (
+                  <p className="font-bold">{articleBodyOnly}</p>
+                ) : null}
+              </main>
+            </div>
             {newspaperLabel ? (
               <p className="text-[11px] text-slate-400">Newspaper field in API: {newspaperLabel}</p>
             ) : null}
