@@ -11,6 +11,10 @@ import {
   normalizePaperTypeKey,
 } from '../../../lib/epaper/paperPageSpecs'
 import { formToSmartDesignPayload, smartDesignToForm, rowsFromEditionsCatalog } from '../../../lib/epaper/smartDesignForm'
+import {
+  formToNewspaperConfigPayload,
+  newspaperConfigToForm,
+} from '../../../lib/epaper/newspaperConfigForm'
 
 const EMPTY_FORM = {
   paperType: 'TABLOID',
@@ -26,7 +30,7 @@ const EMPTY_FORM = {
   issueStartNumber: 1,
   issueStartDate: new Date().toISOString().slice(0, 10),
   issueCounterMode: 'SEQUENTIAL',
-  newsCloseTime: '20:00',
+  newsCloseTime: '23:00',
   languageCode: 'te',
   headerStyleNumber: 1,
   subHeaderStyleNumber: 1,
@@ -117,6 +121,13 @@ export default function TenantEpaperTab({ tenantContext }) {
   const [subEditionId, setSubEditionId] = useState('')
 
   const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [designToday, setDesignToday] = useState(null)
+  const [activeDesign, setActiveDesign] = useState(null)
+  const [tenantNewsConfig, setTenantNewsConfig] = useState(null)
+  const [tenantConfigForm, setTenantConfigForm] = useState(null)
+  const [tenantConfigSaving, setTenantConfigSaving] = useState(false)
+  const [collectSummary, setCollectSummary] = useState(null)
+  const [collectBusy, setCollectBusy] = useState(false)
 
   const configKey = useMemo(
     () => (scopeType === 'sub-edition' ? `sub:${subEditionId || ''}` : `edition:${editionId || ''}`),
@@ -151,6 +162,27 @@ export default function TenantEpaperTab({ tenantContext }) {
     const pt = form.paperType || form.pageSize
     return findPaperSpec(paperSpecs?.items || apiHeaderStyles?.paperPageSpecs, pt)
   }, [paperSpecs, apiHeaderStyles, form.paperType, form.pageSize])
+
+  const allowedUploadFields = useMemo(() => {
+    const fromDesign = activeDesign?.styleCapabilities?.allowedFields
+    if (fromDesign && typeof fromDesign === 'object') return fromDesign
+    return {
+      headerLogoUrl: true,
+      headerLeftImageUrl: true,
+      headerRightImageUrl: true,
+      paperNameImageUrl: true,
+      subHeaderLogoUrl: true,
+    }
+  }, [activeDesign])
+
+  const printNewsWindow = useMemo(() => {
+    return (
+      designToday?.newsWindow ||
+      tenantNewsConfig?.today?.newsWindow ||
+      tenantConfigForm?.newsWindow ||
+      null
+    )
+  }, [designToday, tenantNewsConfig, tenantConfigForm])
 
   const headerRenderHint = apiHeaderStyles?.renderEngine?.recommended
     ? `API recommends: Main style ${apiHeaderStyles.renderEngine.recommended.page1Main}, Sub style ${apiHeaderStyles.renderEngine.recommended.page2PlusSub}`
@@ -249,10 +281,14 @@ export default function TenantEpaperTab({ tenantContext }) {
         if (res?.exists && res?.design) {
           setSmartDesignId(res.design.id)
           syncFormFromConfig(res.design)
+          setActiveDesign(res.design)
+          setDesignToday(res.design.today || null)
           setSelectedRowKey(rowKey)
         } else {
           setSmartDesignId(null)
           setForm({ ...EMPTY_FORM })
+          setActiveDesign(null)
+          setDesignToday(null)
           setSelectedRowKey('')
         }
         return res
@@ -301,6 +337,20 @@ export default function TenantEpaperTab({ tenantContext }) {
         specsPayload = await epaperApi.getPaperPageSpecs()
       } catch {
         /* optional */
+      }
+
+      let newsCfg = null
+      try {
+        newsCfg = await epaperApi.getNewspaperConfig(tenantId)
+        setTenantNewsConfig(newsCfg)
+        setTenantConfigForm(newspaperConfigToForm(newsCfg))
+      } catch (e) {
+        setTenantNewsConfig(null)
+        setTenantConfigForm(newspaperConfigToForm({}))
+        setListMeta((prev) => ({
+          ...prev,
+          contextError: prev.contextError || (e?.message ? `newspaper-config: ${e.message}` : ''),
+        }))
       }
       const specItems =
         specsPayload?.items ||
@@ -372,6 +422,8 @@ export default function TenantEpaperTab({ tenantContext }) {
     setSmartDesignId(null)
     setNextAction('CREATE')
     setForm({ ...EMPTY_FORM })
+    setActiveDesign(null)
+    setDesignToday(null)
     setInfo('New config — select edition scope below, then Save.')
     setError('')
   }
@@ -444,7 +496,11 @@ export default function TenantEpaperTab({ tenantContext }) {
 
       await reloadDesigns()
       setSelectedRowKey(configKey)
-      if (savedDesign) syncFormFromConfig(savedDesign)
+      if (savedDesign) {
+        syncFormFromConfig(savedDesign)
+        setActiveDesign(savedDesign)
+        setDesignToday(savedDesign.today || null)
+      }
       setInfo((prev) => `${prev || ''} List refreshed.`)
     } catch (e) {
       if (e?.status === 409 && e?.data?.existingId) {
@@ -458,6 +514,61 @@ export default function TenantEpaperTab({ tenantContext }) {
       }
     } finally {
       setBusy(false)
+    }
+  }
+
+  const setTenantConfigField = (name, value) => {
+    setTenantConfigForm((prev) => ({ ...(prev || newspaperConfigToForm({})), [name]: value }))
+  }
+
+  const handleSaveTenantNewsConfig = async () => {
+    if (!tenantId || !tenantConfigForm) return
+    setTenantConfigSaving(true)
+    setError('')
+    try {
+      const body = formToNewspaperConfigPayload(tenantConfigForm)
+      const saved = await epaperApi.putNewspaperConfig(tenantId, body)
+      setTenantNewsConfig(saved)
+      setTenantConfigForm(newspaperConfigToForm(saved))
+      setInfo('Tenant newspaper-config saved (PUT /epaper/newspaper-config).')
+    } catch (e) {
+      setError(e?.message || String(e))
+    } finally {
+      setTenantConfigSaving(false)
+    }
+  }
+
+  const handleCollectNewsProbe = async () => {
+    if (!tenantId || !editionId) {
+      setError('Select an edition to probe collect-news.')
+      return
+    }
+    setCollectBusy(true)
+    setError('')
+    setCollectSummary(null)
+    try {
+      const issueDate =
+        designToday?.issueDate ||
+        (form.issueStartDate ? String(form.issueStartDate).slice(0, 10) : '') ||
+        new Date().toISOString().slice(0, 10)
+      const query = {
+        publicationEditionId: editionId,
+        issueDate,
+        excludeMainPage: 'true',
+      }
+      if (scopeType === 'sub-edition' && subEditionId) query.subEditionId = subEditionId
+      const res = await smartDesignApi.collectNews(tenantId, query)
+      const nw = res?.newsWindow || res?.pipeline?.newsWindow
+      setCollectSummary({
+        issueDate,
+        articleCount: res?.articleCount ?? res?.articles?.length ?? res?.summary?.articleCount,
+        newsWindow: nw,
+      })
+      setInfo('collect-news OK — print pipeline window (00:00–newsCloseTime IST).')
+    } catch (e) {
+      setError(e?.message || String(e))
+    } finally {
+      setCollectBusy(false)
     }
   }
 
@@ -532,6 +643,12 @@ export default function TenantEpaperTab({ tenantContext }) {
                 Layout preview (P2+)
               </Link>
             ) : null}
+            <Link
+              href={`/admin/daily-newspaper-news?tenantId=${encodeURIComponent(tenantId || '')}`}
+              className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
+              Reporter news (6am–midnight)
+            </Link>
             <button
               type="button"
               onClick={loadAll}
@@ -543,12 +660,143 @@ export default function TenantEpaperTab({ tenantContext }) {
           </div>
         </div>
 
+        {printNewsWindow ? (
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs text-indigo-950">
+            <div className="font-semibold text-sm mb-1">Today print news window (collect-news / smart-design)</div>
+            <div className="font-mono">
+              {printNewsWindow.fromDate || printNewsWindow.fromIST || '—'} →{' '}
+              {printNewsWindow.toDate || printNewsWindow.toIST || '—'}
+            </div>
+            {designToday ? (
+              <div className="mt-1 text-indigo-800">
+                Vol {designToday.currentVolume ?? '—'} · Issue {designToday.currentIssue ?? '—'}
+                {designToday.dayNameTelugu ? ` · ${designToday.dayNameTelugu}` : ''}
+              </div>
+            ) : tenantConfigForm?.todayVolume != null ? (
+              <div className="mt-1 text-indigo-800">
+                Tenant default — Vol {tenantConfigForm.todayVolume} · Issue {tenantConfigForm.todayIssue}
+              </div>
+            ) : null}
+            <p className="mt-2 text-[11px] text-indigo-700 leading-relaxed">
+              Desk reporter list (06:00–23:59 IST) uses{' '}
+              <code className="bg-white/70 px-1 rounded">tenant-feed?timeRule=newsroom</code> — not this window.
+            </p>
+          </div>
+        ) : null}
+
         {error && (
           <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-wrap">{error}</div>
         )}
         {info && (
           <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 whitespace-pre-wrap">{info}</div>
         )}
+
+        {tenantConfigForm ? (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Tenant newspaper-config (default)</div>
+                <div className="text-[11px] text-slate-600 font-mono">GET/PUT /epaper/newspaper-config · JWT + X-Tenant-Id</div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveTenantNewsConfig}
+                disabled={tenantConfigSaving || busy}
+                className="px-4 py-2 rounded-lg bg-amber-700 text-white text-xs font-semibold disabled:opacity-60"
+              >
+                {tenantConfigSaving ? 'Saving…' : 'Save tenant config'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label className="text-xs text-slate-600">
+                Page count
+                <input
+                  type="number"
+                  min="1"
+                  value={tenantConfigForm.pageCount ?? 8}
+                  onChange={(e) => setTenantConfigField('pageCount', e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                News close (IST)
+                <input
+                  type="time"
+                  value={tenantConfigForm.newsCloseTime || '23:00'}
+                  onChange={(e) => setTenantConfigField('newsCloseTime', e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                />
+              </label>
+              <label className="text-xs text-slate-600">
+                Main / sub header #
+                <div className="mt-1 flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={tenantConfigForm.headerStyleNumber ?? 1}
+                    onChange={(e) => setTenantConfigField('headerStyleNumber', e.target.value)}
+                    className="w-full px-2 py-2 border rounded-lg text-sm bg-white"
+                    title="headerStyleNumber"
+                  />
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={tenantConfigForm.subHeaderStyleNumber ?? 1}
+                    onChange={(e) => setTenantConfigField('subHeaderStyleNumber', e.target.value)}
+                    className="w-full px-2 py-2 border rounded-lg text-sm bg-white"
+                    title="subHeaderStyleNumber"
+                  />
+                </div>
+              </label>
+              <label className="text-xs text-slate-600 md:col-span-3">
+                Last page footer
+                <input
+                  type="text"
+                  value={tenantConfigForm.lastPageFooterText || ''}
+                  onChange={(e) => setTenantConfigField('lastPageFooterText', e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
+                />
+              </label>
+              <ImageUrlField
+                label="Main logo (mainLogoUrl)"
+                hint="Tenant-wide fallback before edition smart-design"
+                value={tenantConfigForm.mainLogoUrl || ''}
+                onChange={(v) => setTenantConfigField('mainLogoUrl', v)}
+                onUpload={async (file) => {
+                  const folder = `tenants/${tenantId}/epaper/newspaper-config`
+                  const result = await mediaApi.upload(file, folder)
+                  const url =
+                    result?.internalUrl ||
+                    result?.data?.internalUrl ||
+                    result?.url ||
+                    ''
+                  if (url) setTenantConfigField('mainLogoUrl', url)
+                }}
+                busy={tenantConfigSaving}
+                uploading={false}
+              />
+              <ImageUrlField
+                label="Sub header logo"
+                value={tenantConfigForm.subHeaderLogoUrl || ''}
+                onChange={(v) => setTenantConfigField('subHeaderLogoUrl', v)}
+                onUpload={async (file) => {
+                  const folder = `tenants/${tenantId}/epaper/newspaper-config`
+                  const result = await mediaApi.upload(file, folder)
+                  const url =
+                    result?.internalUrl ||
+                    result?.data?.internalUrl ||
+                    result?.url ||
+                    ''
+                  if (url) setTenantConfigField('subHeaderLogoUrl', url)
+                }}
+                busy={tenantConfigSaving}
+                uploading={false}
+              />
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-5 rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 min-h-[140px]">
           <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
@@ -837,33 +1085,74 @@ export default function TenantEpaperTab({ tenantContext }) {
               />
             </label>
             <label className="text-xs text-slate-600">
-              Volume Number
+              Today volume / issue (read-only)
               <input
-                type="number"
-                min="1"
-                value={form.volumeNumber}
-                onChange={(e) => setField('volumeNumber', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
+                type="text"
+                readOnly
+                value={`${designToday?.currentVolume ?? form.volumeNumber ?? '—'} / ${designToday?.currentIssue ?? form.issueNumber ?? '—'}`}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 text-slate-700"
               />
             </label>
             <label className="text-xs text-slate-600">
-              Current Issue Number
-              <input
-                type="number"
-                min="1"
-                value={form.issueNumber}
-                onChange={(e) => setField('issueNumber', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
+              Volume start # / year
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  value={form.volumeStartNumber ?? form.volumeNumber ?? 1}
+                  onChange={(e) => setField('volumeStartNumber', e.target.value)}
+                  disabled={busy}
+                  className="w-full px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
+                />
+                <input
+                  type="number"
+                  min="2000"
+                  value={form.volumeStartYear ?? new Date().getFullYear()}
+                  onChange={(e) => setField('volumeStartYear', e.target.value)}
+                  disabled={busy}
+                  className="w-full px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
+                />
+              </div>
             </label>
             <label className="text-xs text-slate-600">
-              Issue Start Date
+              Issue start # / date
+              <div className="mt-1 flex gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={form.issueStartNumber ?? form.issueNumber ?? 1}
+                  onChange={(e) => setField('issueStartNumber', e.target.value)}
+                  disabled={busy}
+                  className="w-24 px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
+                />
+                <input
+                  type="date"
+                  value={form.issueStartDate || ''}
+                  onChange={(e) => setField('issueStartDate', e.target.value)}
+                  disabled={busy}
+                  className="flex-1 px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
+                />
+              </div>
+            </label>
+            <label className="text-xs text-slate-600">
+              Issue counter
+              <select
+                value={form.issueCounterMode || 'SEQUENTIAL'}
+                onChange={(e) => setField('issueCounterMode', e.target.value)}
+                disabled={busy}
+                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
+              >
+                <option value="SEQUENTIAL">SEQUENTIAL (daily +1)</option>
+                <option value="DAY_OF_YEAR">DAY_OF_YEAR (1–365)</option>
+              </select>
+            </label>
+            <label className="text-xs text-slate-600">
+              News close time (IST)
               <input
-                type="date"
-                value={form.issueStartDate || ''}
-                onChange={(e) => setField('issueStartDate', e.target.value)}
+                type="time"
+                value={form.newsCloseTime || '23:00'}
+                onChange={(e) => setField('newsCloseTime', e.target.value)}
                 disabled={busy}
                 className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
               />
@@ -904,49 +1193,57 @@ export default function TenantEpaperTab({ tenantContext }) {
             <div className="md:col-span-3 text-xs font-semibold text-slate-700 pt-2 border-t border-slate-100">
               Main header images (page 1)
             </div>
-            <ImageUrlField
-              label="Center logo (headerLogoUrl)"
-              hint="Style 1 center — image only on preview"
-              value={form.headerLogoUrl || form.paperNameImageUrl}
-              onChange={(v) => {
-                setField('headerLogoUrl', v)
-                setField('paperNameImageUrl', v)
-              }}
-              onUpload={(file) => handleUploadImage('headerLogoUrl', file)}
-              busy={busy}
-              uploading={uploading.headerLogoUrl}
-            />
-            <ImageUrlField
-              label="Left column image"
-              hint="Running comment graphic / left ad"
-              value={form.headerLeftImageUrl}
-              onChange={(v) => setField('headerLeftImageUrl', v)}
-              onUpload={(file) => handleUploadImage('headerLeftImageUrl', file)}
-              busy={busy}
-              uploading={uploading.headerLeftImageUrl}
-            />
-            <ImageUrlField
-              label="Right column image"
-              hint="Article thumb / right ad"
-              value={form.headerRightImageUrl}
-              onChange={(v) => setField('headerRightImageUrl', v)}
-              onUpload={(file) => handleUploadImage('headerRightImageUrl', file)}
-              busy={busy}
-              uploading={uploading.headerRightImageUrl}
-            />
+            {allowedUploadFields.headerLogoUrl !== false ? (
+              <ImageUrlField
+                label="Center logo (headerLogoUrl)"
+                hint="Style 1 center — image only on preview"
+                value={form.headerLogoUrl || form.paperNameImageUrl}
+                onChange={(v) => {
+                  setField('headerLogoUrl', v)
+                  setField('paperNameImageUrl', v)
+                }}
+                onUpload={(file) => handleUploadImage('headerLogoUrl', file)}
+                busy={busy}
+                uploading={uploading.headerLogoUrl}
+              />
+            ) : null}
+            {allowedUploadFields.headerLeftImageUrl !== false ? (
+              <ImageUrlField
+                label="Left column image"
+                hint="Ads / custom — headerLeftImageUrl"
+                value={form.headerLeftImageUrl}
+                onChange={(v) => setField('headerLeftImageUrl', v)}
+                onUpload={(file) => handleUploadImage('headerLeftImageUrl', file)}
+                busy={busy}
+                uploading={uploading.headerLeftImageUrl}
+              />
+            ) : null}
+            {allowedUploadFields.headerRightImageUrl !== false ? (
+              <ImageUrlField
+                label="Right column image"
+                hint="Article thumb / right ad"
+                value={form.headerRightImageUrl}
+                onChange={(v) => setField('headerRightImageUrl', v)}
+                onUpload={(file) => handleUploadImage('headerRightImageUrl', file)}
+                busy={busy}
+                uploading={uploading.headerRightImageUrl}
+              />
+            ) : null}
 
             <div className="md:col-span-3 text-xs font-semibold text-slate-700 pt-2 border-t border-slate-100">
               Sub header (page 2+)
             </div>
-            <ImageUrlField
-              label="Center logo"
-              hint="Style 1: page · logo · date — leave empty to use main center logo"
-              value={form.subHeaderLogoUrl}
-              onChange={(v) => setField('subHeaderLogoUrl', v)}
-              onUpload={(file) => handleUploadImage('subHeaderLogoUrl', file)}
-              busy={busy}
-              uploading={uploading.subHeaderLogoUrl}
-            />
+            {allowedUploadFields.subHeaderLogoUrl !== false ? (
+              <ImageUrlField
+                label="Center logo"
+                hint="Style 1: page · logo · date — leave empty to use main center logo"
+                value={form.subHeaderLogoUrl}
+                onChange={(v) => setField('subHeaderLogoUrl', v)}
+                onUpload={(file) => handleUploadImage('subHeaderLogoUrl', file)}
+                busy={busy}
+                uploading={uploading.subHeaderLogoUrl}
+              />
+            ) : null}
             <ImageUrlField
               label="Full strip image (optional)"
               hint="Replaces entire sub-header layout when set"
@@ -958,7 +1255,22 @@ export default function TenantEpaperTab({ tenantContext }) {
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCollectNewsProbe}
+                disabled={collectBusy || !editionId}
+                className="px-4 py-2 rounded-lg border border-teal-300 text-teal-900 text-xs font-semibold disabled:opacity-60"
+              >
+                {collectBusy ? 'Probing…' : 'Test collect-news'}
+              </button>
+              {collectSummary ? (
+                <span className="text-[11px] text-slate-600">
+                  {collectSummary.issueDate}: {collectSummary.articleCount ?? '?'} articles in pipeline window
+                </span>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={handleSaveOneTime}

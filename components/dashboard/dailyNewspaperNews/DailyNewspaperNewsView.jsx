@@ -2,6 +2,7 @@
  * Daily Newspaper News — tenant feed browser with copy-to-clipboard for desk
  */
 
+import { useRouter } from 'next/router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tenantsApi } from '../../../lib/api/tenantApi'
 import { newspaperTenantFeedApi } from '../../../lib/api/services/newspaperTenantFeedApi'
@@ -34,10 +35,14 @@ import {
   collectReporterFilterOptions,
   dedupeFeedArticles,
   flattenFeedArticles,
-  isBestReporterArticle,
-  isDeskSlotArticle,
   sortArticlesForDesk,
 } from '../../../lib/newspaperFeed/feedList'
+
+function contentSourceFromMode(mode) {
+  if (mode === 'desk') return 'desk'
+  if (mode === 'all') return 'all'
+  return 'reporter'
+}
 import { Button, FormField, Input, Select, Spinner, toast } from '../../ui'
 
 function unwrapTenants(raw) {
@@ -248,6 +253,7 @@ function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
 }
 
 export default function DailyNewspaperNewsView() {
+  const router = useRouter()
   const authUser = useMemo(() => (typeof window !== 'undefined' ? getAuthUser() : null), [])
   const canPickTenant = isSuperAdmin(authUser)
 
@@ -255,14 +261,15 @@ export default function DailyNewspaperNewsView() {
   const [tenantsLoading, setTenantsLoading] = useState(true)
   const [tenantId, setTenantId] = useState('')
   const [businessDate, setBusinessDate] = useState(todayIstDateString())
-  const [timeRule, setTimeRule] = useState('auto')
+  const [timeRule, setTimeRule] = useState('newsroom')
   const [districtId, setDistrictId] = useState('')
   const [reporterId, setReporterId] = useState('')
   const [contentMode, setContentMode] = useState('best') // best | desk | all
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [feed, setFeed] = useState(null)
-  const [filterOptions, setFilterOptions] = useState({ districts: [], states: [] })
+  const [filterOptions, setFilterOptions] = useState({ districts: [], states: [], reporters: [] })
+  const [feedPage, setFeedPage] = useState(1)
   const [articleIndex, setArticleIndex] = useState(0)
 
   useEffect(() => {
@@ -290,6 +297,13 @@ export default function DailyNewspaperNewsView() {
     }
   }, [authUser?.tenantId, canPickTenant])
 
+  useEffect(() => {
+    const fromQuery = router.query?.tenantId
+    if (fromQuery && canPickTenant) {
+      setTenantId(String(fromQuery))
+    }
+  }, [router.query?.tenantId, canPickTenant])
+
   const loadFeed = useCallback(async () => {
     if (!tenantId) {
       toast.error('Select a newspaper (tenant)')
@@ -301,9 +315,11 @@ export default function DailyNewspaperNewsView() {
         tenantId,
         date: businessDate,
         timeRule,
+        contentSource: contentSourceFromMode(contentMode),
         view: 'both',
         includeFilterOptions: 'true',
-        limit: '500',
+        page: String(feedPage),
+        pageSize: '500',
       }
       if (districtId) params.districtId = districtId
       if (reporterId) params.reporterId = reporterId
@@ -318,6 +334,7 @@ export default function DailyNewspaperNewsView() {
       setFilterOptions({
         districts: opts.districts || [],
         states: opts.states || [],
+        reporters: opts.reporters || [],
       })
     } catch (err) {
       toast.error(err.message || 'Failed to load newspaper news')
@@ -325,33 +342,47 @@ export default function DailyNewspaperNewsView() {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, businessDate, timeRule, districtId, reporterId])
+  }, [tenantId, businessDate, timeRule, districtId, reporterId, contentMode, feedPage])
 
   useEffect(() => {
     if (tenantId && !tenantsLoading) {
       loadFeed()
     }
-  }, [tenantId, tenantsLoading]) // eslint-disable-line react-hooks/exhaustive-deps -- initial load only
+  }, [
+    tenantId,
+    tenantsLoading,
+    businessDate,
+    timeRule,
+    districtId,
+    reporterId,
+    contentMode,
+    feedPage,
+    loadFeed,
+  ])
 
   const allFlattened = useMemo(() => {
     if (!feed) return []
     return dedupeFeedArticles(flattenFeedArticles(feed))
   }, [feed])
 
-  const reporterOptions = useMemo(
-    () => collectReporterFilterOptions(allFlattened),
-    [allFlattened],
-  )
+  const reporterOptions = useMemo(() => {
+    const fromApi = filterOptions.reporters || []
+    if (fromApi.length) {
+      return fromApi.map((r) => ({
+        reporterId: r.reporterId,
+        name:
+          r.articleCount != null
+            ? `${r.name} (${r.articleCount})`
+            : r.name || r.reporterId,
+      }))
+    }
+    return collectReporterFilterOptions(allFlattened)
+  }, [filterOptions.reporters, allFlattened])
 
   const filteredFlat = useMemo(() => {
     let list = allFlattened
     if (reporterId) {
       list = list.filter((a) => String(a._reporterId || a.reporter?.reporterId || '') === reporterId)
-    }
-    if (contentMode === 'best') {
-      list = list.filter(isBestReporterArticle)
-    } else if (contentMode === 'desk') {
-      list = list.filter(isDeskSlotArticle)
     }
     const q = search.trim().toLowerCase()
     if (q) {
@@ -370,7 +401,7 @@ export default function DailyNewspaperNewsView() {
       })
     }
     return sortArticlesForDesk(list)
-  }, [allFlattened, reporterId, contentMode, search])
+  }, [allFlattened, reporterId, search])
 
   useEffect(() => {
     setArticleIndex(0)
@@ -390,14 +421,21 @@ export default function DailyNewspaperNewsView() {
   const tenantName = feed?.tenant?.name || tenants.find((t) => t.id === tenantId)?.name || '—'
   const summary = feed?.summary
   const timeWindow = feed?.timeWindow
+  const feedPagination = summary?.pagination
+
+  const onContentMode = (id) => {
+    setContentMode(id)
+    setFeedPage(1)
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-orange-50/30 to-amber-50/50 p-5 sm:p-6 shadow-sm">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Get Daily Newspaper News</h1>
         <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-          One story at a time — copy for print desk. Default shows best reporter news (no desk/syndicated
-          duplicates). Filter by district or reporter.
+          Edition day newsroom window (6am–midnight IST). API{' '}
+          <code className="text-xs bg-slate-100 px-1 rounded">contentSource=reporter</code> by default — no desk
+          syndication. Copy one story at a time.
         </p>
       </div>
 
@@ -410,7 +448,10 @@ export default function DailyNewspaperNewsView() {
               <Select
                 value={tenantId}
                 disabled={!canPickTenant && Boolean(authUser?.tenantId)}
-                onChange={(e) => setTenantId(e.target.value)}
+                onChange={(e) => {
+                  setTenantId(e.target.value)
+                  setFeedPage(1)
+                }}
               >
                 <option value="">— Select —</option>
                 {tenants.map((t) => (
@@ -425,18 +466,34 @@ export default function DailyNewspaperNewsView() {
             <Input
               type="date"
               value={businessDate}
-              onChange={(e) => setBusinessDate(e.target.value)}
+              onChange={(e) => {
+                setBusinessDate(e.target.value)
+                setFeedPage(1)
+              }}
             />
           </FormField>
-          <FormField label="Time rule">
-            <Select value={timeRule} onChange={(e) => setTimeRule(e.target.value)}>
-              <option value="auto">Auto (today / ePaper by clock)</option>
-              <option value="today">Today 00:00–23:30 IST</option>
-              <option value="epaper">ePaper window (7pm–4am)</option>
+          <FormField label="Edition time rule">
+            <Select
+              value={timeRule}
+              onChange={(e) => {
+                setTimeRule(e.target.value)
+                setFeedPage(1)
+              }}
+            >
+              <option value="newsroom">Newsroom (6am–midnight IST)</option>
+              <option value="today">Today (= newsroom)</option>
+              <option value="auto">Auto (before 6am → ePaper)</option>
+              <option value="epaper">ePaper (prev 7pm → 4am)</option>
             </Select>
           </FormField>
           <FormField label="District filter">
-            <Select value={districtId} onChange={(e) => setDistrictId(e.target.value)}>
+            <Select
+              value={districtId}
+              onChange={(e) => {
+                setDistrictId(e.target.value)
+                setFeedPage(1)
+              }}
+            >
               <option value="">All districts</option>
               {(filterOptions.districts.length
                 ? filterOptions.districts
@@ -451,7 +508,10 @@ export default function DailyNewspaperNewsView() {
           <FormField label="Reporter">
             <Select
               value={reporterId}
-              onChange={(e) => setReporterId(e.target.value)}
+              onChange={(e) => {
+                setReporterId(e.target.value)
+                setFeedPage(1)
+              }}
               disabled={!reporterOptions.length}
             >
               <option value="">All reporters</option>
@@ -466,14 +526,14 @@ export default function DailyNewspaperNewsView() {
 
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'best', label: 'Best (reporter news)' },
-            { id: 'desk', label: 'Desk / syndicated only' },
+            { id: 'best', label: 'Reporter only' },
+            { id: 'desk', label: 'Desk / syndicated' },
             { id: 'all', label: 'All' },
           ].map((m) => (
             <button
               key={m.id}
               type="button"
-              onClick={() => setContentMode(m.id)}
+              onClick={() => onContentMode(m.id)}
               className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                 contentMode === m.id
                   ? 'bg-slate-900 text-white border-slate-900'
@@ -504,6 +564,8 @@ export default function DailyNewspaperNewsView() {
               setDistrictId('')
               setReporterId('')
               setContentMode('best')
+              setTimeRule('newsroom')
+              setFeedPage(1)
             }}
           >
             Reset filters
@@ -511,16 +573,48 @@ export default function DailyNewspaperNewsView() {
         </div>
 
         {timeWindow ? (
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap gap-2 text-xs items-center">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
               {tenantName}
             </span>
             <span className="rounded-full bg-brand/10 px-3 py-1 text-brand-dark font-medium">
-              {timeWindow.businessDate} · {timeWindow.effectiveRule}
+              {timeWindow.businessDate} · {timeWindow.effectiveRule || timeRule}
             </span>
             {summary ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
-                {filteredFlat.length} shown · {allFlattened.length} loaded · {summary.districtCount ?? '—'} districts
+              <>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
+                  {summary.articleCount ?? allFlattened.length} articles · {summary.reporterCount ?? '—'} reporters
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                  {filteredFlat.length} on page · source={summary.contentSource || contentSourceFromMode(contentMode)}
+                </span>
+              </>
+            ) : null}
+            {feedPagination?.totalPages > 1 ? (
+              <span className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={feedPage <= 1 || loading}
+                  onClick={() => setFeedPage((p) => Math.max(1, p - 1))}
+                >
+                  Feed page −
+                </Button>
+                <span className="tabular-nums px-1">
+                  {feedPage}/{feedPagination.totalPages}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  disabled={
+                    loading || feedPage >= (feedPagination.totalPages || 1)
+                  }
+                  onClick={() => setFeedPage((p) => p + 1)}
+                >
+                  Feed page +
+                </Button>
               </span>
             ) : null}
           </div>

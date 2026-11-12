@@ -31,7 +31,7 @@ const TENANT_TABS = [
   { id: 'homepage', label: 'Homepage', icon: 'layout', description: 'Homepage config' },
   { id: 'ads', label: 'Ads', icon: 'megaphone', description: 'Advertisement slots' },
   { id: 'editions', label: 'ePaper Editions', icon: 'layers', description: 'Editions & sub-editions' },
-  { id: 'epaper', label: 'ePaper Design Config', icon: 'layers', description: 'Edition-wise print setup' },
+  { id: 'epaper', label: 'ePaper Settings', icon: 'layers', description: 'Smart design, newspaper-config, print window' },
   { id: 'payments', label: 'Payments', icon: 'credit-card', description: 'Razorpay config' },
   { id: 'tenant-wallet', label: 'Platform Wallet', icon: 'credit-card', description: 'Prepaid balance & monthly fee' },
   { id: 'reporter-billing', label: 'Reporter Billing', icon: 'users', description: 'Subscription due day' },
