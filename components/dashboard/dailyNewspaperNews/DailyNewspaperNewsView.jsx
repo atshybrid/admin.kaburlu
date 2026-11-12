@@ -271,6 +271,7 @@ export default function DailyNewspaperNewsView() {
   const [filterOptions, setFilterOptions] = useState({ districts: [], states: [], reporters: [] })
   const [feedPage, setFeedPage] = useState(1)
   const [articleIndex, setArticleIndex] = useState(0)
+  const [feedHint, setFeedHint] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -336,6 +337,36 @@ export default function DailyNewspaperNewsView() {
         states: opts.states || [],
         reporters: opts.reporters || [],
       })
+
+      const dayTotal = data?.summary?.articleCount ?? 0
+      const source = contentSourceFromMode(contentMode)
+      if (source === 'reporter' && dayTotal === 0) {
+        try {
+          const base = {
+            tenantId,
+            date: businessDate,
+            timeRule,
+            view: 'both',
+            page: '1',
+            pageSize: '1',
+          }
+          if (districtId) base.districtId = districtId
+          const [allWrap, deskWrap] = await Promise.all([
+            newspaperTenantFeedApi.getPublicTenantFeed({ ...base, contentSource: 'all' }),
+            newspaperTenantFeedApi.getPublicTenantFeed({ ...base, contentSource: 'desk' }),
+          ])
+          const allData = allWrap?.data ?? allWrap
+          const deskData = deskWrap?.data ?? deskWrap
+          setFeedHint({
+            all: allData?.summary?.articleCount ?? 0,
+            desk: deskData?.summary?.articleCount ?? 0,
+          })
+        } catch {
+          setFeedHint(null)
+        }
+      } else {
+        setFeedHint(null)
+      }
     } catch (err) {
       toast.error(err.message || 'Failed to load newspaper news')
       setFeed(null)
@@ -724,8 +755,40 @@ export default function DailyNewspaperNewsView() {
       ) : null}
 
       {!loading && feed && filteredFlat.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center text-slate-600">
-          No articles for this date / filters.
+        <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 sm:p-10 text-center space-y-4">
+          <p className="text-slate-700 font-medium">No articles for this date / filters.</p>
+          {timeWindow ? (
+            <p className="text-xs text-slate-500 font-mono max-w-lg mx-auto">
+              Window: {timeWindow.startAtIst || timeWindow.fromDate} →{' '}
+              {timeWindow.endAtIst || timeWindow.toDate} · source=
+              {summary?.contentSource || contentSourceFromMode(contentMode)}
+            </p>
+          ) : null}
+          {feedHint && (feedHint.all > 0 || feedHint.desk > 0) ? (
+            <div className="max-w-xl mx-auto rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-left text-sm text-amber-950">
+              <p className="font-semibold">News ఉంది — కానీ Reporter only లో కనిపించడం లేదు</p>
+              <p className="mt-2 text-xs leading-relaxed text-amber-900">
+                ఈ రోజు edition window లో <strong>{feedHint.all}</strong> published stories ఉన్నాయి (
+                <strong>{feedHint.desk}</strong> desk/syndicated). Default{' '}
+                <code className="bg-white/80 px-1 rounded">contentSource=reporter</code> వాటిని exclude
+                చేస్తుంది — author కి Reporter profile లేకుండా లేదా news desk నుండి file అయినవి.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 justify-center sm:justify-start">
+                <Button type="button" size="sm" onClick={() => onContentMode('all')}>
+                  Show all ({feedHint.all})
+                </Button>
+                {feedHint.desk > 0 ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => onContentMode('desk')}>
+                    Desk only ({feedHint.desk})
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Try <strong>All</strong> or <strong>Desk / syndicated</strong>, or another business date / epaper window.
+            </p>
+          )}
         </div>
       ) : null}
 
