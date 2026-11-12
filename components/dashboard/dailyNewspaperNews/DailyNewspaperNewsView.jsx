@@ -13,7 +13,6 @@ import {
   BULLET_CHAR,
   copyRichClipboard,
   copyToClipboard,
-  flattenGroupedArticles,
   formatArticleAfterDatelineRich,
   formatArticleBodyFlowOnly,
   formatBodyPlain,
@@ -31,6 +30,14 @@ import {
 import { getAuthUser } from '../../../utils/auth'
 import { isSuperAdmin } from '../../../utils/roleUtils'
 import { filterActiveTenants } from '../../../lib/tenant/isActiveTenant'
+import {
+  collectReporterFilterOptions,
+  dedupeFeedArticles,
+  flattenFeedArticles,
+  isBestReporterArticle,
+  isDeskSlotArticle,
+  sortArticlesForDesk,
+} from '../../../lib/newspaperFeed/feedList'
 import { Button, FormField, Input, Select, Spinner, toast } from '../../ui'
 
 function unwrapTenants(raw) {
@@ -250,10 +257,13 @@ export default function DailyNewspaperNewsView() {
   const [businessDate, setBusinessDate] = useState(todayIstDateString())
   const [timeRule, setTimeRule] = useState('auto')
   const [districtId, setDistrictId] = useState('')
+  const [reporterId, setReporterId] = useState('')
+  const [contentMode, setContentMode] = useState('best') // best | desk | all
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [feed, setFeed] = useState(null)
   const [filterOptions, setFilterOptions] = useState({ districts: [], states: [] })
+  const [articleIndex, setArticleIndex] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -296,6 +306,7 @@ export default function DailyNewspaperNewsView() {
         limit: '500',
       }
       if (districtId) params.districtId = districtId
+      if (reporterId) params.reporterId = reporterId
 
       const response = await newspaperTenantFeedApi.getPublicTenantFeed(params)
       const data = response?.data ?? response
@@ -314,7 +325,7 @@ export default function DailyNewspaperNewsView() {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, businessDate, timeRule, districtId])
+  }, [tenantId, businessDate, timeRule, districtId, reporterId])
 
   useEffect(() => {
     if (tenantId && !tenantsLoading) {
@@ -322,29 +333,59 @@ export default function DailyNewspaperNewsView() {
     }
   }, [tenantId, tenantsLoading]) // eslint-disable-line react-hooks/exhaustive-deps -- initial load only
 
-  const flatArticles = useMemo(() => {
+  const allFlattened = useMemo(() => {
     if (!feed) return []
-    if (Array.isArray(feed.articles) && feed.articles.length) {
-      return feed.articles.map((a) => ({ ...a }))
-    }
-    return flattenGroupedArticles(feed.districts)
+    return dedupeFeedArticles(flattenFeedArticles(feed))
   }, [feed])
 
+  const reporterOptions = useMemo(
+    () => collectReporterFilterOptions(allFlattened),
+    [allFlattened],
+  )
+
   const filteredFlat = useMemo(() => {
+    let list = allFlattened
+    if (reporterId) {
+      list = list.filter((a) => String(a._reporterId || a.reporter?.reporterId || '') === reporterId)
+    }
+    if (contentMode === 'best') {
+      list = list.filter(isBestReporterArticle)
+    } else if (contentMode === 'desk') {
+      list = list.filter(isDeskSlotArticle)
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return flatArticles
-    return flatArticles.filter((a) => {
-      const hay = [
-        articleDisplayTitle(a),
-        formatDatelineCopy(a),
-        formatBodyPlain(a),
-        ...(articleHighlightsList(a)),
-      ]
-        .join(' ')
-        .toLowerCase()
-      return hay.includes(q)
-    })
-  }, [flatArticles, search])
+    if (q) {
+      list = list.filter((a) => {
+        const hay = [
+          articleDisplayTitle(a),
+          formatDatelineCopy(a),
+          formatBodyPlain(a),
+          a._reporterName,
+          a._districtName,
+          ...(articleHighlightsList(a)),
+        ]
+          .join(' ')
+          .toLowerCase()
+        return hay.includes(q)
+      })
+    }
+    return sortArticlesForDesk(list)
+  }, [allFlattened, reporterId, contentMode, search])
+
+  useEffect(() => {
+    setArticleIndex(0)
+  }, [filteredFlat.length, tenantId, businessDate, reporterId, contentMode, districtId, search])
+
+  useEffect(() => {
+    if (articleIndex >= filteredFlat.length) {
+      setArticleIndex(Math.max(0, filteredFlat.length - 1))
+    }
+  }, [articleIndex, filteredFlat.length])
+
+  const currentArticle = filteredFlat[articleIndex] || null
+
+  const goPrev = () => setArticleIndex((i) => Math.max(0, i - 1))
+  const goNext = () => setArticleIndex((i) => Math.min(filteredFlat.length - 1, i + 1))
 
   const tenantName = feed?.tenant?.name || tenants.find((t) => t.id === tenantId)?.name || '—'
   const summary = feed?.summary
@@ -355,13 +396,13 @@ export default function DailyNewspaperNewsView() {
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-orange-50/30 to-amber-50/50 p-5 sm:p-6 shadow-sm">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Get Daily Newspaper News</h1>
         <p className="text-sm text-slate-600 mt-1 max-w-2xl">
-          Tenant-wise published news for today or a selected date (IST). Filter by district, copy title,
-          bullet points, dateline, and full article for print desk.
+          One story at a time — copy for print desk. Default shows best reporter news (no desk/syndicated
+          duplicates). Filter by district or reporter.
         </p>
       </div>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <FormField label="Newspaper (tenant)" required>
             {tenantsLoading ? (
               <Spinner size="sm" />
@@ -407,6 +448,41 @@ export default function DailyNewspaperNewsView() {
               ))}
             </Select>
           </FormField>
+          <FormField label="Reporter">
+            <Select
+              value={reporterId}
+              onChange={(e) => setReporterId(e.target.value)}
+              disabled={!reporterOptions.length}
+            >
+              <option value="">All reporters</option>
+              {reporterOptions.map((r) => (
+                <option key={r.reporterId} value={r.reporterId}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'best', label: 'Best (reporter news)' },
+            { id: 'desk', label: 'Desk / syndicated only' },
+            { id: 'all', label: 'All' },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setContentMode(m.id)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                contentMode === m.id
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {m.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
@@ -426,9 +502,11 @@ export default function DailyNewspaperNewsView() {
             onClick={() => {
               setBusinessDate(todayIstDateString())
               setDistrictId('')
+              setReporterId('')
+              setContentMode('best')
             }}
           >
-            Today · all districts
+            Reset filters
           </Button>
         </div>
 
@@ -442,7 +520,7 @@ export default function DailyNewspaperNewsView() {
             </span>
             {summary ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
-                {summary.articleCount ?? filteredFlat.length} articles · {summary.districtCount ?? '—'} districts
+                {filteredFlat.length} shown · {allFlattened.length} loaded · {summary.districtCount ?? '—'} districts
               </span>
             ) : null}
           </div>
@@ -461,77 +539,43 @@ export default function DailyNewspaperNewsView() {
         </div>
       ) : null}
 
-      {feed?.districts?.length && !search.trim() ? (
-        <div className="space-y-6">
-          {feed.districts.map((district) => (
-            <div key={district.districtId || district.districtName} className="space-y-4">
-              <div className="flex items-center justify-between gap-2 sticky top-0 z-10 bg-slate-50/95 backdrop-blur py-2 border-b border-slate-200">
-                <h2 className="text-lg font-bold text-slate-900">
-                  {district.districtName || 'District'}
-                  <span className="ml-2 text-sm font-normal text-slate-500">
-                    ({district.totalArticles ?? 0} articles)
-                  </span>
-                </h2>
-              </div>
-              {(district.reporters || []).map((reporter) => (
-                <div key={reporter.reporterId || reporter.name} className="space-y-3 pl-2 sm:pl-4 border-l-2 border-slate-200">
-                  <div className="flex flex-wrap items-baseline gap-2">
-                    <h3 className="font-semibold text-slate-800">{reporter.name || 'Reporter'}</h3>
-                    {reporter.designation?.nativeName || reporter.designation?.name ? (
-                      <span className="text-xs text-slate-500">
-                        {reporter.designation.nativeName || reporter.designation.name}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    {['p1', 'p2', 'p3', 'others'].map((bucket) => {
-                      const items = reporter.priorityWise?.[bucket] || []
-                      if (!items.length) return null
-                      return items.map((article) => (
-                        <ArticleCard
-                          key={article.id}
-                          article={article}
-                          reporterName={reporter.name}
-                          districtName={district.districtName}
-                          priorityBucket={bucket}
-                        />
-                      ))
-                    })}
-                  </div>
-                </div>
-              ))}
+      {feed && filteredFlat.length > 0 && currentArticle ? (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sticky top-0 z-20">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Story navigator</p>
+              <p className="text-sm text-slate-800 mt-0.5">
+                <span className="font-bold tabular-nums">{articleIndex + 1}</span>
+                <span className="text-slate-500"> / {filteredFlat.length}</span>
+                {currentArticle._reporterName ? (
+                  <span className="text-slate-600"> · {currentArticle._reporterName}</span>
+                ) : null}
+              </p>
             </div>
-          ))}
-        </div>
-      ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" disabled={articleIndex <= 0} onClick={goPrev}>
+                ← Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={articleIndex >= filteredFlat.length - 1}
+                onClick={goNext}
+              >
+                Next →
+              </Button>
+            </div>
+          </div>
 
-      {!search.trim() && !(feed?.districts?.length) && filteredFlat.length > 0 ? (
-        <div className="space-y-4">
-          {filteredFlat.map((article) => (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              reporterName={article._reporterName || article.reporter?.name}
-              districtName={article._districtName}
-              priorityBucket={article._priorityBucket || article.priorityBucket}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {search.trim() && filteredFlat.length > 0 ? (
-        <div className="space-y-4">
-          <h2 className="text-sm font-semibold text-slate-700">Search results ({filteredFlat.length})</h2>
-          {filteredFlat.map((article) => (
-            <ArticleCard
-              key={article.id}
-              article={article}
-              reporterName={article._reporterName || article.reporter?.name}
-              districtName={article._districtName}
-              priorityBucket={article._priorityBucket || article.priorityBucket}
-            />
-          ))}
-        </div>
+          <ArticleCard
+            key={currentArticle.id}
+            article={currentArticle}
+            reporterName={currentArticle._reporterName || currentArticle.reporter?.name}
+            districtName={currentArticle._districtName}
+            priorityBucket={currentArticle._priorityBucket || currentArticle.priorityBucket}
+          />
+        </section>
       ) : null}
     </div>
   )
