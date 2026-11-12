@@ -41,6 +41,13 @@ export const adminNavigation = {
       icon: IconNewspaper,
       roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
     },
+    {
+      key: 'reporter-insights',
+      href: '/admin/reporter-insights',
+      label: 'Reporter Insights',
+      icon: IconUsers,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
+    },
     { key: 'ipr-empanelment', href: '/admin/ipr-empanelment', label: 'I&PR Empanelment', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
@@ -53,6 +60,13 @@ export const adminNavigation = {
       href: '/admin/daily-newspaper-news',
       label: 'Daily Newspaper News',
       icon: IconNewspaper,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
+    },
+    {
+      key: 'reporter-insights',
+      href: '/admin/reporter-insights',
+      label: 'Reporter Insights',
+      icon: IconUsers,
       roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
     },
     {
