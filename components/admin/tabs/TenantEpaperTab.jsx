@@ -4,1285 +4,968 @@ import smartDesignApi from '../../../lib/api/services/smartDesignApi'
 import epaperApi from '../../../lib/api/services/epaperApi'
 import mediaApi from '../../../lib/api/services/mediaApi'
 import { setHeaderStyleCatalogCache } from '../../../lib/epaper/headerStyleCatalog'
-import {
-  findPaperSpec,
-  formatPaperSpecSummary,
-  indexPaperSpecs,
-  normalizePaperTypeKey,
-} from '../../../lib/epaper/paperPageSpecs'
-import { formToSmartDesignPayload, smartDesignToForm, rowsFromEditionsCatalog } from '../../../lib/epaper/smartDesignForm'
+import { formToSmartDesignPayload, smartDesignToForm } from '../../../lib/epaper/smartDesignForm'
 import {
   formToNewspaperConfigPayload,
   newspaperConfigToForm,
 } from '../../../lib/epaper/newspaperConfigForm'
+import { Button, ConfirmDialog, FormField, Input, Select, Spinner, toast } from '../../ui'
+
+const todayIso = () => new Date().toISOString().slice(0, 10)
 
 const EMPTY_FORM = {
   paperType: 'TABLOID',
-  pageSize: 'TABLOID',
   defaultPageCount: 8,
   perPageCostMonthly: 0,
-  perPagePrice: 0,
   paperSellCost: 5,
-  volumeNumber: 1,
-  volumeStartNumber: 1,
-  volumeStartYear: new Date().getFullYear(),
-  issueNumber: 1,
-  issueStartNumber: 1,
-  issueStartDate: new Date().toISOString().slice(0, 10),
-  issueCounterMode: 'SEQUENTIAL',
-  newsCloseTime: '23:00',
-  languageCode: 'te',
   headerStyleNumber: 1,
   subHeaderStyleNumber: 1,
   headerData: '',
+  tagline: '',
+  websiteUrl: '',
+  publishedAreaText: '',
   headerLogoUrl: '',
   paperNameImageUrl: '',
   headerLeftImageUrl: '',
   headerRightImageUrl: '',
-  publishedAreaText: '',
-  lastPageFooterText: '',
   subHeaderLogoUrl: '',
-  subHeaderImageUrl: '',
+  lastPageFooterText: '',
+  volumeStartNumber: 1,
+  volumeStartYear: new Date().getFullYear(),
+  issueStartNumber: 1,
+  issueStartDate: todayIso(),
+  issueCounterMode: 'SEQUENTIAL',
+  newsCloseTime: '23:00',
+  languageCode: 'te',
 }
 
-function resolveScopeLabel(editions, editionId, subEditionId) {
-  const ed = editions.find((item) => String(item.id) === String(editionId))
-  if (!ed) return editionId || '—'
-  if (subEditionId) {
-    const sub = (ed.subEditions || []).find((s) => String(s.id) === String(subEditionId))
-    return `${ed.name || ed.slug || editionId} › ${sub?.name || sub?.slug || subEditionId}`
+function formatIst(value) {
+  if (!value) return '—'
+  const m = String(value).match(/T(\d{2}:\d{2})/)
+  const d = String(value).slice(0, 10)
+  return m ? `${d} ${m[1]}` : String(value)
+}
+
+function validateForm(form) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(form.issueStartDate || ''))) {
+    return 'Issue start date is required (YYYY-MM-DD).'
   }
-  return ed.name || ed.slug || editionId
+  const issueStart = Number(form.issueStartNumber)
+  if (!Number.isFinite(issueStart) || issueStart < 1 || issueStart > 365) {
+    return 'Issue start number must be between 1 and 365.'
+  }
+  if (!/^\d{2}:\d{2}$/.test(String(form.newsCloseTime || ''))) {
+    return 'News close time must be HH:MM.'
+  }
+  if (Number(form.defaultPageCount) < 1) return 'Pages must be at least 1.'
+  return ''
 }
 
-function rowKeyFromScope(editionId, subEditionId) {
-  return subEditionId ? `sub:${subEditionId}` : `edition:${editionId || ''}`
-}
-
-function ImageUrlField({ label, hint, value, onChange, onUpload, busy, uploading }) {
+function Section({ title, description, children }) {
   return (
-    <label className="text-xs text-slate-600 block">
-      {label}
-      {hint ? <span className="block text-[10px] text-slate-400 font-normal mt-0.5">{hint}</span> : null}
-      <input
+    <section className="rounded-xl border border-slate-200 bg-white">
+      <header className="border-b border-slate-100 px-5 py-3">
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        {description ? <p className="mt-0.5 text-xs text-slate-500">{description}</p> : null}
+      </header>
+      <div className="p-5">{children}</div>
+    </section>
+  )
+}
+
+function ImageField({ label, hint, value, onChange, onUpload, uploading, disabled }) {
+  return (
+    <div className="rounded-lg border border-slate-200 p-3">
+      <div className="flex items-start gap-3">
+        <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-slate-300 bg-slate-50">
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <span className="text-[10px] text-slate-400">No image</span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-800">{label}</p>
+          {hint ? <p className="text-[11px] text-slate-500">{hint}</p> : null}
+        </div>
+      </div>
+      <Input
+        size="sm"
         type="url"
-        value={value}
+        className="mt-3"
+        value={value || ''}
+        disabled={disabled}
+        placeholder="https://… or upload"
         onChange={(e) => onChange(e.target.value)}
-        disabled={busy}
-        placeholder="https://… or upload below"
-        className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
       />
       <div className="mt-2 flex items-center gap-2">
-        <input
-          type="file"
-          accept="image/*"
-          disabled={busy || uploading}
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onUpload(file)
-            e.target.value = ''
-          }}
-          className="block w-full text-[11px] text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-2.5 file:py-1.5 file:text-xs file:font-medium disabled:opacity-60"
-        />
-        {uploading ? <span className="text-[11px] text-slate-500">Uploading…</span> : null}
+        <label
+          className={`inline-flex cursor-pointer items-center rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 ${
+            disabled || uploading ? 'pointer-events-none opacity-60' : ''
+          }`}
+        >
+          {uploading ? 'Uploading…' : 'Upload'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) onUpload(file)
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {value ? (
+          <button
+            type="button"
+            className="text-xs text-red-600 hover:underline"
+            disabled={disabled}
+            onClick={() => onChange('')}
+          >
+            Remove
+          </button>
+        ) : null}
       </div>
-    </label>
+    </div>
+  )
+}
+
+function StatusDot({ configured }) {
+  return (
+    <span
+      className={`inline-block h-2 w-2 shrink-0 rounded-full ${configured ? 'bg-emerald-500' : 'bg-slate-300'}`}
+      aria-hidden
+    />
+  )
+}
+
+function ScopeButton({ active, configured, title, subtitle, meta, onClick, indent }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
+        indent ? 'pl-7' : ''
+      } ${active ? 'bg-slate-900 text-white' : 'hover:bg-slate-100 text-slate-800'}`}
+    >
+      <StatusDot configured={configured} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{title}</span>
+        <span className={`block text-[11px] ${active ? 'text-slate-300' : 'text-slate-500'}`}>{subtitle}</span>
+      </span>
+      {meta ? (
+        <span className={`shrink-0 text-[11px] tabular-nums ${active ? 'text-slate-300' : 'text-slate-500'}`}>
+          {meta}
+        </span>
+      ) : null}
+    </button>
   )
 }
 
 export default function TenantEpaperTab({ tenantContext }) {
   const tenantId = tenantContext?.tenantId
 
-  const [busy, setBusy] = useState(false)
-  const [uploading, setUploading] = useState({})
-  const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
+  const [catalog, setCatalog] = useState(null)
+  const [styles, setStyles] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
-  const [smartContext, setSmartContext] = useState(null)
-  const [editionCatalog, setEditionCatalog] = useState(null)
-  const [apiHeaderStyles, setApiHeaderStyles] = useState(null)
-  const [paperSpecs, setPaperSpecs] = useState(null)
-  const [nextAction, setNextAction] = useState('CREATE')
-  const [allSmartDesigns, setAllSmartDesigns] = useState([])
-  const [smartDesignId, setSmartDesignId] = useState(null)
-  const [selectedRowKey, setSelectedRowKey] = useState('')
-  const [editions, setEditions] = useState([])
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [listMeta, setListMeta] = useState({
-    contextDesigns: 0,
-    contextEditions: 0,
-    editionsApiCount: 0,
-    contextError: '',
-    editionsError: '',
-  })
-
-  const [scopeType, setScopeType] = useState('edition')
-  const [editionId, setEditionId] = useState('')
-  const [subEditionId, setSubEditionId] = useState('')
-
+  const [selected, setSelected] = useState(null)
+  const [design, setDesign] = useState(null)
   const [form, setForm] = useState({ ...EMPTY_FORM })
-  const [designToday, setDesignToday] = useState(null)
-  const [activeDesign, setActiveDesign] = useState(null)
-  const [tenantNewsConfig, setTenantNewsConfig] = useState(null)
-  const [tenantConfigForm, setTenantConfigForm] = useState(null)
-  const [tenantConfigSaving, setTenantConfigSaving] = useState(false)
-  const [collectSummary, setCollectSummary] = useState(null)
-  const [collectBusy, setCollectBusy] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [scopeLoading, setScopeLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [uploading, setUploading] = useState({})
+  const [collect, setCollect] = useState(null)
+  const [collecting, setCollecting] = useState(false)
 
-  const configKey = useMemo(
-    () => (scopeType === 'sub-edition' ? `sub:${subEditionId || ''}` : `edition:${editionId || ''}`),
-    [scopeType, editionId, subEditionId]
-  )
+  const [defaultsOpen, setDefaultsOpen] = useState(false)
+  const [defaults, setDefaults] = useState(null)
+  const [defaultsSaving, setDefaultsSaving] = useState(false)
 
-  const mainHeaderOptions = useMemo(() => {
-    const fromApi = apiHeaderStyles?.mainHeaders
-    return Array.isArray(fromApi) ? fromApi : []
-  }, [apiHeaderStyles])
-
-  const subHeaderOptions = useMemo(() => {
-    const fromApi = apiHeaderStyles?.subHeaders
-    return Array.isArray(fromApi) ? fromApi : []
-  }, [apiHeaderStyles])
-
-  const paperTypeOptions = useMemo(() => {
-    const items = paperSpecs?.items || apiHeaderStyles?.paperPageSpecs || []
-    if (items.length) {
-      return items.map((item) => ({
-        value: item.paperType,
-        label: item.label || item.paperType,
-      }))
-    }
-    return [
-      { value: 'TABLOID', label: 'Tabloid (11×17″)' },
-      { value: 'BROADSHEET', label: 'Broadsheet (15×22.75″)' },
-    ]
-  }, [paperSpecs, apiHeaderStyles])
-
-  const activePaperSpec = useMemo(() => {
-    const pt = form.paperType || form.pageSize
-    return findPaperSpec(paperSpecs?.items || apiHeaderStyles?.paperPageSpecs, pt)
-  }, [paperSpecs, apiHeaderStyles, form.paperType, form.pageSize])
-
-  const allowedUploadFields = useMemo(() => {
-    const fromDesign = activeDesign?.styleCapabilities?.allowedFields
-    if (fromDesign && typeof fromDesign === 'object') return fromDesign
-    return {
-      headerLogoUrl: true,
-      headerLeftImageUrl: true,
-      headerRightImageUrl: true,
-      paperNameImageUrl: true,
-      subHeaderLogoUrl: true,
-    }
-  }, [activeDesign])
-
-  const printNewsWindow = useMemo(() => {
-    return (
-      designToday?.newsWindow ||
-      tenantNewsConfig?.today?.newsWindow ||
-      tenantConfigForm?.newsWindow ||
-      null
-    )
-  }, [designToday, tenantNewsConfig, tenantConfigForm])
-
-  const headerRenderHint = apiHeaderStyles?.renderEngine?.recommended
-    ? `API recommends: Main style ${apiHeaderStyles.renderEngine.recommended.page1Main}, Sub style ${apiHeaderStyles.renderEngine.recommended.page2PlusSub}`
-    : ''
-
-  const designTableRows = useMemo(() => {
-    const fromEditions = rowsFromEditionsCatalog(editionCatalog, editions)
-    if (fromEditions.length) return fromEditions
-
-    return allSmartDesigns.map((d) => {
-      const eid = d.publicationEditionId || d.editionId
-      const sid = d.subEditionId || ''
-      return {
-        id: d.id,
-        key: rowKeyFromScope(eid, sid),
-        source: 'smart-design',
-        scopeType: sid ? 'sub-edition' : 'edition',
-        editionId: eid,
-        subEditionId: sid,
-        scopeLabel: resolveScopeLabel(editions, eid, sid),
-        paperType: d.paperType || d.pageSize,
-        pageSize: d.paperType || d.pageSize,
-        defaultPageCount: d.totalPages,
-        paperSellCost: d.paperSellCost,
-        volumeNumber: d.today?.currentVolume ?? d.volumeStartNumber,
-        issueNumber: d.today?.currentIssue ?? d.issueStartNumber,
-        headerStyleNumber: d.headerStyleNumber,
-        subHeaderStyleNumber: d.subHeaderStyleNumber,
-        hasDesign: true,
-        nextAction: 'UPDATE',
-        updatedAt: d.updatedAt || d.createdAt,
-        raw: d,
-      }
-    })
-  }, [editionCatalog, editions, allSmartDesigns])
-
-  const mainStyleName = (n) => mainHeaderOptions.find((s) => s.number === Number(n))?.name || `#${n}`
-  const subStyleName = (n) => subHeaderOptions.find((s) => s.number === Number(n))?.name || `#${n}`
-
-  const layoutPreviewHref = useCallback(
-    (editionIdOverride, issueDateOverride) => {
-      const eid = editionIdOverride || editionId || editions[0]?.id
-      if (!tenantId || !eid) return null
-      const q = new URLSearchParams({
-        tenantId: String(tenantId),
-        editionId: String(eid),
-        startPage: '2',
-      })
-      const issue =
-        issueDateOverride ||
-        form.issueStartDate ||
-        new Date().toISOString().slice(0, 10)
-      if (issue && /^\d{4}-\d{2}-\d{2}$/.test(String(issue).slice(0, 10))) {
-        q.set('issueDate', String(issue).slice(0, 10))
-      }
-      return `/admin/epaper/design?${q.toString()}`
-    },
-    [tenantId, editionId, editions, form.issueStartDate]
-  )
+  const editions = useMemo(() => catalog?.editions || [], [catalog])
+  const mainStyles = useMemo(() => styles?.mainHeaders || [], [styles])
+  const subStyles = useMemo(() => styles?.subHeaders || [], [styles])
 
   const selectedEdition = useMemo(
-    () => editions.find((item) => String(item?.id) === String(editionId)) || null,
-    [editions, editionId]
+    () => editions.find((e) => e.id === selected?.editionId) || null,
+    [editions, selected]
+  )
+  const selectedSub = useMemo(
+    () => selectedEdition?.subEditions?.find((s) => s.id === selected?.subEditionId) || null,
+    [selectedEdition, selected]
   )
 
-  const availableSubEditions = useMemo(() => {
-    const list = selectedEdition?.subEditions
-    return Array.isArray(list) ? list : []
-  }, [selectedEdition])
+  const mainStyle = mainStyles.find((s) => Number(s.number) === Number(form.headerStyleNumber))
+  const subStyle = subStyles.find((s) => Number(s.number) === Number(form.subHeaderStyleNumber))
+  const caps = {
+    headerLogoUrl: mainStyle?.supportsCenterLogo !== false,
+    paperNameImageUrl: mainStyle?.supportsPaperNameImage === true,
+    headerLeftImageUrl: mainStyle?.supportsLeftImage !== false,
+    headerRightImageUrl: mainStyle?.supportsRightImage !== false,
+    subHeaderLogoUrl: subStyle?.supportsSubHeaderCenterImage !== false,
+  }
 
-  const isValidScopeSelection = useMemo(() => {
-    if (scopeType === 'edition') return !!editionId
-    return !!editionId && !!subEditionId
-  }, [scopeType, editionId, subEditionId])
+  const loadCatalog = useCallback(async () => {
+    if (!tenantId) return null
+    setLoadError('')
+    try {
+      const res = await smartDesignApi.getEditions(tenantId)
+      setCatalog(res)
+      return res
+    } catch (e) {
+      setLoadError(e?.message || 'Failed to load editions')
+      return null
+    }
+  }, [tenantId])
+
+  useEffect(() => {
+    if (!tenantId) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      const [cat, st, cfg] = await Promise.all([
+        loadCatalog(),
+        smartDesignApi.getHeaderStyles(tenantId).catch(() => null),
+        epaperApi.getNewspaperConfig(tenantId).catch(() => null),
+      ])
+      if (cancelled) return
+      if (st) {
+        setStyles(st)
+        setHeaderStyleCatalogCache(st)
+      }
+      setDefaults(newspaperConfigToForm(cfg || {}))
+      const first = cat?.editions?.[0]
+      if (first) setSelected({ editionId: first.id, subEditionId: null })
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tenantId, loadCatalog])
+
+  const loadScope = useCallback(
+    async (scope) => {
+      if (!tenantId || !scope?.editionId) return
+      setScopeLoading(true)
+      setCollect(null)
+      try {
+        const query = { publicationEditionId: scope.editionId }
+        if (scope.subEditionId) query.subEditionId = scope.subEditionId
+        const res = await smartDesignApi.getByEdition(tenantId, query)
+        const found = res?.exists && res?.design ? res.design : null
+        setDesign(found)
+        setForm(found ? { ...EMPTY_FORM, ...smartDesignToForm(found) } : { ...EMPTY_FORM })
+        setDirty(false)
+      } catch (e) {
+        toast.error(e?.message || 'Failed to load design')
+      } finally {
+        setScopeLoading(false)
+      }
+    },
+    [tenantId]
+  )
+
+  useEffect(() => {
+    if (selected) loadScope(selected)
+  }, [selected, loadScope])
+
+  const selectScope = (editionId, subEditionId = null) => {
+    if (dirty && !window.confirm('You have unsaved changes. Discard them?')) return
+    setSelected({ editionId, subEditionId })
+  }
 
   const setField = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }))
+    setDirty(true)
   }
 
-  const syncFormFromConfig = useCallback((cfg) => {
-    if (!cfg) return
-    const mapped = smartDesignToForm(cfg) || cfg
-    setForm((prev) => ({ ...prev, ...mapped }))
-  }, [])
-
-  const loadByEditionScope = useCallback(
-    async (eid, sid = '', scope = 'edition') => {
-      if (!tenantId || !eid) return
-      try {
-        const query = { publicationEditionId: eid }
-        if (scope === 'sub-edition' && sid) query.subEditionId = sid
-        const res = await smartDesignApi.getByEdition(tenantId, query)
-        setNextAction(res?.nextAction || (res?.exists ? 'UPDATE' : 'CREATE'))
-        const rowKey =
-          scope === 'sub-edition' && sid ? `sub:${sid}` : `edition:${eid}`
-        if (res?.exists && res?.design) {
-          setSmartDesignId(res.design.id)
-          syncFormFromConfig(res.design)
-          setActiveDesign(res.design)
-          setDesignToday(res.design.today || null)
-          setSelectedRowKey(rowKey)
-        } else {
-          setSmartDesignId(null)
-          setForm({ ...EMPTY_FORM })
-          setActiveDesign(null)
-          setDesignToday(null)
-          setSelectedRowKey('')
-        }
-        return res
-      } catch (e) {
-        setError(e?.message || String(e))
-        return null
-      }
-    },
-    [tenantId, syncFormFromConfig]
-  )
-
-  const loadAll = useCallback(async () => {
-    if (!tenantId) return
-    setBusy(true)
-    setError('')
+  const handleUpload = async (field, file) => {
+    setUploading((prev) => ({ ...prev, [field]: true }))
     try {
-      let sdCtx = null
-      let ctxError = ''
-      try {
-        sdCtx = await smartDesignApi.getContext(tenantId)
-      } catch (e) {
-        ctxError = e?.message || String(e)
-      }
+      const result = await mediaApi.upload(file, `tenants/${tenantId}/epaper/smart-design`)
+      const url =
+        result?.internalUrl || result?.data?.internalUrl || result?.data?.internalPath || result?.url || ''
+      if (!url) throw new Error('Upload succeeded but no URL returned')
+      setField(field, url)
+      if (field === 'headerLogoUrl' && !caps.paperNameImageUrl) setField('paperNameImageUrl', url)
+      toast.success('Image uploaded — save to apply')
+    } catch (e) {
+      toast.error(e?.message || 'Upload failed')
+    } finally {
+      setUploading((prev) => ({ ...prev, [field]: false }))
+    }
+  }
 
-      let editionsResp = null
-      let editionsError = ''
-      try {
-        editionsResp = await smartDesignApi.getEditions(tenantId)
-      } catch (e) {
-        editionsError = e?.message || String(e)
-      }
-
-      let headerStyles = null
-      try {
-        headerStyles = await smartDesignApi.getHeaderStyles(tenantId)
-      } catch {
+  const handleSave = async () => {
+    if (!selected) return
+    const problem = validateForm(form)
+    if (problem) {
+      toast.error(problem)
+      return
+    }
+    setSaving(true)
+    try {
+      const payload = formToSmartDesignPayload(form, {
+        editionId: selected.editionId,
+        subEditionId: selected.subEditionId,
+        scopeType: selected.subEditionId ? 'sub-edition' : 'edition',
+      })
+      let saved
+      if (design?.id) {
+        saved = (await smartDesignApi.patch(tenantId, design.id, payload))?.design
+        toast.success('Design updated')
+      } else {
         try {
-          headerStyles = await epaperApi.getHeaderStyles()
-        } catch {
-          /* catalog optional */
+          saved = (await smartDesignApi.create(tenantId, payload))?.design
+          toast.success('Design created')
+        } catch (e) {
+          if (e?.status === 409 && e?.data?.existingId) {
+            saved = (await smartDesignApi.patch(tenantId, e.data.existingId, payload))?.design
+            toast.success('Design already existed — updated')
+          } else {
+            throw e
+          }
         }
       }
-
-      let specsPayload = null
-      try {
-        specsPayload = await epaperApi.getPaperPageSpecs()
-      } catch {
-        /* optional */
+      await loadCatalog()
+      if (saved) {
+        setDesign(saved)
+        setForm({ ...EMPTY_FORM, ...smartDesignToForm(saved) })
+      } else {
+        await loadScope(selected)
       }
-
-      let newsCfg = null
-      try {
-        newsCfg = await epaperApi.getNewspaperConfig(tenantId)
-        setTenantNewsConfig(newsCfg)
-        setTenantConfigForm(newspaperConfigToForm(newsCfg))
-      } catch (e) {
-        setTenantNewsConfig(null)
-        setTenantConfigForm(newspaperConfigToForm({}))
-        setListMeta((prev) => ({
-          ...prev,
-          contextError: prev.contextError || (e?.message ? `newspaper-config: ${e.message}` : ''),
-        }))
-      }
-      const specItems =
-        specsPayload?.items ||
-        headerStyles?.paperPageSpecs ||
-        []
-      setPaperSpecs({
-        items: specItems,
-        byType: indexPaperSpecs(specItems),
-        primaryTypes: specsPayload?.primaryTypes || [],
-      })
-
-      setSmartContext(sdCtx)
-      setEditionCatalog(editionsResp)
-      setApiHeaderStyles(headerStyles)
-      if (headerStyles) setHeaderStyleCatalogCache(headerStyles)
-
-      const editionItems = Array.isArray(editionsResp?.editions) ? editionsResp.editions : []
-      setEditions(editionItems)
-
-      const designs = []
-      for (const ed of editionItems) {
-        if (ed.editionDesign) designs.push(ed.editionDesign)
-        for (const sub of ed.subEditions || []) {
-          if (sub.design) designs.push(sub.design)
-        }
-      }
-      setAllSmartDesigns(designs)
-
-      setListMeta({
-        contextDesigns: sdCtx?.totalDesigns ?? designs.length,
-        contextEditions: sdCtx?.totalEditions ?? editionItems.length,
-        editionsApiCount: editionItems.length,
-        contextError: ctxError,
-        editionsError,
-      })
-
-      if (!editionId && editionItems[0]?.id) setEditionId(String(editionItems[0].id))
-
-      return { context: sdCtx, editions: editionItems }
+      setDirty(false)
     } catch (e) {
-      setError(e?.message || String(e))
-      return null
+      toast.error(e?.message || 'Save failed')
     } finally {
-      setBusy(false)
-      setInitialLoading(false)
+      setSaving(false)
     }
-  }, [tenantId, editionId])
+  }
 
-  useEffect(() => {
-    loadAll()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId])
+  const handleDelete = async () => {
+    if (!design?.id) return
+    setDeleting(true)
+    try {
+      await smartDesignApi.remove(tenantId, design.id)
+      toast.success('Design deleted')
+      setConfirmDelete(false)
+      await loadCatalog()
+      await loadScope(selected)
+    } catch (e) {
+      toast.error(e?.message || 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
-  const selectRowForEdit = useCallback(
-    async (row) => {
-      setScopeType(row.scopeType || 'edition')
-      setEditionId(row.editionId || '')
-      setSubEditionId(row.subEditionId || '')
-      setNextAction(row.nextAction || (row.hasDesign ? 'UPDATE' : 'CREATE'))
-      setInfo(`Editing: ${row.scopeLabel}`)
-      setError('')
-      await loadByEditionScope(row.editionId, row.subEditionId || '', row.scopeType || 'edition')
-    },
-    [loadByEditionScope]
+  const handleCollect = async () => {
+    if (!selected) return
+    setCollecting(true)
+    try {
+      const issueDate = design?.today?.issueDate || todayIso()
+      const query = { publicationEditionId: selected.editionId, issueDate, excludeMainPage: 'true' }
+      if (selected.subEditionId) query.subEditionId = selected.subEditionId
+      const res = await smartDesignApi.collectNews(tenantId, query)
+      const nw = res?.newsWindow || res?.pipeline?.newsWindow || {}
+      setCollect({
+        issueDate,
+        count: res?.articleCount ?? res?.articles?.length ?? res?.summary?.articleCount ?? 0,
+        from: nw.fromIST || nw.fromDate,
+        to: nw.toIST || nw.toDate,
+      })
+    } catch (e) {
+      toast.error(e?.message || 'collect-news failed')
+    } finally {
+      setCollecting(false)
+    }
+  }
+
+  const handleSaveDefaults = async () => {
+    setDefaultsSaving(true)
+    try {
+      const saved = await epaperApi.putNewspaperConfig(tenantId, formToNewspaperConfigPayload(defaults))
+      setDefaults(newspaperConfigToForm(saved))
+      toast.success('Tenant defaults saved')
+    } catch (e) {
+      toast.error(e?.message || 'Save failed')
+    } finally {
+      setDefaultsSaving(false)
+    }
+  }
+
+  const totalScopes = editions.reduce((n, e) => n + 1 + (e.subEditions?.length || 0), 0)
+  const configuredScopes = editions.reduce(
+    (n, e) => n + (e.hasEditionDesign ? 1 : 0) + (e.subEditions || []).filter((s) => s.hasDesign).length,
+    0
   )
 
-  const handleNewConfig = () => {
-    setSelectedRowKey('')
-    setSmartDesignId(null)
-    setNextAction('CREATE')
-    setForm({ ...EMPTY_FORM })
-    setActiveDesign(null)
-    setDesignToday(null)
-    setInfo('New config — select edition scope below, then Save.')
-    setError('')
+  if (loading) {
+    return (
+      <div className="flex justify-center rounded-xl border bg-white py-20">
+        <Spinner size="lg" />
+      </div>
+    )
   }
 
-  useEffect(() => {
-    if (!editionId || initialLoading) return
-    if (scopeType === 'sub-edition' && !subEditionId) return
-    loadByEditionScope(editionId, subEditionId, scopeType)
-  }, [editionId, subEditionId, scopeType, initialLoading, loadByEditionScope])
-
-  const reloadDesigns = useCallback(async () => {
-    if (!tenantId) return
-    try {
-      const [editionsResp, sdCtx] = await Promise.all([
-        smartDesignApi.getEditions(tenantId),
-        smartDesignApi.getContext(tenantId).catch(() => null),
-      ])
-      setEditionCatalog(editionsResp)
-      if (sdCtx) setSmartContext(sdCtx)
-      const editionItems = editionsResp?.editions || []
-      setEditions(editionItems)
-      const designs = []
-      for (const ed of editionItems) {
-        if (ed.editionDesign) designs.push(ed.editionDesign)
-        for (const sub of ed.subEditions || []) {
-          if (sub.design) designs.push(sub.design)
-        }
-      }
-      setAllSmartDesigns(designs)
-      setListMeta((prev) => ({
-        ...prev,
-        contextDesigns: sdCtx?.totalDesigns ?? designs.length,
-        contextEditions: sdCtx?.totalEditions ?? editionItems.length,
-        editionsApiCount: editionItems.length,
-        editionsError: '',
-      }))
-    } catch (e) {
-      setListMeta((prev) => ({
-        ...prev,
-        editionsError: e?.message || String(e),
-      }))
-    }
-  }, [tenantId])
-
-  const handleSaveOneTime = async () => {
-    if (!tenantId) return
-    if (!isValidScopeSelection) {
-      setError('First select edition/sub-edition.')
-      return
-    }
-
-    setBusy(true)
-    setError('')
-    setInfo('')
-    try {
-      const payload = formToSmartDesignPayload(form, { editionId, subEditionId, scopeType })
-      let savedDesign
-
-      if (nextAction === 'UPDATE' && smartDesignId) {
-        const updated = await smartDesignApi.patch(tenantId, smartDesignId, payload)
-        savedDesign = updated?.design
-        setInfo('Smart design updated (PATCH).')
-      } else {
-        const created = await smartDesignApi.create(tenantId, payload)
-        savedDesign = created?.design
-        setSmartDesignId(savedDesign?.id || null)
-        setNextAction('UPDATE')
-        setInfo('Smart design created (POST).')
-      }
-
-      await reloadDesigns()
-      setSelectedRowKey(configKey)
-      if (savedDesign) {
-        syncFormFromConfig(savedDesign)
-        setActiveDesign(savedDesign)
-        setDesignToday(savedDesign.today || null)
-      }
-      setInfo((prev) => `${prev || ''} List refreshed.`)
-    } catch (e) {
-      if (e?.status === 409 && e?.data?.existingId) {
-        setSmartDesignId(e.data.existingId)
-        setNextAction('UPDATE')
-        setError('Design already exists — reloading.')
-        await loadByEditionScope(editionId, subEditionId, scopeType)
-        await reloadDesigns()
-      } else {
-      setError(e?.message || String(e))
-      }
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const setTenantConfigField = (name, value) => {
-    setTenantConfigForm((prev) => ({ ...(prev || newspaperConfigToForm({})), [name]: value }))
-  }
-
-  const handleSaveTenantNewsConfig = async () => {
-    if (!tenantId || !tenantConfigForm) return
-    setTenantConfigSaving(true)
-    setError('')
-    try {
-      const body = formToNewspaperConfigPayload(tenantConfigForm)
-      const saved = await epaperApi.putNewspaperConfig(tenantId, body)
-      setTenantNewsConfig(saved)
-      setTenantConfigForm(newspaperConfigToForm(saved))
-      setInfo('Tenant newspaper-config saved (PUT /epaper/newspaper-config).')
-    } catch (e) {
-      setError(e?.message || String(e))
-    } finally {
-      setTenantConfigSaving(false)
-    }
-  }
-
-  const handleCollectNewsProbe = async () => {
-    if (!tenantId || !editionId) {
-      setError('Select an edition to probe collect-news.')
-      return
-    }
-    setCollectBusy(true)
-    setError('')
-    setCollectSummary(null)
-    try {
-      const issueDate =
-        designToday?.issueDate ||
-        (form.issueStartDate ? String(form.issueStartDate).slice(0, 10) : '') ||
-        new Date().toISOString().slice(0, 10)
-      const query = {
-        publicationEditionId: editionId,
-        issueDate,
-        excludeMainPage: 'true',
-      }
-      if (scopeType === 'sub-edition' && subEditionId) query.subEditionId = subEditionId
-      const res = await smartDesignApi.collectNews(tenantId, query)
-      const nw = res?.newsWindow || res?.pipeline?.newsWindow
-      setCollectSummary({
-        issueDate,
-        articleCount: res?.articleCount ?? res?.articles?.length ?? res?.summary?.articleCount,
-        newsWindow: nw,
-      })
-      setInfo('collect-news OK — print pipeline window (00:00–newsCloseTime IST).')
-    } catch (e) {
-      setError(e?.message || String(e))
-    } finally {
-      setCollectBusy(false)
-    }
-  }
-
-  const handleUploadImage = async (fieldKey, file) => {
-    if (!tenantId || !file) return
-    setUploading((prev) => ({ ...prev, [fieldKey]: true }))
-    setError('')
-    setInfo('')
-    try {
-      const folder = `tenants/${tenantId}/epaper/design-config`
-      const result = await mediaApi.upload(file, folder)
-      const internalUrl =
-        result?.internalUrl ||
-        result?.data?.internalUrl ||
-        result?.data?.internalPath ||
-        result?.url ||
-        ''
-      if (!internalUrl) throw new Error('Upload succeeded but URL is missing')
-      setField(fieldKey, internalUrl)
-      if (smartDesignId) {
-        await smartDesignApi.patch(tenantId, smartDesignId, { [fieldKey]: internalUrl })
-      }
-      setInfo('Image uploaded. Internal URL saved to smart design.')
-    } catch (e) {
-      setError(e?.message || 'Image upload failed')
-    } finally {
-      setUploading((prev) => ({ ...prev, [fieldKey]: false }))
-    }
-  }
+  const busy = saving || deleting || scopeLoading
+  const scopeTitle = selectedSub
+    ? selectedSub.name
+    : selectedEdition?.name || '—'
+  const scopeKind = selectedSub ? 'District edition' : 'State edition'
+  const today = design?.today
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl border p-6">
-        <div className="flex items-start justify-between gap-4">
+    <div className="space-y-5">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-slate-900">ePaper Design Config</div>
-            <div className="text-sm text-slate-500">
-              Tenant: <span className="font-mono">{tenantId}</span>
-              {smartContext?.tenantName ? (
-                <span className="ml-2 text-slate-700">· {smartContext.tenantName}</span>
-              ) : null}
-            </div>
-            {(smartContext?.epaperDomain || smartContext?.prgiNumber) ? (
-              <div className="text-xs text-slate-500 mt-1">
-                {smartContext.epaperDomain ? (
-                  <>Domain: <span className="font-mono">{smartContext.epaperDomain}</span></>
-                ) : (
-                  <span className="text-amber-700">No ePaper domain</span>
-                )}
-                {smartContext.prgiNumber ? (
-                  <span className="ml-3">
-                    PRGI: <span className="font-mono">{smartContext.prgiNumber}</span>
-                    {smartContext.prgiStatus ? (
-                      <span className="ml-1 text-emerald-700">({smartContext.prgiStatus})</span>
-                    ) : null}
-                  </span>
-                ) : null}
-                <span className="ml-3">
-                  Editions: {listMeta.contextEditions} · Designs: {listMeta.contextDesigns}
-                </span>
-              </div>
-            ) : null}
+            <h2 className="text-lg font-semibold text-slate-900">ePaper settings</h2>
+            <p className="mt-0.5 text-sm text-slate-500">
+              One smart design per edition. Pick a state or district edition on the left, then create or edit it.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {layoutPreviewHref() ? (
-              <Link
-                href={layoutPreviewHref()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg bg-teal-700 text-white text-sm font-semibold hover:bg-teal-800"
-              >
-                Layout preview (P2+)
-              </Link>
-            ) : null}
+          <div className="flex flex-wrap gap-2">
             <Link
               href={`/admin/daily-newspaper-news?tenantId=${encodeURIComponent(tenantId || '')}`}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-800 hover:bg-slate-50"
+              className="inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
             >
-              Reporter news (6am–midnight)
+              Reporter news
             </Link>
-            <button
-              type="button"
-              onClick={loadAll}
-              disabled={busy}
-              className="px-4 py-2 rounded-lg border text-sm disabled:opacity-60"
-            >
-              {initialLoading ? 'Loading…' : 'Refresh tenant'}
-            </button>
-          </div>
-        </div>
-
-        {printNewsWindow ? (
-          <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 text-xs text-indigo-950">
-            <div className="font-semibold text-sm mb-1">Today print news window (collect-news / smart-design)</div>
-            <div className="font-mono">
-              {printNewsWindow.fromDate || printNewsWindow.fromIST || '—'} →{' '}
-              {printNewsWindow.toDate || printNewsWindow.toIST || '—'}
-            </div>
-            {designToday ? (
-              <div className="mt-1 text-indigo-800">
-                Vol {designToday.currentVolume ?? '—'} · Issue {designToday.currentIssue ?? '—'}
-                {designToday.dayNameTelugu ? ` · ${designToday.dayNameTelugu}` : ''}
-              </div>
-            ) : tenantConfigForm?.todayVolume != null ? (
-              <div className="mt-1 text-indigo-800">
-                Tenant default — Vol {tenantConfigForm.todayVolume} · Issue {tenantConfigForm.todayIssue}
-              </div>
-            ) : null}
-            <p className="mt-2 text-[11px] text-indigo-700 leading-relaxed">
-              Desk reporter list (06:00–23:59 IST) uses{' '}
-              <code className="bg-white/70 px-1 rounded">tenant-feed?timeRule=newsroom</code> — not this window.
-            </p>
-          </div>
-        ) : null}
-
-        {error && (
-          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 whitespace-pre-wrap">{error}</div>
-        )}
-        {info && (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 whitespace-pre-wrap">{info}</div>
-        )}
-
-        {tenantConfigForm ? (
-          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">Tenant newspaper-config (default)</div>
-                <div className="text-[11px] text-slate-600 font-mono">GET/PUT /epaper/newspaper-config · JWT + X-Tenant-Id</div>
-              </div>
-              <button
-                type="button"
-                onClick={handleSaveTenantNewsConfig}
-                disabled={tenantConfigSaving || busy}
-                className="px-4 py-2 rounded-lg bg-amber-700 text-white text-xs font-semibold disabled:opacity-60"
-              >
-                {tenantConfigSaving ? 'Saving…' : 'Save tenant config'}
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <label className="text-xs text-slate-600">
-                Page count
-                <input
-                  type="number"
-                  min="1"
-                  value={tenantConfigForm.pageCount ?? 8}
-                  onChange={(e) => setTenantConfigField('pageCount', e.target.value)}
-                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                />
-              </label>
-              <label className="text-xs text-slate-600">
-                News close (IST)
-                <input
-                  type="time"
-                  value={tenantConfigForm.newsCloseTime || '23:00'}
-                  onChange={(e) => setTenantConfigField('newsCloseTime', e.target.value)}
-                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                />
-              </label>
-              <label className="text-xs text-slate-600">
-                Main / sub header #
-                <div className="mt-1 flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={tenantConfigForm.headerStyleNumber ?? 1}
-                    onChange={(e) => setTenantConfigField('headerStyleNumber', e.target.value)}
-                    className="w-full px-2 py-2 border rounded-lg text-sm bg-white"
-                    title="headerStyleNumber"
-                  />
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={tenantConfigForm.subHeaderStyleNumber ?? 1}
-                    onChange={(e) => setTenantConfigField('subHeaderStyleNumber', e.target.value)}
-                    className="w-full px-2 py-2 border rounded-lg text-sm bg-white"
-                    title="subHeaderStyleNumber"
-                  />
-                </div>
-              </label>
-              <label className="text-xs text-slate-600 md:col-span-3">
-                Last page footer
-                <input
-                  type="text"
-                  value={tenantConfigForm.lastPageFooterText || ''}
-                  onChange={(e) => setTenantConfigField('lastPageFooterText', e.target.value)}
-                  className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                />
-              </label>
-              <ImageUrlField
-                label="Main logo (mainLogoUrl)"
-                hint="Tenant-wide fallback before edition smart-design"
-                value={tenantConfigForm.mainLogoUrl || ''}
-                onChange={(v) => setTenantConfigField('mainLogoUrl', v)}
-                onUpload={async (file) => {
-                  const folder = `tenants/${tenantId}/epaper/newspaper-config`
-                  const result = await mediaApi.upload(file, folder)
-                  const url =
-                    result?.internalUrl ||
-                    result?.data?.internalUrl ||
-                    result?.url ||
-                    ''
-                  if (url) setTenantConfigField('mainLogoUrl', url)
-                }}
-                busy={tenantConfigSaving}
-                uploading={false}
-              />
-              <ImageUrlField
-                label="Sub header logo"
-                value={tenantConfigForm.subHeaderLogoUrl || ''}
-                onChange={(v) => setTenantConfigField('subHeaderLogoUrl', v)}
-                onUpload={async (file) => {
-                  const folder = `tenants/${tenantId}/epaper/newspaper-config`
-                  const result = await mediaApi.upload(file, folder)
-                  const url =
-                    result?.internalUrl ||
-                    result?.data?.internalUrl ||
-                    result?.url ||
-                    ''
-                  if (url) setTenantConfigField('subHeaderLogoUrl', url)
-                }}
-                busy={tenantConfigSaving}
-                uploading={false}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-5 rounded-xl border-2 border-slate-200 bg-slate-50/50 p-4 min-h-[140px]">
-          <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-            <div>
-              <div className="text-sm font-semibold text-slate-900">Saved edition designs (table)</div>
-              <div className="text-xs text-slate-600 mt-1 font-mono">
-                GET /context → {listMeta.contextEditions} editions, {listMeta.contextDesigns} designs
-                {listMeta.contextError ? (
-                  <span className="text-red-600"> · context error: {listMeta.contextError}</span>
-                ) : null}
-                {' · '}
-                GET /editions → {listMeta.editionsApiCount} rows
-                {listMeta.editionsError ? (
-                  <span className="text-amber-700"> · {listMeta.editionsError}</span>
-                ) : null}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleNewConfig}
-              className="px-3 py-1.5 rounded-lg border border-dashed border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              + New edition
-            </button>
-          </div>
-          {initialLoading ? (
-            <div className="text-xs text-slate-500 py-6 text-center">Loading tenant &amp; designs…</div>
-          ) : designTableRows.length ? (
-            <div className="overflow-auto rounded-lg border border-slate-100">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="text-left py-2.5 px-3 font-semibold">Edition / scope</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Paper</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Pages</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Cost</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Headers</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Status</th>
-                    <th className="text-left py-2.5 px-2 font-semibold">Vol / Issue</th>
-                    <th className="text-right py-2.5 px-3 font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {designTableRows.map((row) => {
-                    const isActive = selectedRowKey === row.key
-                    return (
-                      <tr
-                        key={row.key}
-                        className={`border-t border-slate-100 ${isActive ? 'bg-amber-50/80' : 'hover:bg-slate-50'}`}
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="font-medium text-slate-900">{row.scopeLabel}</div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                            {row.id ? row.id.slice(0, 16) : row.source}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-2">{row.pageSize || '—'}</td>
-                        <td className="py-2.5 px-2">{row.defaultPageCount ?? '—'}</td>
-                        <td className="py-2.5 px-2">₹{row.paperSellCost ?? '—'}</td>
-                        <td className="py-2.5 px-2 text-[10px] leading-snug">
-                          M{row.headerStyleNumber}: {mainStyleName(row.headerStyleNumber)}
-                          <br />
-                          S{row.subHeaderStyleNumber}: {subStyleName(row.subHeaderStyleNumber)}
-                        </td>
-                        <td className="py-2.5 px-2">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                              row.hasDesign
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {row.hasDesign ? 'UPDATE' : 'CREATE'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-2">
-                          {row.volumeNumber ?? '—'} / {row.issueNumber ?? '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <div className="flex flex-col items-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => selectRowForEdit(row)}
-                              className={`px-3 py-1 rounded-md text-[11px] font-bold ${
-                                isActive
-                                  ? 'bg-amber-500 text-white'
-                                  : 'bg-slate-800 text-white hover:bg-slate-700'
-                              }`}
-                            >
-                              {isActive ? 'Editing' : 'Edit'}
-                            </button>
-                            {row.hasDesign && layoutPreviewHref(row.editionId) ? (
-                              <Link
-                                href={layoutPreviewHref(row.editionId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[10px] font-semibold text-teal-700 hover:underline"
-                              >
-                                Preview P2+
-                              </Link>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-sm text-slate-600 py-6 px-4 text-center rounded-lg bg-white border-2 border-dashed border-amber-300">
-              <div className="font-semibold text-amber-900 mb-2">No editions found for this tenant</div>
-              <p className="text-xs leading-relaxed max-w-lg mx-auto">
-                <strong>GET /context</strong> and <strong>GET /editions</strong> returned no publication editions.
-                Create an edition in the tenant first, then return here to add ePaper smart design (POST).
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-5 rounded-xl border border-slate-200 p-4 space-y-4">
-          <div className="text-sm font-semibold text-slate-900">
-            {smartDesignId ? 'Edit design' : 'Create new design'} — Step 1: Edition scope
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <select
-              value={scopeType}
-              onChange={(e) => {
-                setScopeType(e.target.value)
-                setSubEditionId('')
+            <Button
+              size="sm"
+              variant="default"
+              onClick={async () => {
+                await loadCatalog()
+                if (selected) await loadScope(selected)
               }}
-              className="px-3 py-2 border rounded-lg text-sm bg-white"
             >
-              <option value="edition">Edition</option>
-              <option value="sub-edition">Sub-edition</option>
-            </select>
-            <select
-              value={editionId}
-              onChange={(e) => {
-                setEditionId(e.target.value)
-                setSubEditionId('')
-              }}
-              className="px-3 py-2 border rounded-lg text-sm bg-white"
-            >
-              <option value="">Select Edition</option>
-              {editions.map((ed) => (
-                <option key={ed.id} value={ed.id}>
-                  {ed.name || ed.slug || ed.id}
-                </option>
-              ))}
-            </select>
-            <select
-              value={subEditionId}
-              onChange={(e) => setSubEditionId(e.target.value)}
-              disabled={scopeType !== 'sub-edition'}
-              className="px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
-            >
-              <option value="">Select Sub-edition</option>
-              {availableSubEditions.map((sub) => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.name || sub.slug || sub.id}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {nextAction === 'UPDATE' && smartDesignId ? (
-            <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-              Editing <strong>{selectedRowKey || configKey}</strong> · id{' '}
-              <span className="font-mono">{smartDesignId}</span> — Save updates (PATCH).
-            </div>
-          ) : isValidScopeSelection ? (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900">
-              New scope <strong>{configKey}</strong> — Save creates (POST). One design per edition/sub-edition.
-            </div>
-          ) : (
-            <div className="text-xs text-slate-500">Select edition scope to create or match a row above.</div>
-          )}
-        </div>
-
-        <div className="mt-4 rounded-xl border border-slate-200 p-4 space-y-4">
-          <div className="text-sm font-semibold text-slate-900">Step 2: Design & pricing setup</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-xs text-slate-600">
-              Paper Type
-              <select
-                value={normalizePaperTypeKey(form.paperType || form.pageSize)}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setField('paperType', v)
-                  setField('pageSize', v)
-                }}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
-              >
-                {paperTypeOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {activePaperSpec ? (
-                <span className="block mt-1 text-[10px] text-slate-500 leading-snug">
-                  {formatPaperSpecSummary(activePaperSpec)}
-                </span>
-              ) : null}
-            </label>
-            <label className="text-xs text-slate-600">
-              Main header style
-              <select
-                value={form.headerStyleNumber}
-                onChange={(e) => setField('headerStyleNumber', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
-              >
-                {mainHeaderOptions.map((s) => (
-                  <option key={s.key || s.number} value={s.number}>
-                    {s.number}. {s.name}
-                    {s.htmlRenderer === 'full' ? ' ✓' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs text-slate-600">
-              Sub header style (P2+)
-              <select
-                value={form.subHeaderStyleNumber}
-                onChange={(e) => setField('subHeaderStyleNumber', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
-              >
-                {subHeaderOptions.map((s) => (
-                  <option key={s.key || s.number} value={s.number}>
-                    {s.number}. {s.name}
-                    {s.nameTe ? ` — ${s.nameTe}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {headerRenderHint ? (
-            <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              {headerRenderHint}. Catalog:{' '}
-              <code className="text-[10px]">GET /admin/epaper/header-styles</code> · Specs:{' '}
-              <code className="text-[10px]">GET /epaper/paper-page-specs</code> · See{' '}
-              <span className="font-mono">docs/EPAPER_DESIGN_INTEGRATION.md</span>
-            </p>
-          ) : null}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <label className="text-xs text-slate-600">
-              Number of Pages
-              <input
-                type="number"
-                min="1"
-                value={form.defaultPageCount}
-                onChange={(e) => setField('defaultPageCount', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600">
-              Per Page Cost (monthly)
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.perPageCostMonthly ?? form.perPagePrice}
-                onChange={(e) => {
-                  setField('perPageCostMonthly', e.target.value)
-                  setField('perPagePrice', e.target.value)
-                }}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600">
-              Paper Cost
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.paperSellCost}
-                onChange={(e) => setField('paperSellCost', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600">
-              Today volume / issue (read-only)
-              <input
-                type="text"
-                readOnly
-                value={`${designToday?.currentVolume ?? form.volumeNumber ?? '—'} / ${designToday?.currentIssue ?? form.issueNumber ?? '—'}`}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-slate-100 text-slate-700"
-              />
-            </label>
-            <label className="text-xs text-slate-600">
-              Volume start # / year
-              <div className="mt-1 flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  value={form.volumeStartNumber ?? form.volumeNumber ?? 1}
-                  onChange={(e) => setField('volumeStartNumber', e.target.value)}
-                  disabled={busy}
-                  className="w-full px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-                />
-                <input
-                  type="number"
-                  min="2000"
-                  value={form.volumeStartYear ?? new Date().getFullYear()}
-                  onChange={(e) => setField('volumeStartYear', e.target.value)}
-                  disabled={busy}
-                  className="w-full px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-                />
-              </div>
-            </label>
-            <label className="text-xs text-slate-600">
-              Issue start # / date
-              <div className="mt-1 flex gap-2">
-                <input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={form.issueStartNumber ?? form.issueNumber ?? 1}
-                  onChange={(e) => setField('issueStartNumber', e.target.value)}
-                  disabled={busy}
-                  className="w-24 px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-                />
-                <input
-                  type="date"
-                  value={form.issueStartDate || ''}
-                  onChange={(e) => setField('issueStartDate', e.target.value)}
-                  disabled={busy}
-                  className="flex-1 px-2 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-                />
-              </div>
-            </label>
-            <label className="text-xs text-slate-600">
-              Issue counter
-              <select
-                value={form.issueCounterMode || 'SEQUENTIAL'}
-                onChange={(e) => setField('issueCounterMode', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm bg-white disabled:bg-slate-100"
-              >
-                <option value="SEQUENTIAL">SEQUENTIAL (daily +1)</option>
-                <option value="DAY_OF_YEAR">DAY_OF_YEAR (1–365)</option>
-              </select>
-            </label>
-            <label className="text-xs text-slate-600">
-              News close time (IST)
-              <input
-                type="time"
-                value={form.newsCloseTime || '23:00'}
-                onChange={(e) => setField('newsCloseTime', e.target.value)}
-                disabled={busy}
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600 md:col-span-2">
-              Header data (masthead text — optional for image-only styles)
-              <input
-                type="text"
-                value={form.headerData || ''}
-                onChange={(e) => setField('headerData', e.target.value)}
-                disabled={busy}
-                placeholder="తెలుగుప్రభ"
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600 md:col-span-3">
-              Published area (P1 info bar)
-              <input
-                type="text"
-                value={form.publishedAreaText || ''}
-                onChange={(e) => setField('publishedAreaText', e.target.value)}
-                disabled={busy}
-                placeholder="Hyderabad • Warangal"
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <label className="text-xs text-slate-600 md:col-span-3">
-              Last page footer text
-              <input
-                type="text"
-                value={form.lastPageFooterText || ''}
-                onChange={(e) => setField('lastPageFooterText', e.target.value)}
-                disabled={busy}
-                placeholder="Printed at Hyderabad"
-                className="mt-1 w-full px-3 py-2 border rounded-lg text-sm disabled:bg-slate-100"
-              />
-            </label>
-            <div className="md:col-span-3 text-xs font-semibold text-slate-700 pt-2 border-t border-slate-100">
-              Main header images (page 1)
-            </div>
-            {allowedUploadFields.headerLogoUrl !== false ? (
-              <ImageUrlField
-                label="Center logo (headerLogoUrl)"
-                hint="Style 1 center — image only on preview"
-                value={form.headerLogoUrl || form.paperNameImageUrl}
-                onChange={(v) => {
-                  setField('headerLogoUrl', v)
-                  setField('paperNameImageUrl', v)
-                }}
-                onUpload={(file) => handleUploadImage('headerLogoUrl', file)}
-                busy={busy}
-                uploading={uploading.headerLogoUrl}
-              />
-            ) : null}
-            {allowedUploadFields.headerLeftImageUrl !== false ? (
-              <ImageUrlField
-                label="Left column image"
-                hint="Ads / custom — headerLeftImageUrl"
-                value={form.headerLeftImageUrl}
-                onChange={(v) => setField('headerLeftImageUrl', v)}
-                onUpload={(file) => handleUploadImage('headerLeftImageUrl', file)}
-                busy={busy}
-                uploading={uploading.headerLeftImageUrl}
-              />
-            ) : null}
-            {allowedUploadFields.headerRightImageUrl !== false ? (
-              <ImageUrlField
-                label="Right column image"
-                hint="Article thumb / right ad"
-                value={form.headerRightImageUrl}
-                onChange={(v) => setField('headerRightImageUrl', v)}
-                onUpload={(file) => handleUploadImage('headerRightImageUrl', file)}
-                busy={busy}
-                uploading={uploading.headerRightImageUrl}
-              />
-            ) : null}
-
-            <div className="md:col-span-3 text-xs font-semibold text-slate-700 pt-2 border-t border-slate-100">
-              Sub header (page 2+)
-            </div>
-            {allowedUploadFields.subHeaderLogoUrl !== false ? (
-              <ImageUrlField
-                label="Center logo"
-                hint="Style 1: page · logo · date — leave empty to use main center logo"
-                value={form.subHeaderLogoUrl}
-                onChange={(v) => setField('subHeaderLogoUrl', v)}
-                onUpload={(file) => handleUploadImage('subHeaderLogoUrl', file)}
-                busy={busy}
-                uploading={uploading.subHeaderLogoUrl}
-              />
-            ) : null}
-            <ImageUrlField
-              label="Full strip image (optional)"
-              hint="Replaces entire sub-header layout when set"
-              value={form.subHeaderImageUrl}
-              onChange={(v) => setField('subHeaderImageUrl', v)}
-              onUpload={(file) => handleUploadImage('subHeaderImageUrl', file)}
-              busy={busy}
-              uploading={uploading.subHeaderImageUrl}
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCollectNewsProbe}
-                disabled={collectBusy || !editionId}
-                className="px-4 py-2 rounded-lg border border-teal-300 text-teal-900 text-xs font-semibold disabled:opacity-60"
-              >
-                {collectBusy ? 'Probing…' : 'Test collect-news'}
-              </button>
-              {collectSummary ? (
-                <span className="text-[11px] text-slate-600">
-                  {collectSummary.issueDate}: {collectSummary.articleCount ?? '?'} articles in pipeline window
-                </span>
-              ) : null}
-            </div>
-            <button
-              type="button"
-              onClick={handleSaveOneTime}
-              disabled={busy || !isValidScopeSelection}
-              className="px-5 py-2 rounded-lg bg-brand text-white text-sm font-semibold disabled:opacity-60"
-            >
-              {nextAction === 'UPDATE' && smartDesignId ? 'Update Smart Design (PATCH)' : 'Create Smart Design (POST)'}
-            </button>
+              Refresh
+            </Button>
           </div>
         </div>
-
+        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <dt className="text-[11px] uppercase tracking-wide text-slate-500">PRGI</dt>
+            <dd className="mt-0.5 truncate font-mono text-sm text-slate-900">{catalog?.prgiNumber || '—'}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <dt className="text-[11px] uppercase tracking-wide text-slate-500">ePaper domain</dt>
+            <dd className="mt-0.5 truncate text-sm text-slate-900">{catalog?.epaperDomain || 'Not set'}</dd>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <dt className="text-[11px] uppercase tracking-wide text-slate-500">Editions</dt>
+            <dd className="mt-0.5 text-sm text-slate-900">
+              {editions.length} state · {totalScopes - editions.length} district
+            </dd>
+          </div>
+          <div className="rounded-lg bg-slate-50 px-3 py-2">
+            <dt className="text-[11px] uppercase tracking-wide text-slate-500">Configured</dt>
+            <dd className="mt-0.5 text-sm text-slate-900">
+              {configuredScopes} / {totalScopes}
+            </dd>
+          </div>
+        </dl>
+        {loadError ? (
+          <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>
+        ) : null}
       </div>
+
+      {editions.length === 0 ? (
+        <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center">
+          <p className="font-medium text-slate-800">No publication editions yet</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Create a state edition (and optional district sub-editions) first, then come back to set up the ePaper.
+          </p>
+          <Link
+            href={`/admin/tenants/${tenantId}/editions`}
+            className="mt-4 inline-flex rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark"
+          >
+            Go to ePaper Editions
+          </Link>
+        </div>
+      ) : (
+        <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+          <aside className="h-fit rounded-xl border border-slate-200 bg-white p-2 lg:sticky lg:top-4">
+            <div className="flex items-center justify-between px-3 py-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Editions</p>
+              <Link href={`/admin/tenants/${tenantId}/editions`} className="text-xs text-brand hover:underline">
+                Manage
+              </Link>
+            </div>
+            <div className="space-y-0.5">
+              {editions.map((ed) => {
+                const d = ed.editionDesign
+                return (
+                  <div key={ed.id}>
+                    <ScopeButton
+                      active={selected?.editionId === ed.id && !selected?.subEditionId}
+                      configured={!!ed.hasEditionDesign}
+                      title={ed.name || ed.slug}
+                      subtitle={`State${ed.state?.name ? ` · ${ed.state.name}` : ''}`}
+                      meta={d ? `${d.totalPages ?? '—'}p` : null}
+                      onClick={() => selectScope(ed.id, null)}
+                    />
+                    {(ed.subEditions || []).map((sub) => (
+                      <ScopeButton
+                        key={sub.id}
+                        indent
+                        active={selected?.subEditionId === sub.id}
+                        configured={!!sub.hasDesign}
+                        title={sub.name || sub.slug}
+                        subtitle="District"
+                        meta={sub.design ? `${sub.design.totalPages ?? '—'}p` : null}
+                        onClick={() => selectScope(ed.id, sub.id)}
+                      />
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="mt-2 flex items-center gap-4 border-t border-slate-100 px-3 py-2 text-[11px] text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <StatusDot configured /> Configured
+              </span>
+              <span className="flex items-center gap-1.5">
+                <StatusDot configured={false} /> Not set
+              </span>
+            </div>
+          </aside>
+
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium text-slate-500">
+                    {scopeKind}
+                    {selectedSub ? ` · ${selectedEdition?.name}` : ''}
+                  </p>
+                  <h3 className="mt-0.5 text-xl font-semibold text-slate-900">{scopeTitle}</h3>
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    design ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                  }`}
+                >
+                  {design ? 'Configured' : 'Not configured'}
+                </span>
+              </div>
+              {today ? (
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-[11px] text-slate-500">Today</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      {today.issueDate}
+                      {today.dayNameTelugu ? ` · ${today.dayNameTelugu}` : ''}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-500">Volume / Issue</p>
+                    <p className="text-sm font-medium tabular-nums text-slate-900">
+                      Vol {today.currentVolume ?? '—'} · Issue {today.currentIssue ?? '—'}
+                    </p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[11px] text-slate-500">Print news window (IST)</p>
+                    <p className="text-sm font-medium tabular-nums text-slate-900">
+                      {formatIst(today.newsWindow?.fromDate)} → {formatIst(today.newsWindow?.toDate)}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-slate-500">
+                  No design for this edition yet. Fill in the form below and press <strong>Create design</strong>.
+                </p>
+              )}
+            </div>
+
+            {scopeLoading ? (
+              <div className="flex justify-center rounded-xl border bg-white py-16">
+                <Spinner size="lg" />
+              </div>
+            ) : (
+              <>
+                <Section title="Paper & pricing">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <FormField label="Paper type">
+                      <Select
+                        value={String(form.paperType || 'TABLOID').toUpperCase().includes('BROAD') ? 'BROADSHEET' : 'TABLOID'}
+                        onChange={(e) => setField('paperType', e.target.value)}
+                        disabled={busy}
+                      >
+                        <option value="TABLOID">Tabloid</option>
+                        <option value="BROADSHEET">Broadsheet</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Pages per issue">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={form.defaultPageCount}
+                        onChange={(e) => setField('defaultPageCount', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Design cost / page / month (₹)">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={form.perPageCostMonthly}
+                        onChange={(e) => setField('perPageCostMonthly', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Paper price (₹)">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={form.paperSellCost}
+                        onChange={(e) => setField('paperSellCost', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                  </div>
+                </Section>
+
+                <Section
+                  title="Header"
+                  description="Image slots below follow the selected header style."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField label="Main header (page 1)">
+                      <Select
+                        value={form.headerStyleNumber}
+                        onChange={(e) => setField('headerStyleNumber', Number(e.target.value))}
+                        disabled={busy}
+                      >
+                        {mainStyles.map((s) => (
+                          <option key={s.key || s.number} value={s.number}>
+                            {s.number}. {s.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                    <FormField label="Sub header (page 2+)">
+                      <Select
+                        value={form.subHeaderStyleNumber}
+                        onChange={(e) => setField('subHeaderStyleNumber', Number(e.target.value))}
+                        disabled={busy}
+                      >
+                        {subStyles.map((s) => (
+                          <option key={s.key || s.number} value={s.number}>
+                            {s.number}. {s.name}
+                            {s.nameTe ? ` — ${s.nameTe}` : ''}
+                          </option>
+                        ))}
+                      </Select>
+                    </FormField>
+                    <FormField label="Newspaper name (masthead text)">
+                      <Input
+                        value={form.headerData}
+                        placeholder="తెలుగుప్రభ"
+                        onChange={(e) => setField('headerData', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Tagline">
+                      <Input
+                        value={form.tagline}
+                        onChange={(e) => setField('tagline', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Published areas">
+                      <Input
+                        value={form.publishedAreaText}
+                        placeholder="Hyderabad • Warangal"
+                        onChange={(e) => setField('publishedAreaText', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Website">
+                      <Input
+                        type="url"
+                        value={form.websiteUrl}
+                        placeholder={catalog?.epaperDomain ? `https://${catalog.epaperDomain}` : 'https://'}
+                        onChange={(e) => setField('websiteUrl', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                    {caps.headerLogoUrl ? (
+                      <ImageField
+                        label="Center logo"
+                        hint="Page 1 masthead"
+                        value={form.headerLogoUrl}
+                        onChange={(v) => setField('headerLogoUrl', v)}
+                        onUpload={(f) => handleUpload('headerLogoUrl', f)}
+                        uploading={uploading.headerLogoUrl}
+                        disabled={busy}
+                      />
+                    ) : null}
+                    {caps.paperNameImageUrl ? (
+                      <ImageField
+                        label="Paper name image"
+                        hint="Masthead title as image"
+                        value={form.paperNameImageUrl}
+                        onChange={(v) => setField('paperNameImageUrl', v)}
+                        onUpload={(f) => handleUpload('paperNameImageUrl', f)}
+                        uploading={uploading.paperNameImageUrl}
+                        disabled={busy}
+                      />
+                    ) : null}
+                    {caps.headerLeftImageUrl ? (
+                      <ImageField
+                        label="Left slot"
+                        hint="Logo, custom image or ad"
+                        value={form.headerLeftImageUrl}
+                        onChange={(v) => setField('headerLeftImageUrl', v)}
+                        onUpload={(f) => handleUpload('headerLeftImageUrl', f)}
+                        uploading={uploading.headerLeftImageUrl}
+                        disabled={busy}
+                      />
+                    ) : null}
+                    {caps.headerRightImageUrl ? (
+                      <ImageField
+                        label="Right slot"
+                        hint="Image or ad"
+                        value={form.headerRightImageUrl}
+                        onChange={(v) => setField('headerRightImageUrl', v)}
+                        onUpload={(f) => handleUpload('headerRightImageUrl', f)}
+                        uploading={uploading.headerRightImageUrl}
+                        disabled={busy}
+                      />
+                    ) : null}
+                    {caps.subHeaderLogoUrl ? (
+                      <ImageField
+                        label="Inner page logo"
+                        hint="Page 2+ sub header"
+                        value={form.subHeaderLogoUrl}
+                        onChange={(v) => setField('subHeaderLogoUrl', v)}
+                        onUpload={(f) => handleUpload('subHeaderLogoUrl', f)}
+                        uploading={uploading.subHeaderLogoUrl}
+                        disabled={busy}
+                      />
+                    ) : null}
+                  </div>
+                </Section>
+
+                <Section
+                  title="Volume & issue"
+                  description="Volume goes up every calendar year from the start year. Issue counts daily from the start date, or uses day of year."
+                >
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <FormField label="Volume start #">
+                      <Input
+                        type="number"
+                        min="1"
+                        value={form.volumeStartNumber}
+                        onChange={(e) => setField('volumeStartNumber', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Volume start year">
+                      <Input
+                        type="number"
+                        min="1900"
+                        value={form.volumeStartYear}
+                        onChange={(e) => setField('volumeStartYear', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Issue start #" required>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={form.issueStartNumber}
+                        onChange={(e) => setField('issueStartNumber', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Issue start date" required>
+                      <Input
+                        type="date"
+                        value={form.issueStartDate}
+                        onChange={(e) => setField('issueStartDate', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Issue counter">
+                      <Select
+                        value={form.issueCounterMode}
+                        onChange={(e) => setField('issueCounterMode', e.target.value)}
+                        disabled={busy}
+                      >
+                        <option value="SEQUENTIAL">Daily +1</option>
+                        <option value="DAY_OF_YEAR">Day of year</option>
+                      </Select>
+                    </FormField>
+                  </div>
+                </Section>
+
+                <Section title="Print & footer">
+                  <div className="grid gap-4 sm:grid-cols-[200px_1fr]">
+                    <FormField label="News close time (IST)" hint="Print window: 00:00 → this time">
+                      <Input
+                        type="time"
+                        value={form.newsCloseTime}
+                        onChange={(e) => setField('newsCloseTime', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                    <FormField label="Last page footer">
+                      <Input
+                        value={form.lastPageFooterText}
+                        placeholder={`Printed at … PRGI ${catalog?.prgiNumber || ''}`.trim()}
+                        onChange={(e) => setField('lastPageFooterText', e.target.value)}
+                        disabled={busy}
+                      />
+                    </FormField>
+                  </div>
+                </Section>
+
+                <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-5 py-3 shadow-lg backdrop-blur">
+                  <div className="flex flex-wrap items-center gap-3">
+                    {design ? (
+                      <Button variant="outline-danger" size="sm" onClick={() => setConfirmDelete(true)} disabled={busy}>
+                        Delete
+                      </Button>
+                    ) : null}
+                    {design ? (
+                      <Button variant="ghost" size="sm" onClick={handleCollect} loading={collecting} disabled={busy}>
+                        Test collect-news
+                      </Button>
+                    ) : null}
+                    {collect ? (
+                      <span className="text-xs text-slate-600">
+                        {collect.count} articles · {formatIst(collect.from)} → {formatIst(collect.to)}
+                      </span>
+                    ) : dirty ? (
+                      <span className="text-xs font-medium text-amber-700">Unsaved changes</span>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2">
+                    {dirty ? (
+                      <Button variant="default" onClick={() => loadScope(selected)} disabled={busy}>
+                        Discard
+                      </Button>
+                    ) : null}
+                    <Button variant="primary" onClick={handleSave} loading={saving} disabled={busy || (design && !dirty)}>
+                      {design ? 'Save changes' : 'Create design'}
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {defaults ? (
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={() => setDefaultsOpen((v) => !v)}
+            className="flex w-full items-center justify-between px-5 py-3 text-left"
+          >
+            <span>
+              <span className="block text-sm font-semibold text-slate-900">Tenant defaults (fallback)</span>
+              <span className="block text-xs text-slate-500">
+                Used when an edition has no smart design · newspaper-config
+              </span>
+            </span>
+            <span className="text-sm text-slate-500">{defaultsOpen ? 'Hide' : 'Show'}</span>
+          </button>
+          {defaultsOpen ? (
+            <div className="space-y-4 border-t border-slate-100 p-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <FormField label="Pages">
+                  <Input
+                    type="number"
+                    min="1"
+                    value={defaults.pageCount}
+                    onChange={(e) => setDefaults((p) => ({ ...p, pageCount: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="News close (IST)">
+                  <Input
+                    type="time"
+                    value={defaults.newsCloseTime}
+                    onChange={(e) => setDefaults((p) => ({ ...p, newsCloseTime: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Main header #">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={defaults.headerStyleNumber}
+                    onChange={(e) => setDefaults((p) => ({ ...p, headerStyleNumber: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Sub header #">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={defaults.subHeaderStyleNumber}
+                    onChange={(e) => setDefaults((p) => ({ ...p, subHeaderStyleNumber: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Main logo URL" className="sm:col-span-2">
+                  <Input
+                    type="url"
+                    value={defaults.mainLogoUrl}
+                    onChange={(e) => setDefaults((p) => ({ ...p, mainLogoUrl: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Sub header logo URL" className="sm:col-span-2">
+                  <Input
+                    type="url"
+                    value={defaults.subHeaderLogoUrl}
+                    onChange={(e) => setDefaults((p) => ({ ...p, subHeaderLogoUrl: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label="Last page footer" className="sm:col-span-2 lg:col-span-4">
+                  <Input
+                    value={defaults.lastPageFooterText}
+                    onChange={(e) => setDefaults((p) => ({ ...p, lastPageFooterText: e.target.value }))}
+                  />
+                </FormField>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  {defaults.newsWindow
+                    ? `Today window: ${formatIst(defaults.newsWindow.fromDate)} → ${formatIst(defaults.newsWindow.toDate)}`
+                    : ''}
+                </p>
+                <Button variant="primary" size="sm" onClick={handleSaveDefaults} loading={defaultsSaving}>
+                  Save defaults
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={handleDelete}
+        loading={deleting}
+        title="Delete this design?"
+        message={`The smart design for ${scopeTitle} will be removed. You can create it again later.`}
+        confirmText="Delete"
+      />
     </div>
   )
 }
