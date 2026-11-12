@@ -428,6 +428,18 @@ export default function DailyNewspaperNewsView() {
     setFeedPage(1)
   }
 
+  const reporterDayChips = useMemo(() => {
+    const fromSummary = summary?.reporters
+    if (Array.isArray(fromSummary) && fromSummary.length) {
+      return [...fromSummary].sort((a, b) => (b.articleCount ?? 0) - (a.articleCount ?? 0))
+    }
+    const fromFilters = filterOptions.reporters
+    if (Array.isArray(fromFilters) && fromFilters.length) {
+      return [...fromFilters].sort((a, b) => (b.articleCount ?? 0) - (a.articleCount ?? 0))
+    }
+    return []
+  }, [summary?.reporters, filterOptions.reporters])
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-orange-50/30 to-amber-50/50 p-5 sm:p-6 shadow-sm">
@@ -438,6 +450,90 @@ export default function DailyNewspaperNewsView() {
           syndication. Copy one story at a time.
         </p>
       </div>
+
+      {feed && summary ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Articles (day)</p>
+            <p className="text-2xl font-bold tabular-nums text-slate-900 mt-0.5">
+              {summary.articleCount ?? allFlattened.length}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Reporters</p>
+            <p className="text-2xl font-bold tabular-nums text-emerald-700 mt-0.5">
+              {summary.reporterCount ?? reporterDayChips.length ?? '—'}
+            </p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">This page</p>
+            <p className="text-2xl font-bold tabular-nums text-slate-800 mt-0.5">{filteredFlat.length}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm col-span-2 sm:col-span-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Source</p>
+            <p className="text-sm font-semibold text-brand-dark mt-1">
+              {summary.contentSource || contentSourceFromMode(contentMode)}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {feed && reporterDayChips.length > 0 ? (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-slate-700">
+              Reporter-wise posts (full day)
+              <span className="ml-2 font-normal text-slate-500">chip click → filter</span>
+            </p>
+            {reporterId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setReporterId('')
+                  setFeedPage(1)
+                }}
+                className="text-[11px] font-semibold text-brand hover:underline"
+              >
+                Clear reporter filter
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+            {reporterDayChips.map((r) => {
+              const id = r.reporterId
+              const active = reporterId === String(id)
+              const label = r.name || id
+              const count = r.articleCount ?? 0
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  title={r.districtName ? `${label} · ${r.districtName}` : label}
+                  onClick={() => {
+                    setReporterId(active ? '' : String(id))
+                    setFeedPage(1)
+                    setArticleIndex(0)
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    active
+                      ? 'bg-slate-900 text-white border-slate-900'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400 hover:bg-white'
+                  }`}
+                >
+                  <span className="truncate max-w-[140px]">{label}</span>
+                  <span
+                    className={`tabular-nums rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                      active ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
