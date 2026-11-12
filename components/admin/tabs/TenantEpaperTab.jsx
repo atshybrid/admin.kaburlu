@@ -6,15 +6,34 @@ import mediaApi from '../../../lib/api/services/mediaApi'
 import { setHeaderStyleCatalogCache } from '../../../lib/epaper/headerStyleCatalog'
 import { formToSmartDesignPayload, smartDesignToForm } from '../../../lib/epaper/smartDesignForm'
 import {
+  EPAPER_PAPER_TYPE,
+  epaperSettingsToImprint,
   formToNewspaperConfigPayload,
+  imprintToPayload,
   newspaperConfigToForm,
 } from '../../../lib/epaper/newspaperConfigForm'
-import { Button, ConfirmDialog, FormField, Input, Select, Spinner, toast } from '../../ui'
+import ImageCropModal from '../ImageCropModal'
+import { Button, ConfirmDialog, FormField, Input, Select, Spinner, Switch, toast } from '../../ui'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
+const VIEWS = [
+  { id: 'designs', label: 'Edition designs' },
+  { id: 'defaults', label: 'Tenant defaults' },
+  { id: 'imprint', label: 'Print imprint' },
+]
+
+const CROP_ASPECT = {
+  headerLogoUrl: 'original',
+  paperNameImageUrl: '6:1',
+  headerLeftImageUrl: '1:1',
+  headerRightImageUrl: '1:1',
+  subHeaderLogoUrl: '4:1',
+  mainLogoUrl: 'original',
+}
+
 const EMPTY_FORM = {
-  paperType: 'TABLOID',
+  paperType: EPAPER_PAPER_TYPE,
   defaultPageCount: 8,
   perPageCostMonthly: 0,
   paperSellCost: 5,
@@ -105,7 +124,7 @@ function ImageField({ label, hint, value, onChange, onUpload, uploading, disable
             disabled || uploading ? 'pointer-events-none opacity-60' : ''
           }`}
         >
-          {uploading ? 'Uploading…' : 'Upload'}
+          {uploading ? 'Uploading…' : 'Upload & crop'}
           <input
             type="file"
             accept="image/*"
@@ -128,6 +147,15 @@ function ImageField({ label, hint, value, onChange, onUpload, uploading, disable
           </button>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function BroadsheetBadge() {
+  return (
+    <div className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
+      <span className="inline-block h-4 w-3 rounded-sm border border-slate-400 bg-white" aria-hidden />
+      <span className="text-sm font-medium text-slate-900">Broadsheet</span>
     </div>
   )
 }
@@ -184,9 +212,12 @@ export default function TenantEpaperTab({ tenantContext }) {
   const [collect, setCollect] = useState(null)
   const [collecting, setCollecting] = useState(false)
 
-  const [defaultsOpen, setDefaultsOpen] = useState(false)
+  const [view, setView] = useState('designs')
   const [defaults, setDefaults] = useState(null)
   const [defaultsSaving, setDefaultsSaving] = useState(false)
+  const [imprint, setImprint] = useState(null)
+  const [imprintSaving, setImprintSaving] = useState(false)
+  const [pendingCrop, setPendingCrop] = useState(null)
 
   const editions = useMemo(() => catalog?.editions || [], [catalog])
   const mainStyles = useMemo(() => styles?.mainHeaders || [], [styles])
@@ -229,17 +260,25 @@ export default function TenantEpaperTab({ tenantContext }) {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [cat, st, cfg] = await Promise.all([
+      const [cat, st, cfg, settings] = await Promise.all([
         loadCatalog(),
         smartDesignApi.getHeaderStyles(tenantId).catch(() => null),
         epaperApi.getNewspaperConfig(tenantId).catch(() => null),
+        epaperApi.getSettings(tenantId).catch(() => null),
       ])
       if (cancelled) return
       if (st) {
         setStyles(st)
         setHeaderStyleCatalogCache(st)
       }
-      setDefaults(newspaperConfigToForm(cfg || {}))
+      const defaultsForm = newspaperConfigToForm(cfg || {})
+      if (!defaultsForm.exists) {
+        defaultsForm.prgiNumber = cat?.prgiNumber || ''
+        defaultsForm.volumeStartDate = `${new Date().getFullYear()}-01-01`
+        defaultsForm.issueStartDate = todayIso()
+      }
+      setDefaults(defaultsForm)
+      setImprint(epaperSettingsToImprint(settings))
       const first = cat?.editions?.[0]
       if (first) setSelected({ editionId: first.id, subEditionId: null })
       setLoading(false)
@@ -285,22 +324,37 @@ export default function TenantEpaperTab({ tenantContext }) {
     setDirty(true)
   }
 
-  const handleUpload = async (field, file) => {
-    setUploading((prev) => ({ ...prev, [field]: true }))
+  const requestUpload = (target, field, file, label) => {
+    setPendingCrop({ target, field, file, label })
+  }
+
+  const handleCroppedUpload = async (file) => {
+    if (!pendingCrop) return
+    const { target, field } = pendingCrop
+    const key = `${target}:${field}`
+    setUploading((prev) => ({ ...prev, [key]: true }))
     try {
-      const result = await mediaApi.upload(file, `tenants/${tenantId}/epaper/smart-design`)
+      const folder = target === 'defaults' ? 'newspaper-config' : 'smart-design'
+      const result = await mediaApi.upload(file, `tenants/${tenantId}/epaper/${folder}`)
       const url =
         result?.internalUrl || result?.data?.internalUrl || result?.data?.internalPath || result?.url || ''
       if (!url) throw new Error('Upload succeeded but no URL returned')
-      setField(field, url)
-      if (field === 'headerLogoUrl' && !caps.paperNameImageUrl) setField('paperNameImageUrl', url)
+      if (target === 'defaults') {
+        setDefaults((prev) => ({ ...prev, [field]: url }))
+      } else {
+        setField(field, url)
+        if (field === 'headerLogoUrl' && !caps.paperNameImageUrl) setField('paperNameImageUrl', url)
+      }
+      setPendingCrop(null)
       toast.success('Image uploaded — save to apply')
     } catch (e) {
       toast.error(e?.message || 'Upload failed')
     } finally {
-      setUploading((prev) => ({ ...prev, [field]: false }))
+      setUploading((prev) => ({ ...prev, [key]: false }))
     }
   }
+
+  const designUpload = (field, label) => (file) => requestUpload('design', field, file, label)
 
   const handleSave = async () => {
     if (!selected) return
@@ -311,7 +365,7 @@ export default function TenantEpaperTab({ tenantContext }) {
     }
     setSaving(true)
     try {
-      const payload = formToSmartDesignPayload(form, {
+      const payload = formToSmartDesignPayload({ ...form, paperType: EPAPER_PAPER_TYPE }, {
         editionId: selected.editionId,
         subEditionId: selected.subEditionId,
         scopeType: selected.subEditionId ? 'sub-edition' : 'edition',
@@ -387,17 +441,52 @@ export default function TenantEpaperTab({ tenantContext }) {
   }
 
   const handleSaveDefaults = async () => {
+    if (!defaults.exists && (!defaults.volumeStartDate || !defaults.issueStartDate)) {
+      toast.error('Volume start date and issue start date are required the first time.')
+      return
+    }
+    if (!/^\d{2}:\d{2}$/.test(String(defaults.newsCloseTime || ''))) {
+      toast.error('News close time must be HH:MM.')
+      return
+    }
     setDefaultsSaving(true)
     try {
       const saved = await epaperApi.putNewspaperConfig(tenantId, formToNewspaperConfigPayload(defaults))
       setDefaults(newspaperConfigToForm(saved))
-      toast.success('Tenant defaults saved')
+      toast.success(defaults.exists ? 'Tenant defaults updated' : 'Tenant defaults created')
     } catch (e) {
       toast.error(e?.message || 'Save failed')
     } finally {
       setDefaultsSaving(false)
     }
   }
+
+  const handleInitImprint = async () => {
+    setImprintSaving(true)
+    try {
+      setImprint(epaperSettingsToImprint(await epaperApi.initializeSettings(tenantId)))
+      toast.success('Print settings initialized')
+    } catch (e) {
+      toast.error(e?.message || 'Initialize failed')
+    } finally {
+      setImprintSaving(false)
+    }
+  }
+
+  const handleSaveImprint = async () => {
+    setImprintSaving(true)
+    try {
+      setImprint(epaperSettingsToImprint(await epaperApi.putSettings(tenantId, imprintToPayload(imprint))))
+      toast.success('Print imprint saved')
+    } catch (e) {
+      toast.error(e?.message || 'Save failed')
+    } finally {
+      setImprintSaving(false)
+    }
+  }
+
+  const setDefault = (name, value) => setDefaults((prev) => ({ ...prev, [name]: value }))
+  const setImprintField = (name, value) => setImprint((prev) => ({ ...prev, [name]: value }))
 
   const totalScopes = editions.reduce((n, e) => n + 1 + (e.subEditions?.length || 0), 0)
   const configuredScopes = editions.reduce(
@@ -427,7 +516,7 @@ export default function TenantEpaperTab({ tenantContext }) {
           <div>
             <h2 className="text-lg font-semibold text-slate-900">ePaper settings</h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              One smart design per edition. Pick a state or district edition on the left, then create or edit it.
+              Broadsheet ePaper. Edition designs override the tenant defaults; the imprint prints on the last page.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -474,9 +563,29 @@ export default function TenantEpaperTab({ tenantContext }) {
         {loadError ? (
           <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>
         ) : null}
+        <div className="mt-4 inline-flex rounded-lg bg-slate-100 p-1">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setView(v.id)}
+              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                view === v.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              {v.label}
+              {v.id === 'defaults' && defaults && !defaults.exists ? (
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+              ) : null}
+              {v.id === 'imprint' && imprint && !imprint.initialized ? (
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />
+              ) : null}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {editions.length === 0 ? (
+      {view !== 'designs' ? null : editions.length === 0 ? (
         <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center">
           <p className="font-medium text-slate-800">No publication editions yet</p>
           <p className="mt-1 text-sm text-slate-500">
@@ -592,15 +701,8 @@ export default function TenantEpaperTab({ tenantContext }) {
               <>
                 <Section title="Paper & pricing">
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <FormField label="Paper type">
-                      <Select
-                        value={String(form.paperType || 'TABLOID').toUpperCase().includes('BROAD') ? 'BROADSHEET' : 'TABLOID'}
-                        onChange={(e) => setField('paperType', e.target.value)}
-                        disabled={busy}
-                      >
-                        <option value="TABLOID">Tabloid</option>
-                        <option value="BROADSHEET">Broadsheet</option>
-                      </Select>
+                    <FormField label="Paper type" hint="Fixed for all editions">
+                      <BroadsheetBadge />
                     </FormField>
                     <FormField label="Pages per issue">
                       <Input
@@ -706,8 +808,8 @@ export default function TenantEpaperTab({ tenantContext }) {
                         hint="Page 1 masthead"
                         value={form.headerLogoUrl}
                         onChange={(v) => setField('headerLogoUrl', v)}
-                        onUpload={(f) => handleUpload('headerLogoUrl', f)}
-                        uploading={uploading.headerLogoUrl}
+                        onUpload={designUpload('headerLogoUrl', 'Center logo')}
+                        uploading={uploading['design:headerLogoUrl']}
                         disabled={busy}
                       />
                     ) : null}
@@ -717,8 +819,8 @@ export default function TenantEpaperTab({ tenantContext }) {
                         hint="Masthead title as image"
                         value={form.paperNameImageUrl}
                         onChange={(v) => setField('paperNameImageUrl', v)}
-                        onUpload={(f) => handleUpload('paperNameImageUrl', f)}
-                        uploading={uploading.paperNameImageUrl}
+                        onUpload={designUpload('paperNameImageUrl', 'Paper name image')}
+                        uploading={uploading['design:paperNameImageUrl']}
                         disabled={busy}
                       />
                     ) : null}
@@ -728,8 +830,8 @@ export default function TenantEpaperTab({ tenantContext }) {
                         hint="Logo, custom image or ad"
                         value={form.headerLeftImageUrl}
                         onChange={(v) => setField('headerLeftImageUrl', v)}
-                        onUpload={(f) => handleUpload('headerLeftImageUrl', f)}
-                        uploading={uploading.headerLeftImageUrl}
+                        onUpload={designUpload('headerLeftImageUrl', 'Left slot')}
+                        uploading={uploading['design:headerLeftImageUrl']}
                         disabled={busy}
                       />
                     ) : null}
@@ -739,8 +841,8 @@ export default function TenantEpaperTab({ tenantContext }) {
                         hint="Image or ad"
                         value={form.headerRightImageUrl}
                         onChange={(v) => setField('headerRightImageUrl', v)}
-                        onUpload={(f) => handleUpload('headerRightImageUrl', f)}
-                        uploading={uploading.headerRightImageUrl}
+                        onUpload={designUpload('headerRightImageUrl', 'Right slot')}
+                        uploading={uploading['design:headerRightImageUrl']}
                         disabled={busy}
                       />
                     ) : null}
@@ -750,8 +852,8 @@ export default function TenantEpaperTab({ tenantContext }) {
                         hint="Page 2+ sub header"
                         value={form.subHeaderLogoUrl}
                         onChange={(v) => setField('subHeaderLogoUrl', v)}
-                        onUpload={(f) => handleUpload('subHeaderLogoUrl', f)}
-                        uploading={uploading.subHeaderLogoUrl}
+                        onUpload={designUpload('subHeaderLogoUrl', 'Inner page logo')}
+                        uploading={uploading['design:subHeaderLogoUrl']}
                         disabled={busy}
                       />
                     ) : null}
@@ -870,91 +972,204 @@ export default function TenantEpaperTab({ tenantContext }) {
         </div>
       )}
 
-      {defaults ? (
-        <div className="rounded-xl border border-slate-200 bg-white">
-          <button
-            type="button"
-            onClick={() => setDefaultsOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-5 py-3 text-left"
-          >
-            <span>
-              <span className="block text-sm font-semibold text-slate-900">Tenant defaults (fallback)</span>
-              <span className="block text-xs text-slate-500">
-                Used when an edition has no smart design · newspaper-config
-              </span>
-            </span>
-            <span className="text-sm text-slate-500">{defaultsOpen ? 'Hide' : 'Show'}</span>
-          </button>
-          {defaultsOpen ? (
-            <div className="space-y-4 border-t border-slate-100 p-5">
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <FormField label="Pages">
-                  <Input
-                    type="number"
-                    min="1"
-                    value={defaults.pageCount}
-                    onChange={(e) => setDefaults((p) => ({ ...p, pageCount: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="News close (IST)">
-                  <Input
-                    type="time"
-                    value={defaults.newsCloseTime}
-                    onChange={(e) => setDefaults((p) => ({ ...p, newsCloseTime: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="Main header #">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={defaults.headerStyleNumber}
-                    onChange={(e) => setDefaults((p) => ({ ...p, headerStyleNumber: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="Sub header #">
-                  <Input
-                    type="number"
-                    min="1"
-                    max="10"
-                    value={defaults.subHeaderStyleNumber}
-                    onChange={(e) => setDefaults((p) => ({ ...p, subHeaderStyleNumber: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="Main logo URL" className="sm:col-span-2">
-                  <Input
-                    type="url"
-                    value={defaults.mainLogoUrl}
-                    onChange={(e) => setDefaults((p) => ({ ...p, mainLogoUrl: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="Sub header logo URL" className="sm:col-span-2">
-                  <Input
-                    type="url"
-                    value={defaults.subHeaderLogoUrl}
-                    onChange={(e) => setDefaults((p) => ({ ...p, subHeaderLogoUrl: e.target.value }))}
-                  />
-                </FormField>
-                <FormField label="Last page footer" className="sm:col-span-2 lg:col-span-4">
-                  <Input
-                    value={defaults.lastPageFooterText}
-                    onChange={(e) => setDefaults((p) => ({ ...p, lastPageFooterText: e.target.value }))}
-                  />
-                </FormField>
+      {view === 'defaults' && defaults ? (
+        <div className="space-y-4">
+          {!defaults.exists ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Tenant defaults are not set up yet. Fill in the start dates below and press <strong>Create defaults</strong>.
+              Editions without their own smart design will use these values.
+            </div>
+          ) : defaults.today ? (
+            <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-4">
+              <div>
+                <p className="text-[11px] text-slate-500">Today</p>
+                <p className="text-sm font-medium text-slate-900">{defaults.today.issueDate || '—'}</p>
               </div>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">
-                  {defaults.newsWindow
-                    ? `Today window: ${formatIst(defaults.newsWindow.fromDate)} → ${formatIst(defaults.newsWindow.toDate)}`
-                    : ''}
+              <div>
+                <p className="text-[11px] text-slate-500">Volume / Issue</p>
+                <p className="text-sm font-medium tabular-nums text-slate-900">
+                  Vol {defaults.today.currentVolume ?? '—'} · Issue {defaults.today.currentIssue ?? '—'}
                 </p>
-                <Button variant="primary" size="sm" onClick={handleSaveDefaults} loading={defaultsSaving}>
-                  Save defaults
-                </Button>
+              </div>
+              <div className="col-span-2">
+                <p className="text-[11px] text-slate-500">Print news window (IST)</p>
+                <p className="text-sm font-medium tabular-nums text-slate-900">
+                  {formatIst(defaults.today.newsWindow?.fromDate)} → {formatIst(defaults.today.newsWindow?.toDate)}
+                </p>
               </div>
             </div>
           ) : null}
+
+          <Section title="Paper & pricing">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <FormField label="Paper type" hint="Fixed for all editions">
+                <BroadsheetBadge />
+              </FormField>
+              <FormField label="Pages per issue">
+                <Input type="number" min="1" value={defaults.pageCount} onChange={(e) => setDefault('pageCount', e.target.value)} />
+              </FormField>
+              <FormField label="Cost / page (₹)">
+                <Input
+                  type="number"
+                  min="0"
+                  value={defaults.perPageCost}
+                  placeholder="Not set"
+                  onChange={(e) => setDefault('perPageCost', e.target.value)}
+                />
+              </FormField>
+              <FormField label="PRGI number">
+                <Input value={defaults.prgiNumber} onChange={(e) => setDefault('prgiNumber', e.target.value)} />
+              </FormField>
+            </div>
+          </Section>
+
+          <Section title="Volume, issue & news close">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <FormField label="Volume start #">
+                <Input
+                  type="number"
+                  min="1"
+                  value={defaults.volumeStartNumber}
+                  onChange={(e) => setDefault('volumeStartNumber', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Volume start date" required={!defaults.exists}>
+                <Input type="date" value={defaults.volumeStartDate} onChange={(e) => setDefault('volumeStartDate', e.target.value)} />
+              </FormField>
+              <FormField label="Issue start #">
+                <Input
+                  type="number"
+                  min="1"
+                  value={defaults.issueStartNumber}
+                  onChange={(e) => setDefault('issueStartNumber', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Issue start date" required={!defaults.exists}>
+                <Input type="date" value={defaults.issueStartDate} onChange={(e) => setDefault('issueStartDate', e.target.value)} />
+              </FormField>
+              <FormField label="News close (IST)">
+                <Input type="time" value={defaults.newsCloseTime} onChange={(e) => setDefault('newsCloseTime', e.target.value)} />
+              </FormField>
+            </div>
+          </Section>
+
+          <Section title="Header & logos">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="Main header style #">
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={defaults.headerStyleNumber}
+                  onChange={(e) => setDefault('headerStyleNumber', e.target.value)}
+                />
+              </FormField>
+              <FormField label="Inner page header style #">
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={defaults.subHeaderStyleNumber}
+                  onChange={(e) => setDefault('subHeaderStyleNumber', e.target.value)}
+                />
+              </FormField>
+              <ImageField
+                label="Main logo"
+                hint="Front page masthead"
+                value={defaults.mainLogoUrl}
+                onChange={(v) => setDefault('mainLogoUrl', v)}
+                onUpload={(f) => requestUpload('defaults', 'mainLogoUrl', f, 'Main logo')}
+                uploading={uploading['defaults:mainLogoUrl']}
+              />
+              <ImageField
+                label="Inner page logo"
+                hint="Small logo on inner pages"
+                value={defaults.subHeaderLogoUrl}
+                onChange={(v) => setDefault('subHeaderLogoUrl', v)}
+                onUpload={(f) => requestUpload('defaults', 'subHeaderLogoUrl', f, 'Inner page logo')}
+                uploading={uploading['defaults:subHeaderLogoUrl']}
+              />
+              <FormField label="Last page footer" className="sm:col-span-2">
+                <Input value={defaults.lastPageFooterText} onChange={(e) => setDefault('lastPageFooterText', e.target.value)} />
+              </FormField>
+            </div>
+          </Section>
+
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={handleSaveDefaults} loading={defaultsSaving}>
+              {defaults.exists ? 'Save defaults' : 'Create defaults'}
+            </Button>
+          </div>
         </div>
+      ) : null}
+
+      {view === 'imprint' && imprint ? (
+        !imprint.initialized ? (
+          <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-10 text-center">
+            <p className="font-medium text-slate-800">Print settings not initialized</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Initialize once to set up printer, publisher, editor and RNI details for the last page.
+            </p>
+            <Button className="mt-4" variant="primary" onClick={handleInitImprint} loading={imprintSaving}>
+              Initialize print settings
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <Section title="Printer">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <FormField label="Printer name">
+                  <Input value={imprint.printerName} onChange={(e) => setImprintField('printerName', e.target.value)} />
+                </FormField>
+                <FormField label="Printer address">
+                  <Input value={imprint.printerAddress} onChange={(e) => setImprintField('printerAddress', e.target.value)} />
+                </FormField>
+                <FormField label="City">
+                  <Input value={imprint.printerCity} onChange={(e) => setImprintField('printerCity', e.target.value)} />
+                </FormField>
+              </div>
+            </Section>
+            <Section title="Publisher & registration">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <FormField label="Publisher">
+                  <Input value={imprint.publisherName} onChange={(e) => setImprintField('publisherName', e.target.value)} />
+                </FormField>
+                <FormField label="Editor">
+                  <Input value={imprint.editorName} onChange={(e) => setImprintField('editorName', e.target.value)} />
+                </FormField>
+                <FormField label="Owner">
+                  <Input value={imprint.ownerName} onChange={(e) => setImprintField('ownerName', e.target.value)} />
+                </FormField>
+                <FormField label="RNI number">
+                  <Input value={imprint.rniNumber} onChange={(e) => setImprintField('rniNumber', e.target.value)} />
+                </FormField>
+              </div>
+              <Switch
+                className="mt-4"
+                label="Print imprint on last page"
+                description="Shows printer, publisher, editor and RNI at the bottom of the last page"
+                checked={imprint.showPrinterInfoOnLastPage}
+                onChange={(v) => setImprintField('showPrinterInfoOnLastPage', v)}
+              />
+            </Section>
+            <div className="flex justify-end">
+              <Button variant="primary" onClick={handleSaveImprint} loading={imprintSaving}>
+                Save imprint
+              </Button>
+            </div>
+          </div>
+        )
+      ) : null}
+
+      {pendingCrop ? (
+        <ImageCropModal
+          file={pendingCrop.file}
+          title={`Crop ${pendingCrop.label || 'image'}`}
+          defaultAspect={CROP_ASPECT[pendingCrop.field] || 'original'}
+          busy={!!uploading[`${pendingCrop.target}:${pendingCrop.field}`]}
+          onCancel={() => setPendingCrop(null)}
+          onConfirm={handleCroppedUpload}
+        />
       ) : null}
 
       <ConfirmDialog
