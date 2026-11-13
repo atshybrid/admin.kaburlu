@@ -12,7 +12,13 @@ import {
   imprintToPayload,
   newspaperConfigToForm,
 } from '../../../lib/epaper/newspaperConfigForm'
+import { MastheadPublicationGrid } from '../epaper/EpaperMastheadControls'
 import ImageCropModal from '../ImageCropModal'
+import {
+  DEFAULT_INNER_SUB_HEADER_COLOR,
+  DEFAULT_MAIN_SUB_HEADER_COLOR,
+  validateOptionalHexColors,
+} from '../../../lib/epaper/publicationFields'
 import { Button, ConfirmDialog, FormField, Input, Select, Spinner, Switch, toast } from '../../ui'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
@@ -43,6 +49,11 @@ const EMPTY_FORM = {
   tagline: '',
   websiteUrl: '',
   publishedAreaText: '',
+  editorName: '',
+  chiefEditorName: '',
+  mainSubHeaderColor: DEFAULT_MAIN_SUB_HEADER_COLOR,
+  innerSubHeaderColor: DEFAULT_INNER_SUB_HEADER_COLOR,
+  publisherAreas: [],
   headerLogoUrl: '',
   paperNameImageUrl: '',
   headerLeftImageUrl: '',
@@ -77,7 +88,7 @@ function validateForm(form) {
     return 'News close time must be HH:MM.'
   }
   if (Number(form.defaultPageCount) < 1) return 'Pages must be at least 1.'
-  return ''
+  return validateOptionalHexColors(form)
 }
 
 function Section({ title, description, children }) {
@@ -449,6 +460,11 @@ export default function TenantEpaperTab({ tenantContext }) {
       toast.error('News close time must be HH:MM.')
       return
     }
+    const colorProblem = validateOptionalHexColors(defaults)
+    if (colorProblem) {
+      toast.error(colorProblem)
+      return
+    }
     setDefaultsSaving(true)
     try {
       const saved = await epaperApi.putNewspaperConfig(tenantId, formToNewspaperConfigPayload(defaults))
@@ -782,15 +798,7 @@ export default function TenantEpaperTab({ tenantContext }) {
                         disabled={busy}
                       />
                     </FormField>
-                    <FormField label="Published areas">
-                      <Input
-                        value={form.publishedAreaText}
-                        placeholder="Hyderabad • Warangal"
-                        onChange={(e) => setField('publishedAreaText', e.target.value)}
-                        disabled={busy}
-                      />
-                    </FormField>
-                    <FormField label="Website">
+                    <FormField label="Website" className="sm:col-span-2">
                       <Input
                         type="url"
                         value={form.websiteUrl}
@@ -858,6 +866,12 @@ export default function TenantEpaperTab({ tenantContext }) {
                       />
                     ) : null}
                   </div>
+
+                  <MastheadPublicationGrid
+                    disabled={busy}
+                    values={form}
+                    onField={(name, value) => setField(name, value)}
+                  />
                 </Section>
 
                 <Section
@@ -1093,6 +1107,10 @@ export default function TenantEpaperTab({ tenantContext }) {
                 <Input value={defaults.lastPageFooterText} onChange={(e) => setDefault('lastPageFooterText', e.target.value)} />
               </FormField>
             </div>
+            <MastheadPublicationGrid
+              values={defaults}
+              onField={(name, value) => setDefault(name, value)}
+            />
           </Section>
 
           <div className="flex justify-end">
