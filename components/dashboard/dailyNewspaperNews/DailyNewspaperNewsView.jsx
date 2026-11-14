@@ -11,6 +11,7 @@ import {
   articleHighlightsList,
   articleMediaImages,
   copyRichClipboard,
+  copyToClipboard,
   formatArticleBoard2Rich,
   formatArticleBodyFlowOnly,
   formatBodyPlain,
@@ -68,6 +69,39 @@ function priorityClass(bucket) {
   if (bucket === 'p2') return 'border-l-amber-500 bg-amber-50/40'
   if (bucket === 'p3') return 'border-l-sky-500 bg-sky-50/30'
   return 'border-l-slate-300 bg-white'
+}
+
+function TitleCopyButton({ title, onCopied }) {
+  const [copied, setCopied] = useState(false)
+  const onCopy = async () => {
+    const text = String(title || '').trim()
+    if (!text) {
+      toast.error('No title')
+      return
+    }
+    try {
+      const ok = await copyToClipboard(text)
+      if (!ok) {
+        toast.error('Nothing to copy')
+        return
+      }
+      setCopied(true)
+      toast.success('Title copied')
+      onCopied?.()
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      toast.error('Copy failed')
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={onCopy}
+      className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 transition-colors"
+    >
+      {copied ? '✓ Copied' : 'Copy title'}
+    </button>
+  )
 }
 
 function BoardCopyButton({ article, onCopied }) {
@@ -149,7 +183,10 @@ function ArticleCard({
               .filter(Boolean)
               .join(' · ')}
           </p>
-          <BoardCopyButton article={article} onCopied={onViewed} />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <TitleCopyButton title={title} onCopied={onViewed} />
+            <BoardCopyButton article={article} onCopied={onViewed} />
+          </div>
         </div>
       </div>
 
