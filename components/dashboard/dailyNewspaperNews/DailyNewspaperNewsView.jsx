@@ -7,27 +7,31 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tenantsApi } from '../../../lib/api/tenantApi'
 import { newspaperTenantFeedApi } from '../../../lib/api/services/newspaperTenantFeedApi'
 import {
-  articleBodyParagraphs,
   articleDisplayTitle,
   articleHighlightsList,
   articleMediaImages,
-  BULLET_CHAR,
   copyRichClipboard,
-  copyToClipboard,
   formatArticleAfterDatelineRich,
   formatArticleBodyFlowOnly,
   formatBodyPlain,
   formatDatelineCopy,
-  formatFullArticleRich,
-  formatHighlightsHtml,
-  formatHighlightLine,
-  formatHighlightsCopy,
-  formatImageBlockCopy,
-  formatImageCaptionCopy,
-  formatImageUrlCopy,
   resolveArticleParts,
   todayIstDateString,
 } from '../../../lib/newspaperFeed/articleCopy'
+import {
+  articleMatchesWordRange,
+  articleWordCount,
+  countByWordRange,
+  formatArticleCreatedIst,
+  sortArticlesByCreated,
+  wordCountBucketLabel,
+  WORD_RANGE_OPTIONS,
+} from '../../../lib/newspaperFeed/articleMetrics'
+import {
+  articleViewKey,
+  loadViewedIdSet,
+  persistViewedIdSet,
+} from '../../../lib/newspaperFeed/viewedArticles'
 import { getAuthUser } from '../../../utils/auth'
 import { isSuperAdmin } from '../../../utils/roleUtils'
 import { filterActiveTenants } from '../../../lib/tenant/isActiveTenant'
@@ -35,7 +39,6 @@ import {
   collectReporterFilterOptions,
   dedupeFeedArticles,
   flattenFeedArticles,
-  sortArticlesForDesk,
 } from '../../../lib/newspaperFeed/feedList'
 
 function contentSourceFromMode(mode) {
@@ -67,25 +70,20 @@ function priorityClass(bucket) {
   return 'border-l-slate-300 bg-white'
 }
 
-function CopyButton({ label, getText, getRich, size = 'sm' }) {
+function BoardCopyButton({ article, onCopied }) {
   const [copied, setCopied] = useState(false)
   const onCopy = async () => {
     try {
-      let ok = false
-      if (getRich) {
-        const { plain, html } = getRich()
-        ok = await copyRichClipboard({ plain, html })
-      } else {
-        const text = typeof getText === 'function' ? getText() : getText
-        ok = await copyToClipboard(text)
-      }
+      const { plain, html } = formatArticleAfterDatelineRich(article)
+      const ok = await copyRichClipboard({ plain, html })
       if (!ok) {
         toast.error('Nothing to copy')
         return
       }
       setCopied(true)
-      toast.success(`${label} copied`)
-      setTimeout(() => setCopied(false), 1500)
+      toast.success('Article (board 2) copied')
+      onCopied?.()
+      setTimeout(() => setCopied(false), 1800)
     } catch {
       toast.error('Copy failed')
     }
@@ -94,160 +92,117 @@ function CopyButton({ label, getText, getRich, size = 'sm' }) {
     <button
       type="button"
       onClick={onCopy}
-      className={`inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:border-brand/40 transition-colors ${
-        size === 'xs' ? 'px-1.5 py-0.5 text-[11px]' : ''
-      }`}
+      className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition-colors"
     >
-      {copied ? '✓ Copied' : `Copy ${label}`}
+      {copied ? '✓ Copied' : 'Copy article (board 2)'}
     </button>
   )
 }
 
-function ArticleCard({ article, reporterName, districtName, priorityBucket }) {
+function ArticleCard({
+  article,
+  reporterName,
+  districtName,
+  priorityBucket,
+  viewed,
+  wordCount,
+  createdLabel,
+  onViewed,
+}) {
   const title = articleDisplayTitle(article)
-  const highlights = articleHighlightsList(article)
-  const { datelineTag, bodyParagraphs, newspaperLabel } = resolveArticleParts(article)
+  const { datelineTag, bodyParagraphs } = resolveArticleParts(article)
   const dateline = datelineTag
-  const paragraphs = bodyParagraphs
   const articleBodyOnly = formatArticleBodyFlowOnly(article)
-  const articleCopyPreview = formatBodyPlain(article)
   const mediaImages = articleMediaImages(article)
-  const articleRich = () => formatArticleAfterDatelineRich(article)
-  const fullRich = () => formatFullArticleRich(article)
+  const lengthLabel = wordCountBucketLabel(wordCount)
 
   return (
     <article
-      className={`rounded-xl border border-slate-200 border-l-4 shadow-sm overflow-hidden ${priorityClass(
+      className={`rounded-2xl border border-slate-200 border-l-4 shadow-sm overflow-hidden ${priorityClass(
         priorityBucket || article.priorityBucket,
       )}`}
     >
-      <div className="px-4 py-3 border-b border-slate-100 bg-white/80 flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">
-              {priorityLabel(priorityBucket || article.priorityBucket)}
+      <div className="border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/80 px-5 py-4">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-slate-500">
+            {priorityLabel(priorityBucket || article.priorityBucket)}
+          </span>
+          {article.important?.isBreaking ? (
+            <span className="text-[10px] font-bold uppercase text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
+              Breaking
             </span>
-            {article.important?.isBreaking ? (
-              <span className="text-[10px] font-bold uppercase text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">
-                Breaking
-              </span>
-            ) : null}
-          </div>
-          <h3 className="text-base font-bold text-slate-900 leading-snug">{title}</h3>
-          <p className="text-xs text-slate-500 mt-1">
+          ) : null}
+          <span className="text-[10px] font-semibold tabular-nums text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">
+            {wordCount} words · {lengthLabel}
+          </span>
+          <span className="text-[10px] text-slate-500">Created {createdLabel}</span>
+          {viewed ? (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+              Viewed
+            </span>
+          ) : null}
+        </div>
+        <h3 className="text-lg sm:text-xl font-bold text-slate-900 leading-snug">{title}</h3>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500 min-w-0">
             {[districtName, reporterName, article.reporter?.designation?.nativeName || article.reporter?.designation?.name]
               .filter(Boolean)
               .join(' · ')}
           </p>
+          <BoardCopyButton article={article} onCopied={onViewed} />
         </div>
-        <CopyButton label="all" getRich={fullRich} />
       </div>
 
-      <div className="px-4 py-3 space-y-3 bg-white">
-        <div className="flex flex-wrap gap-2">
-          <CopyButton label="title" getText={() => title} size="xs" />
-          {highlights.length > 0 ? (
-            <CopyButton
-              label="bullets"
-              getText={() => formatHighlightsCopy(article)}
-              getRich={() => ({
-                plain: formatHighlightsCopy(article),
-                html: formatHighlightsHtml(article),
-              })}
-              size="xs"
-            />
-          ) : null}
-          {dateline ? <CopyButton label="dateline" getText={() => dateline} size="xs" /> : null}
-          {paragraphs.length > 0 || dateline ? (
-            <CopyButton label="article (board)" getRich={articleRich} size="xs" />
-          ) : null}
+      {mediaImages.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 bg-slate-950/5 px-5 py-4">
+          {mediaImages.map((img, index) => (
+            <figure
+              key={img.url || index}
+              className={`overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${
+                mediaImages.length === 1 ? 'sm:col-span-2' : ''
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.url}
+                alt={img.alt || img.caption || `Photo ${index + 1}`}
+                className="w-full max-h-[22rem] object-contain bg-slate-100"
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+              {img.caption ? (
+                <figcaption className="border-t border-slate-100 px-3 py-2 text-sm text-slate-700 leading-snug">
+                  {img.caption}
+                </figcaption>
+              ) : null}
+            </figure>
+          ))}
         </div>
+      ) : null}
 
-        {highlights.length > 0 ? (
-          <div>
-            <p className="text-[11px] font-semibold text-slate-500 uppercase mb-1">Bullet points (first in paste)</p>
-            <ul className="text-sm text-slate-800 space-y-0.5 list-none pl-0">
-              {highlights.map((line, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-slate-500 shrink-0">{BULLET_CHAR}</span>
-                  <span>{String(line).replace(/^[\s•*\u2022\-–]+/, '').trim()}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {mediaImages.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold text-slate-500 uppercase">Photos</p>
-            {mediaImages.map((img, index) => (
-              <div key={img.url || index} className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.url}
-                  alt={img.alt || img.caption || `Photo ${index + 1}`}
-                  className="w-full max-h-72 object-contain bg-black/5"
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                />
-                {img.caption ? (
-                  <p className="px-3 py-2 text-sm text-slate-800 border-t border-slate-200 bg-white">
-                    {img.caption}
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 px-3 py-2 border-t border-slate-100 bg-white">
-                  <CopyButton label="image URL" getText={() => formatImageUrlCopy(img)} size="xs" />
-                  {img.caption ? (
-                    <CopyButton label="caption" getText={() => formatImageCaptionCopy(img)} size="xs" />
-                  ) : null}
-                  <CopyButton label="photo block" getText={() => formatImageBlockCopy(img, index)} size="xs" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {(dateline || articleBodyOnly || articleCopyPreview) ? (
-          <div className="space-y-3">
-            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase mb-2">
-                Paste sample (Copy article / Copy all)
-              </p>
-              <main className="text-sm text-slate-800 space-y-2 leading-relaxed">
-                {highlights.length > 0 ? (
-                  <ul className="list-none pl-0 space-y-0.5 font-normal">
-                    {highlights.map((line, i) => (
-                      <li key={i}>{formatHighlightLine(line)}</li>
-                    ))}
-                  </ul>
-                ) : null}
-                {dateline || articleBodyOnly ? (
-                  <p className="text-slate-800">
-                    {dateline ? (
-                      <>
-                        <span className="font-bold text-slate-900">{dateline}</span>
-                        {articleBodyOnly ? (
-                          <>
-                            <span> : </span>
-                            <span className="font-normal">{articleBodyOnly}</span>
-                          </>
-                        ) : (
-                          <span className="font-bold"> :</span>
-                        )}
-                      </>
-                    ) : (
+      {(dateline || bodyParagraphs.length || articleBodyOnly) ? (
+        <main className="px-5 py-4 text-sm text-slate-800 leading-relaxed bg-white space-y-2">
+          {dateline || articleBodyOnly ? (
+            <p>
+              {dateline ? (
+                <>
+                  <span className="font-bold text-slate-900">{dateline}</span>
+                  {articleBodyOnly ? (
+                    <>
+                      <span> : </span>
                       <span className="font-normal">{articleBodyOnly}</span>
-                    )}
-                  </p>
-                ) : null}
-              </main>
-            </div>
-            {newspaperLabel ? (
-              <p className="text-[11px] text-slate-400">Newspaper field in API: {newspaperLabel}</p>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+                    </>
+                  ) : (
+                    <span className="font-bold"> :</span>
+                  )}
+                </>
+              ) : (
+                <span className="font-normal">{articleBodyOnly}</span>
+              )}
+            </p>
+          ) : null}
+        </main>
+      ) : null}
     </article>
   )
 }
@@ -272,6 +227,8 @@ export default function DailyNewspaperNewsView() {
   const [feedPage, setFeedPage] = useState(1)
   const [articleIndex, setArticleIndex] = useState(0)
   const [feedHint, setFeedHint] = useState(null)
+  const [wordRange, setWordRange] = useState('all')
+  const [viewedIds, setViewedIds] = useState(() => new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -304,6 +261,29 @@ export default function DailyNewspaperNewsView() {
       setTenantId(String(fromQuery))
     }
   }, [router.query?.tenantId, canPickTenant])
+
+  useEffect(() => {
+    if (!tenantId || !businessDate) {
+      setViewedIds(new Set())
+      return
+    }
+    setViewedIds(loadViewedIdSet(tenantId, businessDate))
+  }, [tenantId, businessDate])
+
+  const markArticleViewed = useCallback(
+    (article) => {
+      const key = articleViewKey(article)
+      if (!key || !tenantId || !businessDate) return
+      setViewedIds((prev) => {
+        if (prev.has(key)) return prev
+        const next = new Set(prev)
+        next.add(key)
+        persistViewedIdSet(tenantId, businessDate, next)
+        return next
+      })
+    },
+    [tenantId, businessDate],
+  )
 
   const loadFeed = useCallback(async () => {
     if (!tenantId) {
@@ -431,12 +411,17 @@ export default function DailyNewspaperNewsView() {
         return hay.includes(q)
       })
     }
-    return sortArticlesForDesk(list)
-  }, [allFlattened, reporterId, search])
+    if (wordRange !== 'all') {
+      list = list.filter((a) => articleMatchesWordRange(a, wordRange))
+    }
+    return sortArticlesByCreated(list, 'desc')
+  }, [allFlattened, reporterId, search, wordRange])
+
+  const rangeCounts = useMemo(() => countByWordRange(allFlattened), [allFlattened])
 
   useEffect(() => {
     setArticleIndex(0)
-  }, [filteredFlat.length, tenantId, businessDate, reporterId, contentMode, districtId, search])
+  }, [filteredFlat.length, tenantId, businessDate, reporterId, contentMode, districtId, search, wordRange])
 
   useEffect(() => {
     if (articleIndex >= filteredFlat.length) {
@@ -445,6 +430,13 @@ export default function DailyNewspaperNewsView() {
   }, [articleIndex, filteredFlat.length])
 
   const currentArticle = filteredFlat[articleIndex] || null
+  const currentViewKey = currentArticle ? articleViewKey(currentArticle) : ''
+  const currentViewed = currentViewKey ? viewedIds.has(currentViewKey) : false
+  const currentWordCount = currentArticle ? articleWordCount(currentArticle) : 0
+
+  useEffect(() => {
+    if (currentArticle) markArticleViewed(currentArticle)
+  }, [currentArticle, markArticleViewed])
 
   const goPrev = () => setArticleIndex((i) => Math.max(0, i - 1))
   const goNext = () => setArticleIndex((i) => Math.min(filteredFlat.length - 1, i + 1))
@@ -452,6 +444,10 @@ export default function DailyNewspaperNewsView() {
   const tenantName = feed?.tenant?.name || tenants.find((t) => t.id === tenantId)?.name || '—'
   const summary = feed?.summary
   const timeWindow = feed?.timeWindow
+  const dateMismatch =
+    timeWindow?.businessDate &&
+    businessDate &&
+    String(timeWindow.businessDate) !== String(businessDate)
   const feedPagination = summary?.pagination
 
   const onContentMode = (id) => {
@@ -692,6 +688,7 @@ export default function DailyNewspaperNewsView() {
               setReporterId('')
               setContentMode('best')
               setTimeRule('newsroom')
+              setWordRange('all')
               setFeedPage(1)
             }}
           >
@@ -699,14 +696,64 @@ export default function DailyNewspaperNewsView() {
           </Button>
         </div>
 
+        {feed && allFlattened.length > 0 ? (
+          <div className="space-y-2 pt-1 border-t border-slate-100">
+            <p className="text-xs font-semibold text-slate-700">
+              Word count · sorted by create time (newest first)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {WORD_RANGE_OPTIONS.map((r) => {
+                const count =
+                  r.id === 'all'
+                    ? allFlattened.length
+                    : r.id === 'short'
+                      ? rangeCounts.short
+                      : r.id === 'medium'
+                        ? rangeCounts.medium
+                        : rangeCounts.long
+                const active = wordRange === r.id
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => {
+                      setWordRange(r.id)
+                      setArticleIndex(0)
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      active
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-400'
+                    }`}
+                  >
+                    {r.label}
+                    <span
+                      className={`tabular-nums rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                        active ? 'bg-white/20' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ) : null}
+
         {timeWindow ? (
           <div className="flex flex-wrap gap-2 text-xs items-center">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700">
               {tenantName}
             </span>
             <span className="rounded-full bg-brand/10 px-3 py-1 text-brand-dark font-medium">
-              {timeWindow.businessDate} · {timeWindow.effectiveRule || timeRule}
+              Loaded {timeWindow.businessDate} · {timeWindow.effectiveRule || timeRule}
             </span>
+            {dateMismatch ? (
+              <span className="rounded-full bg-rose-100 px-3 py-1 text-rose-800 font-semibold">
+                Pick {businessDate} but API returned {timeWindow.businessDate} — reload or fix date
+              </span>
+            ) : null}
             {summary ? (
               <>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-800">
@@ -794,39 +841,79 @@ export default function DailyNewspaperNewsView() {
 
       {feed && filteredFlat.length > 0 && currentArticle ? (
         <section className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm sticky top-0 z-20">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Story navigator</p>
-              <p className="text-sm text-slate-800 mt-0.5">
-                <span className="font-bold tabular-nums">{articleIndex + 1}</span>
-                <span className="text-slate-500"> / {filteredFlat.length}</span>
-                {currentArticle._reporterName ? (
-                  <span className="text-slate-600"> · {currentArticle._reporterName}</span>
-                ) : null}
-              </p>
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm sticky top-0 z-20 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Story navigator</p>
+                <p className="text-sm text-slate-800 mt-0.5">
+                  <span className="font-bold tabular-nums">{articleIndex + 1}</span>
+                  <span className="text-slate-500"> / {filteredFlat.length}</span>
+                  <span className="text-slate-500"> · {currentWordCount} words</span>
+                  {currentViewed ? <span className="text-emerald-700 font-semibold"> · Viewed</span> : null}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" disabled={articleIndex <= 0} onClick={goPrev}>
+                  ← Previous
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={articleIndex >= filteredFlat.length - 1}
+                  onClick={goNext}
+                >
+                  Next →
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" disabled={articleIndex <= 0} onClick={goPrev}>
-                ← Previous
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={articleIndex >= filteredFlat.length - 1}
-                onClick={goNext}
-              >
-                Next →
-              </Button>
+            <div className="max-h-44 overflow-y-auto px-2 py-2 space-y-0.5 bg-slate-50/80">
+              {filteredFlat.map((a, i) => {
+                const key = articleViewKey(a) || String(i)
+                const active = i === articleIndex
+                const viewed = viewedIds.has(articleViewKey(a))
+                const wc = articleWordCount(a)
+                const titleOne = articleDisplayTitle(a)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setArticleIndex(i)}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
+                      active ? 'bg-white shadow-sm ring-1 ring-slate-200' : 'hover:bg-white/80'
+                    }`}
+                  >
+                    <span className={`shrink-0 tabular-nums font-bold ${active ? 'text-brand' : 'text-slate-500'}`}>
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-slate-800" title={titleOne}>
+                      {titleOne}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-slate-500">{wc}w</span>
+                    <span className="shrink-0 text-slate-400 hidden sm:inline">{formatArticleCreatedIst(a)}</span>
+                    {viewed ? (
+                      <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                        Viewed
+                      </span>
+                    ) : (
+                      <span className="shrink-0 w-12 hidden sm:inline" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
           <ArticleCard
-            key={currentArticle.id}
+            key={currentArticle.id || articleIndex}
             article={currentArticle}
             reporterName={currentArticle._reporterName || currentArticle.reporter?.name}
             districtName={currentArticle._districtName}
             priorityBucket={currentArticle._priorityBucket || currentArticle.priorityBucket}
+            viewed={currentViewed}
+            wordCount={currentWordCount}
+            createdLabel={formatArticleCreatedIst(currentArticle)}
+            onViewed={() => markArticleViewed(currentArticle)}
           />
         </section>
       ) : null}
