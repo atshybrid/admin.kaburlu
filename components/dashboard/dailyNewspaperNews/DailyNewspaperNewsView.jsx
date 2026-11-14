@@ -12,7 +12,7 @@ import {
   articleMediaImages,
   copyRichClipboard,
   copyToClipboard,
-  formatArticleBoard2Rich,
+  formatArticleAfterDatelineRich,
   formatArticleBodyFlowOnly,
   formatBodyPlain,
   formatDatelineCopy,
@@ -108,7 +108,7 @@ function BoardCopyButton({ article, onCopied }) {
   const [copied, setCopied] = useState(false)
   const onCopy = async () => {
     try {
-      const { plain, html } = formatArticleBoard2Rich(article)
+      const { plain, html } = formatArticleAfterDatelineRich(article)
       const ok = await copyRichClipboard({ plain, html })
       if (!ok) {
         toast.error('Nothing to copy')
