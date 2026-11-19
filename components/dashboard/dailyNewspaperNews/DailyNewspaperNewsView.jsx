@@ -261,6 +261,8 @@ export default function DailyNewspaperNewsView() {
   const [loading, setLoading] = useState(false)
   const [feed, setFeed] = useState(null)
   const [filterOptions, setFilterOptions] = useState({ districts: [], states: [], reporters: [] })
+  /** Full-day reporter list — not tied to active reporter filter (API filter shrinks the list). */
+  const [dayReporters, setDayReporters] = useState([])
   const [feedPage, setFeedPage] = useState(1)
   const [articleIndex, setArticleIndex] = useState(0)
   const [feedHint, setFeedHint] = useState(null)
@@ -340,7 +342,6 @@ export default function DailyNewspaperNewsView() {
         pageSize: '500',
       }
       if (districtId) params.districtId = districtId
-      if (reporterId) params.reporterId = reporterId
 
       const response = await newspaperTenantFeedApi.getPublicTenantFeed(params)
       const data = response?.data ?? response
@@ -354,6 +355,10 @@ export default function DailyNewspaperNewsView() {
         states: opts.states || [],
         reporters: opts.reporters || [],
       })
+      const reportersForDay = data?.summary?.reporters || opts.reporters || []
+      if (Array.isArray(reportersForDay) && reportersForDay.length) {
+        setDayReporters(reportersForDay)
+      }
 
       const dayTotal = data?.summary?.articleCount ?? 0
       const source = contentSourceFromMode(contentMode)
@@ -390,7 +395,7 @@ export default function DailyNewspaperNewsView() {
     } finally {
       setLoading(false)
     }
-  }, [tenantId, businessDate, timeRule, districtId, reporterId, contentMode, feedPage])
+  }, [tenantId, businessDate, timeRule, districtId, contentMode, feedPage])
 
   useEffect(() => {
     if (tenantId && !tenantsLoading) {
@@ -402,7 +407,6 @@ export default function DailyNewspaperNewsView() {
     businessDate,
     timeRule,
     districtId,
-    reporterId,
     contentMode,
     feedPage,
     loadFeed,
@@ -414,18 +418,20 @@ export default function DailyNewspaperNewsView() {
   }, [feed])
 
   const reporterOptions = useMemo(() => {
-    const fromApi = filterOptions.reporters || []
-    if (fromApi.length) {
-      return fromApi.map((r) => ({
-        reporterId: r.reporterId,
-        name:
-          r.articleCount != null
-            ? `${r.name} (${r.articleCount})`
-            : r.name || r.reporterId,
-      }))
-    }
-    return collectReporterFilterOptions(allFlattened)
-  }, [filterOptions.reporters, allFlattened])
+    const source =
+      dayReporters.length > 0
+        ? dayReporters
+        : filterOptions.reporters?.length
+          ? filterOptions.reporters
+          : collectReporterFilterOptions(allFlattened)
+    return source.map((r) => ({
+      reporterId: r.reporterId,
+      name:
+        r.articleCount != null
+          ? `${r.name} (${r.articleCount})`
+          : r.name || r.reporterId,
+    }))
+  }, [dayReporters, filterOptions.reporters, allFlattened])
 
   const filteredFlat = useMemo(() => {
     let list = allFlattened
@@ -493,16 +499,15 @@ export default function DailyNewspaperNewsView() {
   }
 
   const reporterDayChips = useMemo(() => {
-    const fromSummary = summary?.reporters
-    if (Array.isArray(fromSummary) && fromSummary.length) {
-      return [...fromSummary].sort((a, b) => (b.articleCount ?? 0) - (a.articleCount ?? 0))
-    }
-    const fromFilters = filterOptions.reporters
-    if (Array.isArray(fromFilters) && fromFilters.length) {
-      return [...fromFilters].sort((a, b) => (b.articleCount ?? 0) - (a.articleCount ?? 0))
-    }
-    return []
-  }, [summary?.reporters, filterOptions.reporters])
+    const source =
+      dayReporters.length > 0
+        ? dayReporters
+        : summary?.reporters?.length
+          ? summary.reporters
+          : filterOptions.reporters || []
+    if (!Array.isArray(source) || !source.length) return []
+    return [...source].sort((a, b) => (b.articleCount ?? 0) - (a.articleCount ?? 0))
+  }, [dayReporters, summary?.reporters, filterOptions.reporters])
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-16">
@@ -554,7 +559,7 @@ export default function DailyNewspaperNewsView() {
                 type="button"
                 onClick={() => {
                   setReporterId('')
-                  setFeedPage(1)
+                  setArticleIndex(0)
                 }}
                 className="text-[11px] font-semibold text-brand hover:underline"
               >
@@ -575,7 +580,6 @@ export default function DailyNewspaperNewsView() {
                   title={r.districtName ? `${label} · ${r.districtName}` : label}
                   onClick={() => {
                     setReporterId(active ? '' : String(id))
-                    setFeedPage(1)
                     setArticleIndex(0)
                   }}
                   className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
@@ -670,7 +674,7 @@ export default function DailyNewspaperNewsView() {
               value={reporterId}
               onChange={(e) => {
                 setReporterId(e.target.value)
-                setFeedPage(1)
+                setArticleIndex(0)
               }}
               disabled={!reporterOptions.length}
             >
