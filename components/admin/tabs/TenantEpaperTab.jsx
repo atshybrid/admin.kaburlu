@@ -19,6 +19,16 @@ import {
   DEFAULT_MAIN_SUB_HEADER_COLOR,
   validateOptionalHexColors,
 } from '../../../lib/epaper/publicationFields'
+import { settingsApi } from '../../../lib/api/tenantApi'
+import {
+  DATELINE_DATE_SOURCES,
+  DATELINE_PRESETS,
+  DEFAULT_DATELINE_FORM,
+  datelineSettingsFromTenantData,
+  datelineSettingsToPatch,
+  formatDatelinePreview,
+  formatDatelinePreviewNoPlace,
+} from '../../../lib/epaper/datelineSettingsForm'
 import { Button, ConfirmDialog, FormField, Input, Select, Spinner, Switch, toast } from '../../ui'
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
@@ -26,6 +36,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10)
 const VIEWS = [
   { id: 'designs', label: 'Edition designs' },
   { id: 'defaults', label: 'Tenant defaults' },
+  { id: 'dateline', label: 'Dateline' },
   { id: 'imprint', label: 'Print imprint' },
 ]
 
@@ -229,6 +240,16 @@ export default function TenantEpaperTab({ tenantContext }) {
   const [imprint, setImprint] = useState(null)
   const [imprintSaving, setImprintSaving] = useState(false)
   const [pendingCrop, setPendingCrop] = useState(null)
+  const [datelineForm, setDatelineForm] = useState({ ...DEFAULT_DATELINE_FORM })
+  const [tenantSettingsData, setTenantSettingsData] = useState({})
+  const [datelineSaving, setDatelineSaving] = useState(false)
+
+  const paperNativeName =
+    tenantContext?.entity?.nativeName ||
+    tenantContext?.tenant?.entity?.nativeName ||
+    tenantContext?.tenant?.nativeName ||
+    tenantContext?.tenant?.name ||
+    ''
 
   const editions = useMemo(() => catalog?.editions || [], [catalog])
   const mainStyles = useMemo(() => styles?.mainHeaders || [], [styles])
@@ -271,11 +292,12 @@ export default function TenantEpaperTab({ tenantContext }) {
     let cancelled = false
     ;(async () => {
       setLoading(true)
-      const [cat, st, cfg, settings] = await Promise.all([
+      const [cat, st, cfg, settings, tenantSettings] = await Promise.all([
         loadCatalog(),
         smartDesignApi.getHeaderStyles(tenantId).catch(() => null),
         epaperApi.getNewspaperConfig(tenantId).catch(() => null),
         epaperApi.getSettings(tenantId).catch(() => null),
+        settingsApi.tenant.get(tenantId).catch(() => null),
       ])
       if (cancelled) return
       if (st) {
@@ -290,6 +312,9 @@ export default function TenantEpaperTab({ tenantContext }) {
       }
       setDefaults(defaultsForm)
       setImprint(epaperSettingsToImprint(settings))
+      const tSettings = tenantSettings?.settings || tenantSettings?.data || {}
+      setTenantSettingsData(tSettings)
+      setDatelineForm(datelineSettingsFromTenantData(tSettings))
       const first = cat?.editions?.[0]
       if (first) setSelected({ editionId: first.id, subEditionId: null })
       setLoading(false)
@@ -503,6 +528,49 @@ export default function TenantEpaperTab({ tenantContext }) {
 
   const setDefault = (name, value) => setDefaults((prev) => ({ ...prev, [name]: value }))
   const setImprintField = (name, value) => setImprint((prev) => ({ ...prev, [name]: value }))
+  const setDatelineField = (name, value) => setDatelineForm((prev) => ({ ...prev, [name]: value }))
+
+  const handleSaveDateline = async () => {
+    if (!tenantId) return
+    if (datelineForm.preset === 'custom' && !String(datelineForm.customTemplate || '').trim()) {
+      toast.error('Enter a custom template or choose another preset.')
+      return
+    }
+    setDatelineSaving(true)
+    try {
+      const patch = datelineSettingsToPatch(datelineForm, tenantSettingsData)
+      const res = await settingsApi.tenant.patch(tenantId, patch)
+      const saved = res?.settings || res || {}
+      setTenantSettingsData(saved)
+      setDatelineForm(datelineSettingsFromTenantData(saved))
+      toast.success('Dateline settings saved')
+    } catch (e) {
+      toast.error(e?.message || 'Save failed — SUPER_ADMIN required for tenant settings')
+    } finally {
+      setDatelineSaving(false)
+    }
+  }
+
+  const datelinePreviewWithPlace = useMemo(
+    () =>
+      formatDatelinePreview({
+        form: datelineForm,
+        paperNativeName,
+        businessDateYmd: todayIso(),
+        place: 'కరీంనగర్',
+      }),
+    [datelineForm, paperNativeName],
+  )
+
+  const datelinePreviewNoPlace = useMemo(
+    () =>
+      formatDatelinePreviewNoPlace({
+        form: datelineForm,
+        paperNativeName,
+        businessDateYmd: todayIso(),
+      }),
+    [datelineForm, paperNativeName],
+  )
 
   const totalScopes = editions.reduce((n, e) => n + 1 + (e.subEditions?.length || 0), 0)
   const configuredScopes = editions.reduce(
@@ -1116,6 +1184,106 @@ export default function TenantEpaperTab({ tenantContext }) {
           <div className="flex justify-end">
             <Button variant="primary" onClick={handleSaveDefaults} loading={defaultsSaving}>
               {defaults.exists ? 'Save defaults' : 'Create defaults'}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {view === 'dateline' ? (
+        <div className="space-y-4">
+          <Section
+            title="Newsroom dateline"
+            description="AI rewrite, publish, and Daily Newspaper News use this format. Paper name comes from Entity native name (not stored here)."
+          >
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 space-y-2">
+              <p>
+                <span className="font-semibold text-slate-900">Paper (Telugu):</span>{' '}
+                {paperNativeName || <span className="text-amber-700">Set in Entity → native name</span>}
+              </p>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                <strong>మొదట / తర్వాత / చివర:</strong> preset ఎంపిక ప్రకారం dateline లో ప్రాంతం, తేదీ, పేపర్ పేరు క్రమం
+                నిర్ణయిస్తుంది. Location filter ఉన్నప్పుడు మాత్రమే ప్రాంతం వస్తుంది; రోజు feed లో ప్రాంతం లేకుండా తేదీ + పేపర్
+                మాత్రమే.
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              <FormField label="Format preset" required>
+                <Select
+                  value={datelineForm.preset}
+                  onChange={(e) => setDatelineField('preset', e.target.value)}
+                >
+                  {DATELINE_PRESETS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Date source">
+                <Select
+                  value={datelineForm.dateSource}
+                  onChange={(e) => setDatelineField('dateSource', e.target.value)}
+                >
+                  {DATELINE_DATE_SOURCES.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+            </div>
+
+            <ul className="mt-4 space-y-2">
+              {DATELINE_PRESETS.map((p) => (
+                <li
+                  key={p.id}
+                  className={`rounded-lg border px-3 py-2 text-sm ${
+                    datelineForm.preset === p.id
+                      ? 'border-brand/40 bg-orange-50/60'
+                      : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <p className="font-medium text-slate-900">{p.label}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{p.orderTe}</p>
+                  <p className="text-xs font-mono text-slate-500 mt-1">{p.example}</p>
+                </li>
+              ))}
+            </ul>
+
+            {datelineForm.preset === 'custom' ? (
+              <FormField
+                className="mt-4"
+                label="Custom template"
+                hint="Tokens: {{place}}, {{paper}}, {{day}}, {{monthTe}}, {{year2}}, {{year4}}"
+              >
+                <Input
+                  value={datelineForm.customTemplate}
+                  onChange={(e) => setDatelineField('customTemplate', e.target.value)}
+                  placeholder="{{place}}, {{day}} {{monthTe}} {{year2}} {{paper}}"
+                />
+              </FormField>
+            ) : null}
+
+            <h4 className="mt-5 text-xs font-semibold uppercase tracking-wide text-slate-500">Live preview (today IST)</h4>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-500">With place (district feed)</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 leading-snug">{datelinePreviewWithPlace}</p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white px-3 py-3">
+                <p className="text-[11px] font-semibold text-slate-500">No location filter (typical ePaper day)</p>
+                <p className="mt-1 text-sm font-medium text-slate-900 leading-snug">{datelinePreviewNoPlace}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Stored in <code className="bg-slate-100 px-1 rounded">TenantSettings.data.newsroom.dateline</code> (PATCH
+              merge).
+            </p>
+          </Section>
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={handleSaveDateline} loading={datelineSaving}>
+              Save dateline settings
             </Button>
           </div>
         </div>
