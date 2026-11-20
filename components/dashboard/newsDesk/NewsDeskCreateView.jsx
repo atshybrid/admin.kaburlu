@@ -5,7 +5,11 @@ import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { buildNewsDeskIntakePayload, assertV2CreateResponse } from '../../../lib/newsDesk/buildIntakePayload'
 import { buildLocationHintFromFields } from '../../../lib/newsDesk/locationHint'
-import { loadNewsDeskCategories } from '../../../lib/newsDesk/categoryLoader'
+import {
+  buildNewsDeskCategoryPayload,
+  loadNewsDeskCategories,
+  pickNewsDeskDefaultCategoryId,
+} from '../../../lib/newsDesk/categoryLoader'
 import { languagesService } from '../../../lib/api/services'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskImageUploader from './NewsDeskImageUploader'
@@ -49,7 +53,7 @@ export default function NewsDeskCreateView() {
         const [cats, langs] = await Promise.all([loadNewsDeskCategories(), languagesService.getAll()])
         setCategories(cats)
         setLanguages(langs || [])
-        if (cats[0]?.categoryId) setCategoryId(cats[0].categoryId)
+        setCategoryId(pickNewsDeskDefaultCategoryId(cats))
         const te = (langs || []).find((l) => (l.code || l.languageCode || '').toLowerCase() === 'te')
         if (te?.code) setLanguageCode(te.code)
         else if (te?.languageCode) setLanguageCode(te.languageCode)
@@ -87,7 +91,7 @@ export default function NewsDeskCreateView() {
     const payload = buildNewsDeskIntakePayload({
       rawText: text,
       headline,
-      categoryId,
+      category: buildNewsDeskCategoryPayload(categoryId, categories),
       sourceUrl,
       sourceAttribution,
       locationHint,

@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { uploadMedia } from '../../../lib/api/services/mediaApi'
-import { Button, Spinner, toast } from '../../ui'
+import { isHttpImageUrl, normalizeImageUrlList } from '../../../lib/newsDesk/imageUrl'
+import { Button, Input, Spinner, toast } from '../../ui'
 import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from '../../ui/icons'
 
 export default function NewsDeskImageUploader({ images = [], onChange, disabled = false }) {
@@ -8,6 +9,7 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
   const id = useId()
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [urlDraft, setUrlDraft] = useState('')
 
   const move = (index, dir) => {
     const next = [...images]
@@ -19,6 +21,17 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
 
   const remove = (index) => {
     onChange(images.filter((_, i) => i !== index))
+  }
+
+  const appendUrls = (urls) => {
+    const added = normalizeImageUrlList(urls, images)
+    if (!added.length) {
+      if (urls?.length) toast.error('Enter a valid http(s) image URL')
+      return false
+    }
+    onChange([...images, ...added])
+    if (added.length > 1) toast.success(`${added.length} image URLs added`)
+    return true
   }
 
   const handleFiles = async (fileList) => {
@@ -52,11 +65,47 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
     }
   }
 
+  const onPaste = (e) => {
+    if (disabled || uploading) return
+    const items = e.clipboardData?.items
+    const files = []
+    if (items?.length) {
+      for (const item of items) {
+        if (item.kind === 'file' && item.type?.startsWith('image/')) {
+          const file = item.getAsFile()
+          if (file) files.push(file)
+        }
+      }
+    }
+    if (files.length) {
+      e.preventDefault()
+      handleFiles(files)
+      return
+    }
+    const text = e.clipboardData?.getData('text')?.trim()
+    if (text && isHttpImageUrl(text)) {
+      e.preventDefault()
+      appendUrls([text])
+    }
+  }
+
+  const onAddUrl = () => {
+    const raw = urlDraft.trim()
+    if (!raw) return
+    if (appendUrls([raw])) setUrlDraft('')
+  }
+
   const onDrop = (e) => {
     e.preventDefault()
     setDragOver(false)
     if (disabled || uploading) return
-    handleFiles(e.dataTransfer?.files)
+    const fileList = e.dataTransfer?.files
+    if (fileList?.length) {
+      handleFiles(fileList)
+      return
+    }
+    const text = e.dataTransfer?.getData('text')?.trim()
+    if (text && isHttpImageUrl(text)) appendUrls([text])
   }
 
   return (
@@ -75,6 +124,7 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
       <div
         role="button"
         tabIndex={0}
+        onPaste={onPaste}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -103,9 +153,9 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
           </div>
         ) : (
           <>
-            <p className="text-sm font-semibold text-slate-800">Select multiple images at once</p>
+            <p className="text-sm font-semibold text-slate-800">Select, drag, or paste images</p>
             <p className="text-xs text-slate-500 mt-1">
-              Click to browse, or drag & drop several photos here. Order is kept — first image is the lead.
+              Click to browse, drag files here, or click this area and paste (Ctrl/Cmd+V). Order is kept — first image is the lead.
             </p>
             <Button type="button" variant="outline" className="mt-4 pointer-events-none" tabIndex={-1}>
               <IconPlus className="w-4 h-4 mr-2" />
@@ -113,6 +163,36 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
             </Button>
           </>
         )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="url"
+          value={urlDraft}
+          onChange={(e) => setUrlDraft(e.target.value)}
+          disabled={disabled || uploading}
+          placeholder="Paste direct image URL (https://…)"
+          className="flex-1 min-w-[12rem]"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              onAddUrl()
+            }
+          }}
+          onPaste={(e) => {
+            const text = e.clipboardData?.getData('text')?.trim()
+            if (text && isHttpImageUrl(text)) {
+              e.preventDefault()
+              setUrlDraft(text)
+              queueMicrotask(() => {
+                if (!disabled && !uploading) appendUrls([text])
+                setUrlDraft('')
+              })
+            }
+          }}
+        />
+        <Button type="button" variant="outline" disabled={disabled || uploading || !urlDraft.trim()} onClick={onAddUrl}>
+          Add URL
+        </Button>
       </div>
       {images.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -144,7 +224,7 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
                     disabled={disabled || index === images.length - 1}
                     onClick={(e) => {
                       e.stopPropagation()
-                      move(index, 1)
+                      move(index, +1)
                     }}
                     aria-label="Move down"
                   >
