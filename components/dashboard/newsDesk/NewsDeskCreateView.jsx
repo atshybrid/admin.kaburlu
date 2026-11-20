@@ -13,6 +13,9 @@ import {
 import { languagesService } from '../../../lib/api/services'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskImageUploader from './NewsDeskImageUploader'
+import NewsDeskStructuredPaste from './NewsDeskStructuredPaste'
+import { applyStructuredPasteToForm } from '../../../lib/newsDesk/applyStructuredPaste'
+import { uploadDeskImages } from '../../../lib/newsDesk/uploadDeskImages'
 import { Button, FormField, Input, Select, Spinner, Textarea, toast } from '../../ui'
 
 const ATTRIBUTION_TYPES = [
@@ -161,6 +164,37 @@ export default function NewsDeskCreateView() {
             <Button type="button" variant="outline">← All submissions</Button>
           </Link>
         </header>
+
+        <NewsDeskStructuredPaste
+          disabled={submitting}
+          onParse={async (text, files) => {
+            const { summary } = await applyStructuredPasteToForm(text, categories, {
+              setHeadline,
+              setRawText,
+              setCategoryId,
+              setSourceUrl,
+              setAttributionType,
+              setAttributionCustom,
+              setLocationDistrict,
+              setLocationMandal,
+              setLocationArea,
+              setImages,
+              setSourcePreview,
+            })
+            if (files?.length) {
+              const { uploaded, failed } = await uploadDeskImages(files)
+              if (uploaded.length) setImages((prev) => [...prev, ...uploaded])
+              if (failed) toast.error(`${failed} pasted image(s) failed to upload`)
+            }
+            const extra = summary.filter((s) => s.includes('unmatched'))
+            if (extra.length) toast.warning(extra.join('; '))
+          }}
+          onUploadFiles={async (files) => {
+            const { uploaded, failed } = await uploadDeskImages(files)
+            if (uploaded.length) setImages((prev) => [...prev, ...uploaded])
+            if (failed) toast.error(`${failed} image(s) failed to upload`)
+          }}
+        />
 
         <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <FormField label="Headline" hint="Optional — shown in lists when provided">

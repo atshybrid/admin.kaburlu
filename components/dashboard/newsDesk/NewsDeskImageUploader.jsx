@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { uploadMedia } from '../../../lib/api/services/mediaApi'
+import { uploadDeskImages } from '../../../lib/newsDesk/uploadDeskImages'
 import { isHttpImageUrl, normalizeImageUrlList } from '../../../lib/newsDesk/imageUrl'
 import { Button, Input, Spinner, toast } from '../../ui'
 import { IconChevronDown, IconChevronUp, IconPlus, IconTrash } from '../../ui/icons'
@@ -42,18 +42,7 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
     }
     setUploading(true)
     try {
-      const results = await Promise.all(
-        files.map((file) => uploadMedia(file, 'news-desk').catch((err) => ({ error: err })),
-      )
-      const uploaded = []
-      let failed = 0
-      for (const result of results) {
-        if (result?.error) {
-          failed += 1
-          continue
-        }
-        if (result?.url) uploaded.push(result.url)
-      }
+      const { uploaded, failed } = await uploadDeskImages(files)
       if (uploaded.length) onChange([...images, ...uploaded])
       if (failed > 0) toast.error(`${failed} image(s) failed to upload`)
       else if (uploaded.length > 1) toast.success(`${uploaded.length} images added`)
