@@ -48,12 +48,12 @@ const ARTICLE_NAV_ITEMS = [
     icon: 'plus',
     description: 'Create new article'
   },
-  { 
-    id: 'platform-syndication', 
-    label: 'Platform Syndication', 
-    href: '/admin/platform-syndication', 
+  {
+    id: 'news-desk',
+    label: 'News Desk',
+    href: '/admin/news-desk',
     icon: 'articles',
-    description: 'Multi-tenant AI syndication desk'
+    description: 'Editorial intake and fact extraction',
   },
 ]
 

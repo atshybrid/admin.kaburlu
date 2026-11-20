@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { Button, EmptyState, Spinner, StatusBadge } from '../../ui'
 import Pagination from '../../ui/Pagination.jsx'
 import { extractionStatusColor, formatPipelineLabel, pipelineStatusColor } from '../../../lib/newsDesk/statusBadges'
@@ -21,7 +22,12 @@ function shortUrl(url) {
 }
 
 export default function NewsDeskJobTable({ items, loading, page, pageSize, total, onPageChange }) {
+  const router = useRouter()
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize))
+
+  const openJob = (jobId) => {
+    if (jobId) router.push(`/admin/news-desk/${jobId}`)
+  }
 
   if (loading && !items.length) {
     return (
@@ -43,7 +49,34 @@ export default function NewsDeskJobTable({ items, loading, page, pageSize, total
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      <div className="overflow-x-auto">
+      {/* Mobile card list */}
+      <ul className="md:hidden divide-y divide-slate-100">
+        {items.map((row) => (
+          <li key={row.jobId}>
+            <button
+              type="button"
+              className="w-full text-left px-4 py-4 hover:bg-slate-50"
+              onClick={() => openJob(row.jobId)}
+            >
+              <p className="font-semibold text-slate-900 line-clamp-2">{row.headline || 'Untitled'}</p>
+              <p className="text-xs text-slate-500 mt-1">{row.categoryName || '—'}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <StatusBadge
+                  status={formatPipelineLabel(row.extractionStatus)}
+                  color={extractionStatusColor(row.extractionStatus)}
+                />
+                <StatusBadge
+                  status={formatPipelineLabel(row.pipelineStatus)}
+                  color={pipelineStatusColor(row.pipelineStatus)}
+                />
+              </div>
+              <p className="text-xs text-slate-400 mt-2">{formatDate(row.createdAt)}</p>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -59,7 +92,11 @@ export default function NewsDeskJobTable({ items, loading, page, pageSize, total
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((row) => (
-              <tr key={row.jobId} className="hover:bg-slate-50/80">
+              <tr
+                key={row.jobId}
+                className="hover:bg-slate-50/80 cursor-pointer"
+                onClick={() => openJob(row.jobId)}
+              >
                 <td className="px-4 py-3 font-medium text-slate-900 max-w-xs">
                   <span className="line-clamp-2">{row.headline || 'Untitled'}</span>
                 </td>
@@ -85,7 +122,7 @@ export default function NewsDeskJobTable({ items, loading, page, pageSize, total
                 <td className="px-4 py-3 text-slate-500 whitespace-nowrap hidden xl:table-cell">
                   {formatDate(row.updatedAt)}
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <Link href={`/admin/news-desk/${row.jobId}`}>
                     <Button type="button" variant="outline" className="!py-1.5 !px-3 text-xs">
                       <IconEye className="w-4 h-4 mr-1" />

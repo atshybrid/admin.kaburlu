@@ -92,6 +92,14 @@ export default function NewsDeskDetailView({ jobId }) {
               {snapshot?.headline || 'Submission review'}
             </h1>
             <p className="text-xs text-slate-500 mt-1 font-mono">Job {jobId}</p>
+            {pipeline?.status && (
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pipeline: {pipeline.status.replace(/_/g, ' ')}
+                {snapshot?.imageRefs?.urls?.length
+                  ? ` · ${snapshot.imageRefs.urls.length} image(s) in snapshot`
+                  : ''}
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {facts?.extractionStatus && (

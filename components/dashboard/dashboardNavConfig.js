@@ -70,13 +70,6 @@ export const adminNavigation = {
       roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
     },
     {
-      key: 'platform-syndication',
-      href: '/admin/platform-syndication',
-      label: 'Platform Syndication',
-      icon: IconNewspaper,
-      roles: SYNDICATION_ROLES,
-    },
-    {
       key: 'news-desk',
       href: '/admin/news-desk',
       label: 'News Desk',

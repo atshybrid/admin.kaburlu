@@ -7,6 +7,7 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
   const inputRef = useRef(null)
   const id = useId()
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
 
   const move = (index, dir) => {
     const next = [...images]
@@ -22,21 +23,40 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
 
   const handleFiles = async (fileList) => {
     const files = Array.from(fileList || []).filter((f) => f?.type?.startsWith('image/'))
-    if (!files.length) return
+    if (!files.length) {
+      if (fileList?.length) toast.error('Please choose image files only')
+      return
+    }
     setUploading(true)
-  try {
+    try {
+      const results = await Promise.all(
+        files.map((file) => uploadMedia(file, 'news-desk').catch((err) => ({ error: err })),
+      )
       const uploaded = []
-      for (const file of files) {
-        const { url } = await uploadMedia(file, 'news-desk')
-        if (url) uploaded.push(url)
+      let failed = 0
+      for (const result of results) {
+        if (result?.error) {
+          failed += 1
+          continue
+        }
+        if (result?.url) uploaded.push(result.url)
       }
       if (uploaded.length) onChange([...images, ...uploaded])
+      if (failed > 0) toast.error(`${failed} image(s) failed to upload`)
+      else if (uploaded.length > 1) toast.success(`${uploaded.length} images added`)
     } catch (error) {
       toast.error(error.message || 'Image upload failed')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
     }
+  }
+
+  const onDrop = (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    if (disabled || uploading) return
+    handleFiles(e.dataTransfer?.files)
   }
 
   return (
@@ -52,22 +72,50 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
         disabled={disabled || uploading}
         onChange={(e) => handleFiles(e.target.files)}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || uploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {uploading ? <Spinner size="sm" className="mr-2" /> : <IconPlus className="w-4 h-4 mr-2" />}
-          Upload images
-        </Button>
-        <p className="text-xs text-slate-500">
-          Order is preserved in submission. First image is the lead.
-        </p>
+      <div
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            if (!disabled && !uploading) inputRef.current?.click()
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          if (!disabled && !uploading) setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        onClick={() => {
+          if (!disabled && !uploading) inputRef.current?.click()
+        }}
+        className={`
+          rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors
+          ${dragOver ? 'border-brand bg-brand/5' : 'border-slate-200 bg-slate-50/80 hover:border-brand/40'}
+          ${disabled || uploading ? 'opacity-60 pointer-events-none' : ''}
+        `}
+      >
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2">
+            <Spinner size="md" />
+            <p className="text-sm text-slate-600">Uploading selected images…</p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-slate-800">Select multiple images at once</p>
+            <p className="text-xs text-slate-500 mt-1">
+              Click to browse, or drag & drop several photos here. Order is kept — first image is the lead.
+            </p>
+            <Button type="button" variant="outline" className="mt-4 pointer-events-none" tabIndex={-1}>
+              <IconPlus className="w-4 h-4 mr-2" />
+              Choose images (multi-select)
+            </Button>
+          </>
+        )}
       </div>
       {images.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {images.map((url, index) => (
             <li
               key={`${url}-${index}`}
@@ -82,7 +130,10 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
                     type="button"
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-40"
                     disabled={disabled || index === 0}
-                    onClick={() => move(index, -1)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      move(index, -1)
+                    }}
                     aria-label="Move up"
                   >
                     <IconChevronUp className="w-4 h-4" />
@@ -91,7 +142,10 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
                     type="button"
                     className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 disabled:opacity-40"
                     disabled={disabled || index === images.length - 1}
-                    onClick={() => move(index, 1)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      move(index, 1)
+                    }}
                     aria-label="Move down"
                   >
                     <IconChevronDown className="w-4 h-4" />
@@ -100,7 +154,10 @@ export default function NewsDeskImageUploader({ images = [], onChange, disabled 
                     type="button"
                     className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-600"
                     disabled={disabled}
-                    onClick={() => remove(index)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      remove(index)
+                    }}
                     aria-label="Remove"
                   >
                     <IconTrash className="w-4 h-4" />

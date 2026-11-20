@@ -7,7 +7,9 @@ import { refreshNewsDeskDashboard } from '../../../lib/newsDesk/dashboardRefresh
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskFilters from './NewsDeskFilters'
 import NewsDeskJobTable from './NewsDeskJobTable'
+import NewsDeskApiBanner from './NewsDeskApiBanner'
 import { Button, StatCard, toast } from '../../ui'
+import { canAccessSyndication } from '../../../lib/syndication/platformRoles'
 import { IconBarChart, IconClock, IconFileText, IconPlus, IconAlertCircle } from '../../ui/icons'
 
 const DEFAULT_FILTERS = {
@@ -42,6 +44,7 @@ export default function NewsDeskDashboardView() {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState(null)
   const [categories, setCategories] = useState([])
   const [stats, setStats] = useState({
     total: null,
@@ -90,7 +93,9 @@ export default function NewsDeskDashboardView() {
         failed: failed?.total ?? 0,
         loading: false,
       })
+      setApiError(null)
     } catch (error) {
+      setApiError(error)
       toast.error(formatNewsDeskError(error))
       setStats({ total: null, pending: null, ready: null, failed: null, loading: false })
     }
@@ -102,7 +107,9 @@ export default function NewsDeskDashboardView() {
       const result = await newsDeskApi.listJobs(listParams)
       setItems(result?.items || [])
       setTotal(result?.total || 0)
+      setApiError(null)
     } catch (error) {
+      setApiError(error)
       toast.error(formatNewsDeskError(error))
       setItems([])
       setTotal(0)
@@ -127,6 +134,13 @@ export default function NewsDeskDashboardView() {
   const resetFilters = () => {
     setFilters(DEFAULT_FILTERS)
     setApplied(DEFAULT_FILTERS)
+    setPage(1)
+  }
+
+  const applyExtractionFilter = (extractionStatus) => {
+    const next = { ...DEFAULT_FILTERS, extractionStatus }
+    setFilters(next)
+    setApplied(next)
     setPage(1)
   }
 
@@ -158,11 +172,21 @@ export default function NewsDeskDashboardView() {
           </Link>
         </header>
 
+        <NewsDeskApiBanner error={apiError} />
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard title="Total News" value={stats.loading ? '…' : stats.total ?? '—'} icon={<IconFileText className="w-5 h-5" />} />
-          <StatCard title="Extraction pending" value={stats.loading ? '…' : stats.pending ?? '—'} icon={<IconClock className="w-5 h-5" />} />
-          <StatCard title="Facts ready" value={stats.loading ? '…' : stats.ready ?? '—'} icon={<IconBarChart className="w-5 h-5" />} />
-          <StatCard title="Extraction failed" value={stats.loading ? '…' : stats.failed ?? '—'} icon={<IconAlertCircle className="w-5 h-5" />} />
+          <button type="button" className="text-left" onClick={() => applyExtractionFilter('')}>
+            <StatCard title="Total News" value={stats.loading ? '…' : stats.total ?? '—'} icon={<IconFileText className="w-5 h-5" />} className="w-full cursor-pointer" />
+          </button>
+          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_PENDING')}>
+            <StatCard title="Extraction pending" value={stats.loading ? '…' : stats.pending ?? '—'} icon={<IconClock className="w-5 h-5" />} className="w-full cursor-pointer" />
+          </button>
+          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_SUCCEEDED')}>
+            <StatCard title="Facts ready" value={stats.loading ? '…' : stats.ready ?? '—'} icon={<IconBarChart className="w-5 h-5" />} className="w-full cursor-pointer" />
+          </button>
+          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_FAILED')}>
+            <StatCard title="Extraction failed" value={stats.loading ? '…' : stats.failed ?? '—'} icon={<IconAlertCircle className="w-5 h-5" />} className="w-full cursor-pointer" />
+          </button>
         </div>
 
         <NewsDeskFilters
@@ -175,14 +199,34 @@ export default function NewsDeskDashboardView() {
           loading={loading}
         />
 
-        <NewsDeskJobTable
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2 px-0.5">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">All submissions</h2>
+              <p className="text-sm text-slate-500">Search, filter, and open any News Desk intake.</p>
+            </div>
+            {!loading && (
+              <p className="text-xs text-slate-500">{total} matching record(s)</p>
+            )}
+          </div>
+          <NewsDeskJobTable
           items={items}
           loading={loading}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
           onPageChange={setPage}
-        />
+          />
+        </section>
+
+        {canAccessSyndication(user) && (
+          <p className="text-xs text-slate-400 text-center pt-4">
+            Need legacy multi-tenant AI publish?{' '}
+            <Link href="/admin/platform-syndication?legacy=1" className="text-brand hover:underline">
+              Open legacy syndication
+            </Link>
+          </p>
+        )}
       </div>
     </NewsDeskAccessGate>
   )

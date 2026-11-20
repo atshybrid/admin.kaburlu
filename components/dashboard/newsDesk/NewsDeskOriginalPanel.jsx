@@ -1,15 +1,6 @@
 import { StatusBadge } from '../../ui'
 import { pipelineStatusColor, formatPipelineLabel } from '../../../lib/newsDesk/statusBadges'
-
-function formatJsonHint(value) {
-  if (value == null) return null
-  if (typeof value === 'string') return value
-  try {
-    return JSON.stringify(value, null, 2)
-  } catch {
-    return String(value)
-  }
-}
+import { formatLocationHintDisplay } from '../../../lib/newsDesk/locationHint'
 
 function attributionLabel(attr) {
   if (!attr || typeof attr !== 'object') return '—'
@@ -71,7 +62,7 @@ export default function NewsDeskOriginalPanel({ snapshot, categoryName, pipeline
         </div>
         <div>
           <dt className="text-slate-500">Location hint</dt>
-          <dd className="font-medium text-slate-900 mt-0.5 whitespace-pre-wrap">{formatJsonHint(snapshot.locationHint) || '—'}</dd>
+          <dd className="font-medium text-slate-900 mt-0.5">{formatLocationHintDisplay(snapshot.locationHint) || '—'}</dd>
         </div>
       </dl>
 

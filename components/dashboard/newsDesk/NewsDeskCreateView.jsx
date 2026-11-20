@@ -4,6 +4,7 @@ import { useRouter } from 'next/router'
 import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { buildNewsDeskIntakePayload, assertV2CreateResponse } from '../../../lib/newsDesk/buildIntakePayload'
+import { buildLocationHintFromFields } from '../../../lib/newsDesk/locationHint'
 import { loadNewsDeskCategories } from '../../../lib/newsDesk/categoryLoader'
 import { languagesService } from '../../../lib/api/services'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
@@ -33,7 +34,11 @@ export default function NewsDeskCreateView() {
   const [attributionType, setAttributionType] = useState('DESK')
   const [attributionPlatform, setAttributionPlatform] = useState('')
   const [attributionCustom, setAttributionCustom] = useState('')
-  const [locationHint, setLocationHint] = useState('')
+  const [locationDistrict, setLocationDistrict] = useState('')
+  const [locationMandal, setLocationMandal] = useState('')
+  const [locationArea, setLocationArea] = useState('')
+  const [sourcePreview, setSourcePreview] = useState(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [languageCode, setLanguageCode] = useState('te')
   const [images, setImages] = useState([])
 
@@ -73,6 +78,12 @@ export default function NewsDeskCreateView() {
     if (attributionPlatform.trim()) sourceAttribution.platform = attributionPlatform.trim().toUpperCase()
     if (attributionCustom.trim()) sourceAttribution.customText = attributionCustom.trim()
 
+    const locationHint = buildLocationHintFromFields({
+      district: locationDistrict,
+      mandal: locationMandal,
+      area: locationArea,
+    })
+
     const payload = buildNewsDeskIntakePayload({
       rawText: text,
       headline,
@@ -102,6 +113,30 @@ export default function NewsDeskCreateView() {
     }
   }
 
+  const onPreviewSource = async () => {
+    const url = sourceUrl.trim()
+    if (!url) {
+      toast.error('Enter a source URL first')
+      return
+    }
+    setPreviewLoading(true)
+    setSourcePreview(null)
+    try {
+      const res = await newsDeskApi.previewSource(url)
+      setSourcePreview(res)
+      const title = res?.preview?.title
+      if (title && !headline.trim()) setHeadline(title)
+      if (res?.platform && !attributionPlatform.trim()) {
+        setAttributionPlatform(String(res.platform))
+      }
+      toast.success('Source preview loaded')
+    } catch (error) {
+      toast.error(formatNewsDeskError(error))
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   if (metaLoading) {
     return (
       <div className="flex justify-center py-24">
@@ -119,7 +154,7 @@ export default function NewsDeskCreateView() {
             <p className="text-sm text-slate-500 mt-1">Original copy is saved as an immutable snapshot; facts extract asynchronously.</p>
           </div>
           <Link href="/admin/news-desk">
-            <Button type="button" variant="outline">← Dashboard</Button>
+            <Button type="button" variant="outline">← All submissions</Button>
           </Link>
         </header>
 
@@ -148,8 +183,32 @@ export default function NewsDeskCreateView() {
           </FormField>
 
           <FormField label="Source URL">
-            <Input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={submitting} />
+            <div className="flex flex-wrap gap-2">
+              <Input
+                type="url"
+                className="flex-1 min-w-[12rem]"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
+                disabled={submitting}
+                placeholder="https://…"
+              />
+              <Button type="button" variant="outline" disabled={submitting || previewLoading} onClick={onPreviewSource}>
+                {previewLoading ? <Spinner size="sm" className="mr-2" /> : null}
+                Preview source
+              </Button>
+            </div>
           </FormField>
+          {sourcePreview?.preview && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+              <p className="font-medium text-slate-800">{sourcePreview.preview.title || 'No title in preview'}</p>
+              {sourcePreview.preview.description && (
+                <p className="text-slate-600 text-xs line-clamp-3">{sourcePreview.preview.description}</p>
+              )}
+              <p className="text-xs text-slate-500">
+                Platform: {sourcePreview.platform || '—'} · Status: {sourcePreview.previewStatus || '—'}
+              </p>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField label="Source attribution">
@@ -168,9 +227,20 @@ export default function NewsDeskCreateView() {
             <Input value={attributionCustom} onChange={(e) => setAttributionCustom(e.target.value)} disabled={submitting} />
           </FormField>
 
-          <FormField label="Location hint">
-            <Input value={locationHint} onChange={(e) => setLocationHint(e.target.value)} disabled={submitting} placeholder="District, landmark, or brief note" />
-          </FormField>
+          <fieldset className="space-y-3 rounded-xl border border-slate-100 p-4">
+            <legend className="text-sm font-semibold text-slate-800 px-1">Location hint</legend>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <FormField label="District">
+                <Input value={locationDistrict} onChange={(e) => setLocationDistrict(e.target.value)} disabled={submitting} placeholder="Hyderabad" />
+              </FormField>
+              <FormField label="Mandal">
+                <Input value={locationMandal} onChange={(e) => setLocationMandal(e.target.value)} disabled={submitting} placeholder="Charminar" />
+              </FormField>
+              <FormField label="Area">
+                <Input value={locationArea} onChange={(e) => setLocationArea(e.target.value)} disabled={submitting} placeholder="Bangaru Peta" />
+              </FormField>
+            </div>
+          </fieldset>
 
           <FormField label="Language">
             <Select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} disabled={submitting}>
@@ -191,7 +261,6 @@ export default function NewsDeskCreateView() {
               {submitting ? <Spinner size="sm" className="mr-2" /> : null}
               Submit to News Desk
             </Button>
-            <p className="text-xs text-slate-500">V2 pipeline — does not run legacy syndication generate/publish.</p>
           </div>
         </form>
       </div>
