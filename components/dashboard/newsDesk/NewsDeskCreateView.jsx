@@ -167,8 +167,11 @@ export default function NewsDeskCreateView() {
 
         <NewsDeskStructuredPaste
           disabled={submitting}
+          onApplied={() => {
+            document.getElementById('news-desk-intake-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
           onParse={async (text, files) => {
-            const { summary } = await applyStructuredPasteToForm(text, categories, {
+            const result = await applyStructuredPasteToForm(text, categories, {
               setHeadline,
               setRawText,
               setCategoryId,
@@ -181,13 +184,14 @@ export default function NewsDeskCreateView() {
               setImages,
               setSourcePreview,
             })
+            const extra = result.summary.filter((s) => s.includes('unmatched'))
+            if (extra.length) toast.warning(extra.join('; '))
             if (files?.length) {
               const { uploaded, failed } = await uploadDeskImages(files)
               if (uploaded.length) setImages((prev) => [...prev, ...uploaded])
               if (failed) toast.error(`${failed} pasted image(s) failed to upload`)
             }
-            const extra = summary.filter((s) => s.includes('unmatched'))
-            if (extra.length) toast.warning(extra.join('; '))
+            return result
           }}
           onUploadFiles={async (files) => {
             const { uploaded, failed } = await uploadDeskImages(files)
@@ -196,7 +200,11 @@ export default function NewsDeskCreateView() {
           }}
         />
 
-        <form onSubmit={onSubmit} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <form
+          id="news-desk-intake-form"
+          onSubmit={onSubmit}
+          className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        >
           <FormField label="Headline" hint="Optional — shown in lists when provided">
             <Input value={headline} onChange={(e) => setHeadline(e.target.value)} disabled={submitting} />
           </FormField>
