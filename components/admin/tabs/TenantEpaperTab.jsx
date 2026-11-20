@@ -20,6 +20,7 @@ import {
   validateOptionalHexColors,
 } from '../../../lib/epaper/publicationFields'
 import { settingsApi } from '../../../lib/api/tenantApi'
+import DatelinePartOrderChips from '../epaper/DatelinePartOrderChips'
 import {
   DATELINE_DATE_SOURCES,
   DATELINE_PRESETS,
@@ -28,6 +29,7 @@ import {
   datelineSettingsToPatch,
   formatDatelinePreview,
   formatDatelinePreviewNoPlace,
+  templateFromPartOrder,
 } from '../../../lib/epaper/datelineSettingsForm'
 import { Button, ConfirmDialog, FormField, Input, Select, Spinner, Switch, toast } from '../../ui'
 
@@ -532,10 +534,6 @@ export default function TenantEpaperTab({ tenantContext }) {
 
   const handleSaveDateline = async () => {
     if (!tenantId) return
-    if (datelineForm.preset === 'custom' && !String(datelineForm.customTemplate || '').trim()) {
-      toast.error('Enter a custom template or choose another preset.')
-      return
-    }
     setDatelineSaving(true)
     try {
       const patch = datelineSettingsToPatch(datelineForm, tenantSettingsData)
@@ -1211,7 +1209,16 @@ export default function TenantEpaperTab({ tenantContext }) {
               <FormField label="Format preset" required>
                 <Select
                   value={datelineForm.preset}
-                  onChange={(e) => setDatelineField('preset', e.target.value)}
+                  onChange={(e) => {
+                    const preset = e.target.value
+                    setDatelineForm((prev) => {
+                      const next = { ...prev, preset }
+                      if (preset === 'custom') {
+                        next.customTemplate = templateFromPartOrder(prev.customPartOrder)
+                      }
+                      return next
+                    })
+                  }}
                 >
                   {DATELINE_PRESETS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -1252,15 +1259,17 @@ export default function TenantEpaperTab({ tenantContext }) {
             </ul>
 
             {datelineForm.preset === 'custom' ? (
-              <FormField
-                className="mt-4"
-                label="Custom template"
-                hint="Tokens: {{place}}, {{paper}}, {{day}}, {{monthTe}}, {{year2}}, {{year4}}"
-              >
-                <Input
-                  value={datelineForm.customTemplate}
-                  onChange={(e) => setDatelineField('customTemplate', e.target.value)}
-                  placeholder="{{place}}, {{day}} {{monthTe}} {{year2}} {{paper}}"
+              <FormField className="mt-4" label="Arrange dateline (1 · 2 · 3)">
+                <DatelinePartOrderChips
+                  paperNativeName={paperNativeName}
+                  order={datelineForm.customPartOrder}
+                  onChange={(order) =>
+                    setDatelineForm((prev) => ({
+                      ...prev,
+                      customPartOrder: order,
+                      customTemplate: templateFromPartOrder(order),
+                    }))
+                  }
                 />
               </FormField>
             ) : null}
