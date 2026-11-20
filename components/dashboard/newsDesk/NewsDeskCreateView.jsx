@@ -7,9 +7,16 @@ import { buildNewsDeskIntakePayload, assertV2CreateResponse } from '../../../lib
 import { buildLocationHintFromFields } from '../../../lib/newsDesk/locationHint'
 import {
   buildNewsDeskCategoryPayload,
+  categoryPayloadNameOnly,
   loadNewsDeskCategories,
   pickNewsDeskDefaultCategoryId,
 } from '../../../lib/newsDesk/categoryLoader'
+import {
+  buildTenantsIntakePayload,
+  defaultTenantSelection,
+  loadNewsDeskTenants,
+} from '../../../lib/newsDesk/tenantList'
+import NewsDeskTenantPicker from './NewsDeskTenantPicker'
 import { languagesService } from '../../../lib/api/services'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskImageUploader from './NewsDeskImageUploader'
@@ -44,6 +51,9 @@ export default function NewsDeskCreateView() {
   const [locationDistrict, setLocationDistrict] = useState('')
   const [locationMandal, setLocationMandal] = useState('')
   const [locationArea, setLocationArea] = useState('')
+  const [locationNote, setLocationNote] = useState('')
+  const [deskTenants, setDeskTenants] = useState([])
+  const [selectedTenantIds, setSelectedTenantIds] = useState([])
   const [sourcePreview, setSourcePreview] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [languageCode, setLanguageCode] = useState('te')
@@ -55,9 +65,15 @@ export default function NewsDeskCreateView() {
     ;(async () => {
       setMetaLoading(true)
       try {
-        const [cats, langs] = await Promise.all([loadNewsDeskCategories(), languagesService.getAll()])
+        const [cats, langs, tenants] = await Promise.all([
+          loadNewsDeskCategories(),
+          languagesService.getAll(),
+          loadNewsDeskTenants().catch(() => []),
+        ])
         setCategories(cats)
         setLanguages(langs || [])
+        setDeskTenants(tenants)
+        setSelectedTenantIds(defaultTenantSelection(tenants))
         setCategoryId(pickNewsDeskDefaultCategoryId(cats))
         const te = (langs || []).find((l) => (l.code || l.languageCode || '').toLowerCase() === 'te')
         if (te?.code) setLanguageCode(te.code)
@@ -82,6 +98,10 @@ export default function NewsDeskCreateView() {
       toast.error('Category is required')
       return
     }
+    if (!selectedTenantIds.length) {
+      toast.error('Select at least one target tenant')
+      return
+    }
 
     const sourceAttribution = { type: attributionType }
     if (attributionPlatform.trim()) sourceAttribution.platform = attributionPlatform.trim().toUpperCase()
@@ -91,22 +111,47 @@ export default function NewsDeskCreateView() {
       district: locationDistrict,
       mandal: locationMandal,
       area: locationArea,
+      note: locationNote,
     })
 
-    const payload = buildNewsDeskIntakePayload({
-      rawText: text,
-      headline,
-      category: buildNewsDeskCategoryPayload(categoryId, categories),
-      sourceUrl,
-      sourceAttribution,
-      locationHint,
-      languageCode,
-      imageUrls: images,
-    })
+    const tenantPayload = buildTenantsIntakePayload(selectedTenantIds, deskTenants)
+    if (!tenantPayload.length) {
+      toast.error('Could not resolve tenant names — reload the page')
+      return
+    }
+
+    const buildPayload = (category) =>
+      buildNewsDeskIntakePayload({
+        rawText: text,
+        headline,
+        category,
+        sourceUrl,
+        sourceAttribution,
+        locationHint,
+        languageCode,
+        imageUrls: images,
+        tenants: tenantPayload,
+      })
 
     setSubmitting(true)
     try {
-      const response = await newsDeskApi.createSubmission(payload)
+      let response
+      try {
+        response = await newsDeskApi.createSubmission(
+          buildPayload(buildNewsDeskCategoryPayload(categoryId, categories)),
+        )
+      } catch (firstErr) {
+        const msg = String(firstErr?.message || '')
+        const code = firstErr?.code || firstErr?.data?.code
+        if (code === 'INVALID_CATEGORY' || /categoryId not found/i.test(msg)) {
+          const retryCategory = categoryPayloadNameOnly(categoryId, categories)
+          if (!retryCategory.categoryName) throw firstErr
+          toast.warning('Retrying with category name…')
+          response = await newsDeskApi.createSubmission(buildPayload(retryCategory))
+        } else {
+          throw firstErr
+        }
+      }
       const check = assertV2CreateResponse(response)
       if (!check.ok) {
         toast.error(check.message)
@@ -188,6 +233,7 @@ export default function NewsDeskCreateView() {
               setLocationDistrict,
               setLocationMandal,
               setLocationArea,
+              setLocationNote,
               setImages,
               setSourcePreview,
             })
@@ -238,6 +284,13 @@ export default function NewsDeskCreateView() {
               ))}
             </Select>
           </FormField>
+
+          <NewsDeskTenantPicker
+            tenants={deskTenants}
+            selectedIds={selectedTenantIds}
+            onChange={setSelectedTenantIds}
+            disabled={submitting}
+          />
 
           <FormField label="Source URL">
             <div className="flex flex-wrap gap-2">
@@ -297,6 +350,9 @@ export default function NewsDeskCreateView() {
                 <Input value={locationArea} onChange={(e) => setLocationArea(e.target.value)} disabled={submitting} placeholder="Bangaru Peta" />
               </FormField>
             </div>
+            <FormField label="Region note" hint="State / broader area (optional)">
+              <Input value={locationNote} onChange={(e) => setLocationNote(e.target.value)} disabled={submitting} placeholder="ఆంధ్రప్రదేశ్" />
+            </FormField>
           </fieldset>
 
           <FormField label="Language">
