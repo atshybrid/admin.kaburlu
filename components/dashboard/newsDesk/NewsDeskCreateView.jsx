@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useLayout } from '../DashboardLayout'
@@ -48,6 +48,8 @@ export default function NewsDeskCreateView() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [languageCode, setLanguageCode] = useState('te')
   const [images, setImages] = useState([])
+  const [intakeHighlight, setIntakeHighlight] = useState(false)
+  const articleFieldRef = useRef(null)
 
   useEffect(() => {
     ;(async () => {
@@ -168,7 +170,12 @@ export default function NewsDeskCreateView() {
         <NewsDeskStructuredPaste
           disabled={submitting}
           onApplied={() => {
+            setIntakeHighlight(true)
+            window.setTimeout(() => setIntakeHighlight(false), 4000)
             document.getElementById('news-desk-intake-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            window.setTimeout(() => {
+              articleFieldRef.current?.focus?.()
+            }, 450)
           }}
           onParse={async (text, files) => {
             const result = await applyStructuredPasteToForm(text, categories, {
@@ -203,7 +210,9 @@ export default function NewsDeskCreateView() {
         <form
           id="news-desk-intake-form"
           onSubmit={onSubmit}
-          className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+          className={`space-y-6 rounded-2xl border bg-white p-6 shadow-sm transition-shadow ${
+            intakeHighlight ? 'border-brand ring-2 ring-brand/30' : 'border-slate-200'
+          }`}
         >
           <FormField label="Headline" hint="Optional — shown in lists when provided">
             <Input value={headline} onChange={(e) => setHeadline(e.target.value)} disabled={submitting} />
@@ -211,6 +220,8 @@ export default function NewsDeskCreateView() {
 
           <FormField label="Article content" required>
             <Textarea
+              ref={articleFieldRef}
+              id="news-desk-article"
               rows={12}
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
