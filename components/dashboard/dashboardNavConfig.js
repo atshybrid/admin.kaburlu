@@ -19,7 +19,7 @@ import {
   IconArticles,
 } from '../ui/icons'
 import { PLATFORM_CARTOON_ROLES } from '../../lib/newsCartoons/platformRoles'
-import { PLATFORM_SYNDICATION_ROLES } from '../../lib/syndication/platformRoles'
+import { BACKEND_SYNDICATION_DESK_ROLES, PLATFORM_SYNDICATION_ROLES } from '../../lib/syndication/platformRoles'
 import { isPlatformDeskUser } from '../../lib/platformDesk'
 
 /** Roles that can access Short News cartoon posting */
@@ -75,6 +75,13 @@ export const adminNavigation = {
       label: 'Platform Syndication',
       icon: IconNewspaper,
       roles: SYNDICATION_ROLES,
+    },
+    {
+      key: 'news-desk',
+      href: '/admin/news-desk',
+      label: 'News Desk',
+      icon: IconFileText,
+      roles: BACKEND_SYNDICATION_DESK_ROLES,
     },
     {
       key: 'news-cartoons',

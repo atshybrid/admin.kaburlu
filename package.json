@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:newsdesk": "node --test lib/newsDesk/__tests__/*.test.mjs",
     "block06:dev": "cd services/block06-engine && npm run dev",
     "block06:start": "cd services/block06-engine && npm start",
     "block06:test": "cd services/block06-engine && npm run test:render",
