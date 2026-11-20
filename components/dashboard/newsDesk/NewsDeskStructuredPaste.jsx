@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { KABURLU_NEWS_DESK_CHATGPT_PROMPT } from '../../../lib/newsDesk/chatGptStandardPrompt'
-import { looksLikeStructuredNewsDeskPaste } from '../../../lib/newsDesk/structuredPaste'
+import {
+  hasMeaningfulDeskParseResult,
+  looksLikeStructuredNewsDeskPaste,
+  parseStructuredNewsDeskPaste,
+} from '../../../lib/newsDesk/structuredPaste'
 import { Button, FormField, Textarea, toast } from '../../ui'
 
 export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFiles }) {
@@ -22,8 +26,11 @@ export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFil
   const runParse = async (text, files = []) => {
     const body = String(text || '').trim()
     if (!body) return
-    if (!looksLikeStructuredNewsDeskPaste(body)) {
-      toast.error('Use labeled blocks: Headline:, Article:, Category:, …')
+    const parsed = parseStructuredNewsDeskPaste(body)
+  const canApply =
+      looksLikeStructuredNewsDeskPaste(body) || hasMeaningfulDeskParseResult(parsed)
+    if (!canApply) {
+      toast.error('Use labeled blocks: Headline:, Article:, Category: … (ChatGPT **markdown** OK)')
       return
     }
     setParsing(true)
@@ -48,7 +55,8 @@ export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFil
         if (file) files.push(file)
       }
     }
-    if (looksLikeStructuredNewsDeskPaste(text)) {
+    const parsed = parseStructuredNewsDeskPaste(text)
+    if (looksLikeStructuredNewsDeskPaste(text) || hasMeaningfulDeskParseResult(parsed)) {
       e.preventDefault()
       await runParse(text, files)
       return
@@ -65,7 +73,7 @@ export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFil
       <div>
         <h2 className="text-sm font-bold text-slate-900">Quick paste (one box)</h2>
         <p className="text-xs text-slate-600 mt-1">
-          ChatGPT లో కింది <strong>ref prompt</strong> copy చేసి source link తో run చేయండి — వచ్చిన output ని ఇక్కడ paste చేయండి (Headline:, Article:, … labels).
+          ChatGPT output (**Headline:** markdown) ని ఇక్కడ paste చేసి <strong>Apply to form</strong> — plain లేదా markdown labels రెండూ పని చేస్తాయి.
           Images విభాగంలో URL లేకుంటే &quot;Original Source Image&quot; అనిపిస్తే source నుండి lead image తీసుకుంటాం.
         </p>
       </div>
