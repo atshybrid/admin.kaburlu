@@ -29,6 +29,7 @@ const TENANT_TABS = [
   { id: 'ads', label: 'Ads', icon: 'megaphone', description: 'Advertisement slots' },
   { id: 'editions', label: 'ePaper Editions', icon: 'layers', description: 'Editions & sub-editions' },
   { id: 'epaper', label: 'ePaper Settings', icon: 'layers', description: 'Smart design, newspaper-config, print window' },
+  { id: 'calendar', label: 'Panchang Calendar', icon: 'calendar', description: 'calendar.domain, ads, rates, studio' },
   { id: 'payments', label: 'Payments', icon: 'credit-card', description: 'Razorpay config' },
   { id: 'tenant-wallet', label: 'Platform Wallet', icon: 'credit-card', description: 'Prepaid balance & monthly fee' },
   { id: 'reporter-billing', label: 'Reporter Billing', icon: 'users', description: 'Subscription due day' },
@@ -55,6 +56,7 @@ function Icon({ name, className = 'w-5 h-5' }) {
     'id-card': <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />,
     'file-text': <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
     'layers': <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />,
+    'calendar': <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
     'users': <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />,
     'arrow-left': <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />,
     'check': <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />,
@@ -184,6 +186,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const [categories, setCategories] = useState([])
   const [razorpay, setRazorpay] = useState(null)
   const [idCard, setIdCard] = useState(null)
+  const [calendarReady, setCalendarReady] = useState(false)
   const [domainSettingsRows, setDomainSettingsRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -207,7 +210,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
         }
         
         // Fetch all tenant data in parallel (proxy adds /api/v1 prefix)
-        const [tenantRes, entityRes, domainsRes, categoriesRes, razorpayRes, idCardRes, domainSettingsRes] =
+        const [tenantRes, entityRes, domainsRes, categoriesRes, razorpayRes, idCardRes, domainSettingsRes, calendarRes] =
           await Promise.allSettled([
             fetch(`${base}/tenants/${tenantId}`, { headers }),
             fetch(`${base}/tenants/${tenantId}/entity`, { headers }),
@@ -216,6 +219,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
             fetch(`${base}/tenants/${tenantId}/razorpay-config`, { headers }),
             fetch(`${base}/tenants/${tenantId}/id-card-settings`, { headers }),
             fetch(`${base}/tenants/${tenantId}/domains/settings?pageSize=50`, { headers }),
+            fetch(`${base}/calendar/admin/tenants/${tenantId}/config`, { headers }),
           ])
         
         if (cancelled) return
@@ -278,6 +282,15 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
           const data = await idCardRes.value.json()
           setIdCard(data?.data || data)
         }
+
+        if (calendarRes.status === 'fulfilled' && calendarRes.value.ok) {
+          const data = await calendarRes.value.json()
+          const c = data?.config || {}
+          const doms = Array.isArray(c.calendarDomains) ? c.calendarDomains : []
+          setCalendarReady(!!c.enabled && (doms.length > 0 || !!data.suggestedHost))
+        } else {
+          setCalendarReady(false)
+        }
         
       } catch (e) {
         if (!cancelled) setError(e.message || 'Failed to load tenant data')
@@ -299,6 +312,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   }
   if (razorpay?.keyId) completedTabs.push('payments')
   if (idCard) completedTabs.push('id-cards')
+  if (calendarReady) completedTabs.push('calendar')
 
   // Tab change handler
   const handleTabChange = (tabId) => {

@@ -23,6 +23,7 @@ import {
   TenantEditionsTab,
   TenantWalletTab,
   TenantReporterBillingTab,
+  TenantCalendarTab,
 } from '../../../../components/admin/tabs'
 
 /** Old tenant-theme tabs — single Webnews config in Domain Settings */
@@ -70,6 +71,8 @@ function TenantDetailContent() {
         return <TenantReportersTab tenantContext={tenantContext} />
       case 'epaper':
         return <TenantEpaperTab tenantContext={tenantContext} />
+      case 'calendar':
+        return <TenantCalendarTab tenantContext={tenantContext} />
       case 'editions':
         return <TenantEditionsTab tenantContext={tenantContext} />
       case 'domain-settings':
