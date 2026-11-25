@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { Button, EmptyState, Spinner, StatusBadge } from '../../ui'
 import Pagination from '../../ui/Pagination.jsx'
-import { extractionStatusColor, formatPipelineLabel } from '../../../lib/newsDesk/statusBadges'
 import { displayHeadline, formatDeskDate } from '../../../lib/newsDesk/formatDeskList'
-import NewsDeskTenantTargetsCell from './NewsDeskTenantTargetsCell'
+import NewsDeskPublishSummary from './NewsDeskPublishSummary'
+import NewsDeskQueueStageBadge from './NewsDeskQueueStageBadge'
 import { IconEye } from '../../ui/icons'
 
 function shortUrl(url) {
@@ -32,25 +32,6 @@ function TableSkeleton() {
   )
 }
 
-function StatusStack({ row }) {
-  const job = String(row.syndicationStatus || 'DRAFT')
-  return (
-    <div className="flex flex-col items-start gap-1">
-      <StatusBadge
-        status={formatPipelineLabel(row.extractionStatus)}
-        color={extractionStatusColor(row.extractionStatus)}
-      />
-      <span
-        className={`text-[10px] font-medium uppercase tracking-wide ${
-          job === 'PUBLISHED' ? 'text-emerald-700' : 'text-slate-500'
-        }`}
-      >
-        Job · {job.replace(/_/g, ' ')}
-      </span>
-    </div>
-  )
-}
-
 export default function NewsDeskJobTable({
   items,
   loading,
@@ -59,6 +40,9 @@ export default function NewsDeskJobTable({
   total,
   onPageChange,
   basePath = '/admin/news-room',
+  highlightJobId = '',
+  listTitle = 'Queue',
+  showPagination = true,
 }) {
   const router = useRouter()
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize))
@@ -105,7 +89,7 @@ export default function NewsDeskJobTable({
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-slate-100 bg-white">
-        <p className="text-sm font-semibold text-slate-900">Submissions</p>
+        <p className="text-sm font-semibold text-slate-900">{listTitle}</p>
         <p className="text-xs text-slate-500 tabular-nums">
           {loading ? '…' : `${total} total`}
         </p>
@@ -126,10 +110,10 @@ export default function NewsDeskJobTable({
                 {row.categoryName || '—'} · {formatDeskDate(row.createdAt)}
               </p>
               <div className="mt-2">
-                <NewsDeskTenantTargetsCell tenants={row.targetTenants} stopPropagation={false} />
+                <NewsDeskPublishSummary tenants={row.targetTenants} />
               </div>
               <div className="mt-2">
-                <StatusStack row={row} />
+                <NewsDeskQueueStageBadge row={row} showStep={false} />
               </div>
             </button>
           </li>
@@ -139,30 +123,31 @@ export default function NewsDeskJobTable({
       <div className="hidden md:block overflow-x-auto">
         <table className="min-w-full text-sm table-fixed w-full">
           <colgroup>
-            <col className="w-[min(36%,420px)]" />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
-            <col className="w-[14%]" />
+            <col className="w-[min(38%,440px)]" />
+            <col className="w-[18%]" />
+            <col className="w-[16%]" />
             <col className="w-[10%]" />
             <col className="w-[48px]" />
           </colgroup>
           <thead>
             <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
               <th className="px-4 py-2.5">Story</th>
-              <th className="px-4 py-2.5">Category</th>
-              <th className="px-4 py-2.5">Targets</th>
-              <th className="px-4 py-2.5">Status</th>
-              <th className="px-4 py-2.5">Created</th>
+              <th className="px-4 py-2.5">Papers</th>
+              <th className="px-4 py-2.5">Step</th>
+              <th className="px-4 py-2.5">Time</th>
               <th className="px-2 py-2.5" aria-label="Actions" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {items.map((row) => {
               const source = shortUrl(row.sourceUrl)
+              const highlighted = highlightJobId && row.jobId === highlightJobId
               return (
                 <tr
                   key={row.jobId}
-                  className="group hover:bg-slate-50/80 cursor-pointer transition-colors"
+                  className={`group hover:bg-slate-50/80 cursor-pointer transition-colors ${
+                    highlighted ? 'bg-brand/5 ring-1 ring-inset ring-brand/30' : ''
+                  }`}
                   onClick={() => openJob(row.jobId)}
                 >
                   <td className="px-4 py-3 align-middle">
@@ -170,21 +155,20 @@ export default function NewsDeskJobTable({
                       {displayHeadline(row)}
                     </p>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-slate-500">
-                      {source ? <span className="truncate max-w-[8rem]">{source}</span> : null}
-                      <span className="text-slate-300">·</span>
-                      <span className="font-mono text-slate-400 truncate" title={row.jobId}>
-                        {row.jobId.slice(0, 8)}…
-                      </span>
+                      {row.categoryName ? <span>{row.categoryName}</span> : null}
+                      {source ? (
+                        <>
+                          <span className="text-slate-300">·</span>
+                          <span className="truncate max-w-[10rem]">{source}</span>
+                        </>
+                      ) : null}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-600 align-middle text-xs whitespace-nowrap">
-                    {row.categoryName || '—'}
-                  </td>
-                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
-                    <NewsDeskTenantTargetsCell tenants={row.targetTenants} />
+                  <td className="px-4 py-3 align-middle">
+                    <NewsDeskPublishSummary tenants={row.targetTenants} />
                   </td>
                   <td className="px-4 py-3 align-middle">
-                    <StatusStack row={row} />
+                    <NewsDeskQueueStageBadge row={row} />
                   </td>
                   <td className="px-4 py-3 text-slate-500 align-middle text-xs whitespace-nowrap tabular-nums">
                     {formatDeskDate(row.createdAt)}
@@ -208,12 +192,14 @@ export default function NewsDeskJobTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-100 bg-slate-50/40">
-        <p className="text-xs text-slate-500 tabular-nums">
-          Page {page} of {totalPages}
-        </p>
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
-      </div>
+      {showPagination && totalPages > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-100 bg-slate-50/40">
+          <p className="text-xs text-slate-500 tabular-nums">
+            Page {page} of {totalPages}
+          </p>
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
+        </div>
+      ) : null}
     </div>
   )
 }

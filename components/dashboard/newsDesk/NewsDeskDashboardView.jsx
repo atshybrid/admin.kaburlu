@@ -5,16 +5,17 @@ import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { loadNewsDeskCategories } from '../../../lib/newsDesk/categoryLoader'
 import { refreshNewsDeskDashboard } from '../../../lib/newsDesk/dashboardRefresh'
-import { mapNewsDeskDashboardStats } from '../../../lib/newsDesk/analyticsMap'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskFilters from './NewsDeskFilters'
 import NewsDeskJobTable from './NewsDeskJobTable'
 import NewsDeskApiBanner from './NewsDeskApiBanner'
-import { Button, StatCard, toast } from '../../ui'
+import { Button, toast } from '../../ui'
 import { canAccessSyndication } from '../../../lib/syndication/platformRoles'
 import { canManageNewsDeskStaff } from '../../../lib/newsDesk/adminRoles'
-import { IconBarChart, IconClock, IconFileText, IconPlus, IconAlertCircle } from '../../ui/icons'
+import { IconPlus } from '../../ui/icons'
 import { DEFAULT_NEWS_ROOM_BASE, newsRoomPaths } from '../../../lib/newsDesk/paths'
+import { countRowsByDeskTab, filterRowsByDeskTab } from '../../../lib/newsDesk/deskQueueStage'
+import NewsDeskQueueTabs from './NewsDeskQueueTabs'
 
 const DEFAULT_FILTERS = {
   q: '',
@@ -28,6 +29,7 @@ const DEFAULT_FILTERS = {
 }
 
 const PAGE_SIZE = 20
+const QUEUE_FETCH_SIZE = 50
 
 function toIsoDateInput(value) {
   if (!value) return undefined
@@ -52,13 +54,9 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState(null)
   const [categories, setCategories] = useState([])
-  const [stats, setStats] = useState({
-    total: null,
-    pending: null,
-    ready: null,
-    failed: null,
-    loading: true,
-  })
+  const [queueTab, setQueueTab] = useState('queue')
+  const [highlightJobId, setHighlightJobId] = useState('')
+  const [tabCounts, setTabCounts] = useState({ queue: null, published: null, all: null })
 
   useEffect(() => {
     loadNewsDeskCategories()
@@ -68,8 +66,8 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
 
   const listParams = useMemo(
     () => ({
-      page,
-      pageSize: PAGE_SIZE,
+      page: queueTab === 'all' ? page : 1,
+      pageSize: queueTab === 'all' ? PAGE_SIZE : QUEUE_FETCH_SIZE,
       q: applied.q || undefined,
       pipelineStatus: applied.pipelineStatus || undefined,
       extractionStatus: applied.extractionStatus || undefined,
@@ -79,44 +77,24 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
       sort: applied.sort,
       order: applied.order,
     }),
-    [applied, page],
+    [applied, page, queueTab],
   )
 
-  const loadStats = useCallback(async () => {
-    setStats((s) => ({ ...s, loading: true }))
+  const displayItems = useMemo(
+    () => filterRowsByDeskTab(items, queueTab),
+    [items, queueTab],
+  )
+
+  const displayTotal = queueTab === 'all' ? total : displayItems.length
+
+  const loadTabCounts = useCallback(async () => {
     try {
-      const base = { page: 1, pageSize: 1 }
-      const analyticsRes = await newsDeskApi.getAnalytics().catch(() => null)
-      const mapped = mapNewsDeskDashboardStats(analyticsRes)
-      if (mapped && mapped.total != null) {
-        setStats({
-          total: mapped.total,
-          pending: mapped.pending ?? 0,
-          ready: mapped.ready ?? 0,
-          failed: mapped.failed ?? 0,
-          loading: false,
-        })
-        setApiError(null)
-        return
-      }
-      const [all, pending, ready, failed] = await Promise.all([
-        newsDeskApi.listJobs(base),
-        newsDeskApi.listJobs({ ...base, extractionStatus: 'EXTRACTION_PENDING' }),
-        newsDeskApi.listJobs({ ...base, extractionStatus: 'EXTRACTION_SUCCEEDED' }),
-        newsDeskApi.listJobs({ ...base, extractionStatus: 'EXTRACTION_FAILED' }),
-      ])
-      setStats({
-        total: all?.total ?? 0,
-        pending: pending?.total ?? 0,
-        ready: ready?.total ?? 0,
-        failed: failed?.total ?? 0,
-        loading: false,
-      })
+      const res = await newsDeskApi.listJobs({ page: 1, pageSize: QUEUE_FETCH_SIZE })
+      const rows = res?.items || []
+      setTabCounts(countRowsByDeskTab(rows))
       setApiError(null)
     } catch (error) {
       setApiError(error)
-      toast.error(formatNewsDeskError(error))
-      setStats({ total: null, pending: null, ready: null, failed: null, loading: false })
     }
   }, [])
 
@@ -124,8 +102,10 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
     setLoading(true)
     try {
       const result = await newsDeskApi.listJobs(listParams)
-      setItems(result?.items || [])
+      const rows = result?.items || []
+      setItems(rows)
       setTotal(result?.total || 0)
+      setTabCounts(countRowsByDeskTab(rows))
       setApiError(null)
     } catch (error) {
       setApiError(error)
@@ -138,8 +118,8 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
   }, [listParams])
 
   useEffect(() => {
-    loadStats()
-  }, [loadStats])
+    loadTabCounts()
+  }, [loadTabCounts])
 
   useEffect(() => {
     loadList()
@@ -147,12 +127,18 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
 
   useEffect(() => {
     const highlight = router.query?.highlight
+    const tab = router.query?.tab
+    if (tab === 'queue' || tab === 'published' || tab === 'all') {
+      setQueueTab(tab)
+    }
     if (highlight && typeof highlight === 'string') {
-      toast.success('New submission added — open from the table or view detail.')
-      const { highlight: _h, ...rest } = router.query
+      setHighlightJobId(highlight)
+      setQueueTab('queue')
+      toast.success('Added to queue — facts extract automatically. Click the row to publish.')
+      const { highlight: _h, tab: _t, ...rest } = router.query
       router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
     }
-  }, [router.query?.highlight])
+  }, [router.query?.highlight, router.query?.tab, router])
 
   const applyFilters = () => {
     setApplied({ ...filters })
@@ -165,20 +151,16 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
     setPage(1)
   }
 
-  const applyExtractionFilter = (extractionStatus) => {
-    const next = { ...DEFAULT_FILTERS, extractionStatus }
-    setFilters(next)
-    setApplied(next)
-    setPage(1)
-  }
-
   const refreshAll = useCallback(async () => {
     try {
-      await refreshNewsDeskDashboard({ loadStats, loadList })
+      await refreshNewsDeskDashboard({ loadStats: loadTabCounts, loadList })
     } catch (error) {
       toast.error(error.message || 'Refresh failed')
     }
-  }, [loadStats, loadList])
+  }, [loadTabCounts, loadList])
+
+  const listTitle =
+    queueTab === 'published' ? 'Published' : queueTab === 'all' ? 'All stories' : 'Queue — work here first'
 
   return (
     <NewsDeskAccessGate user={user}>
@@ -186,12 +168,10 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
         <header className="flex flex-wrap items-start justify-between gap-4 pb-1 border-b border-slate-200/80">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">News Desk</p>
-            <h1 className="text-2xl font-semibold text-slate-900 mt-1 tracking-tight">
-              Intake &amp; publishing
-            </h1>
-            <p className="text-sm text-slate-500 mt-1.5 max-w-lg">
-              One row = one story. <strong className="font-medium text-slate-700">Targets</strong> shows which tenants
-              received it — expand for full list. Staff tenant scope:{' '}
+            <h1 className="text-2xl font-semibold text-slate-900 mt-1 tracking-tight">News queue</h1>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-xl">
+              Post వార్త → <strong className="text-amber-800">Queue</strong>లో కనిపిస్తుంది → review → publish →{' '}
+              <strong className="text-emerald-800">Published</strong> tabలో update. Staff scope:{' '}
               <Link href={paths.settings} className="text-brand hover:underline">
                 Settings
               </Link>
@@ -217,33 +197,7 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
 
         <NewsDeskApiBanner error={apiError} />
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { key: '', title: 'Total', value: stats.total, icon: IconFileText },
-            { key: 'EXTRACTION_PENDING', title: 'Pending', value: stats.pending, icon: IconClock },
-            { key: 'EXTRACTION_SUCCEEDED', title: 'Facts ready', value: stats.ready, icon: IconBarChart },
-            { key: 'EXTRACTION_FAILED', title: 'Failed', value: stats.failed, icon: IconAlertCircle },
-          ].map(({ key, title, value, icon: Icon }) => {
-            const active = (applied.extractionStatus || '') === key
-            return (
-              <button
-                key={key || 'all'}
-                type="button"
-                className={`text-left rounded-xl transition-all ${
-                  active ? 'ring-2 ring-brand/40 ring-offset-2' : 'hover:ring-1 hover:ring-slate-200'
-                }`}
-                onClick={() => applyExtractionFilter(key)}
-              >
-                <StatCard
-                  title={title}
-                  value={stats.loading ? '…' : value ?? '—'}
-                  icon={<Icon className="w-5 h-5" />}
-                  className="w-full cursor-pointer border-slate-200/80"
-                />
-              </button>
-            )
-          })}
-        </div>
+        <NewsDeskQueueTabs active={queueTab} counts={tabCounts} onChange={setQueueTab} />
 
         <NewsDeskFilters
           filters={filters}
@@ -256,13 +210,16 @@ export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BAS
         />
 
         <NewsDeskJobTable
-          items={items}
+          items={displayItems}
           loading={loading}
-          page={page}
-          pageSize={PAGE_SIZE}
-          total={total}
+          page={queueTab === 'all' ? page : 1}
+          pageSize={queueTab === 'all' ? PAGE_SIZE : QUEUE_FETCH_SIZE}
+          total={displayTotal}
           onPageChange={setPage}
           basePath={basePath}
+          highlightJobId={highlightJobId}
+          listTitle={listTitle}
+          showPagination={queueTab === 'all'}
         />
 
         {canAccessSyndication(user) && (

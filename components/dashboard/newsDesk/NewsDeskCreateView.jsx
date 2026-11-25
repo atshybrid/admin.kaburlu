@@ -191,8 +191,8 @@ export default function NewsDeskCreateView({ basePath = DEFAULT_NEWS_ROOM_BASE }
         if (check.jobId) router.push(paths.review(check.jobId))
         return
       }
-      toast.success('News submitted — opening review (extraction runs in queue)')
-      router.push(`${paths.review(check.jobId)}?submitted=1&autopublish=1`)
+      toast.success('News submitted — added to queue')
+      router.push(`${paths.posts}?highlight=${encodeURIComponent(check.jobId)}&tab=queue`)
     } catch (error) {
       toast.error(formatNewsDeskError(error))
     } finally {
