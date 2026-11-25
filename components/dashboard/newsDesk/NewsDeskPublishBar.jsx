@@ -2,9 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import syndicationApi from '../../../lib/api/services/syndicationApi'
-import { Button, StatusBadge, toast } from '../../ui'
-import { extractionStatusColor, formatPipelineLabel } from '../../../lib/newsDesk/statusBadges'
-import { formatLocationHintDisplay } from '../../../lib/newsDesk/locationHint'
+import { Button, toast } from '../../ui'
 import { buildExtractionQueueSummary } from '../../../lib/newsDesk/formatExtractionQueue'
 import { summarizePublishWebResponse, blockerLabel } from '../../../lib/newsDesk/publishResultSummary'
 import NewsDeskWorkflowSteps from './NewsDeskWorkflowSteps'
@@ -56,7 +54,6 @@ export default function NewsDeskPublishBar({
 
   const factsReady = extractionStatus === 'EXTRACTION_SUCCEEDED'
   const factsFailed = extractionStatus === 'EXTRACTION_FAILED'
-  const locationOk = Boolean(formatLocationHintDisplay(locationHint))
   const aiOk = factsReady && !factsFailed
 
   const legacyHref = `/admin/platform-syndication?legacy=1&jobId=${encodeURIComponent(jobId || '')}`
@@ -110,50 +107,35 @@ export default function NewsDeskPublishBar({
     ? [
         {
           key: 'extract',
-          label: 'Extraction',
+          label: '1 · Facts',
           ok: aiOk,
           active: !aiOk && !factsFailed,
-          hint: factsFailed ? 'Failed' : aiOk ? 'Ready' : 'In progress',
+          hint: factsFailed ? 'Retry needed' : aiOk ? 'Done' : 'Queue running…',
         },
         {
           key: 'approve',
-          label: 'Approval',
-          ok: approvedCount > 0 && approvedCount >= tenantCount,
-          active: approvedCount > 0 && approvedCount < tenantCount,
+          label: '2 · Approve papers',
+          ok: approvedCount > 0,
+          active: aiOk && approvedCount < tenantCount,
           hint: `${approvedCount}/${tenantCount} approved`,
         },
         {
-          key: 'location',
-          label: 'Location',
-          ok: locationOk,
-          active: false,
-          hint: locationOk ? 'Linked' : 'Optional',
-        },
-        {
           key: 'publish',
-          label: 'Publish',
+          label: '3 · Go live',
           ok: jobPublished,
           active: v2PublishReady,
-          hint: `${readyCount} ready`,
+          hint: jobPublished ? 'Published' : `${readyCount} ready`,
         },
       ]
     : []
 
   return (
     <section className="rounded-lg border border-slate-200/80 bg-white shadow-sm">
-      <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">Publishing control</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {workflowV2 ? 'V2 web' : 'Legacy'} · {syndStatus} · {approvedCount}/{tenantCount} approved
-          </p>
-        </div>
-        {extractionStatus ? (
-          <StatusBadge
-            status={formatPipelineLabel(extractionStatus)}
-            color={extractionStatusColor(extractionStatus)}
-          />
-        ) : null}
+      <header className="px-4 py-3 border-b border-slate-100 bg-slate-50/40">
+        <h2 className="text-base font-semibold text-slate-900">Next steps</h2>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Facts పూర్తయిన తర్వాత పత్రికలు approve → <strong className="font-medium text-slate-700">Publish now</strong>
+        </p>
       </header>
 
       <div className="px-4 py-4 space-y-4">
@@ -172,30 +154,30 @@ export default function NewsDeskPublishBar({
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 pt-4">
           <div className="flex flex-wrap gap-2">
-            {onApproveAll ? (
-              <Button type="button" variant="outline" size="sm" disabled={approvingAll} onClick={onApproveAll}>
-                {approvingAll ? 'Approving…' : 'Approve all tenants'}
-              </Button>
-            ) : null}
             {workflowV2 ? (
               <>
                 <Button
                   type="button"
-                  size="sm"
+                  size="md"
                   disabled={!v2PublishReady}
                   title={publishDisabledReason || undefined}
                   onClick={() => onPublishV2(false)}
                 >
-                  {publishing ? 'Publishing…' : 'Publish web (V2)'}
+                  {publishing ? 'Publishing…' : 'Publish now'}
                 </Button>
+                {onApproveAll ? (
+                  <Button type="button" variant="outline" size="sm" disabled={approvingAll} onClick={onApproveAll}>
+                    {approvingAll ? 'Approving…' : 'Approve all papers'}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="ghost"
                   size="sm"
                   disabled={publishing || jobPublished}
                   onClick={() => onPublishV2(true)}
                 >
-                  Retry failed only
+                  Retry failed
                 </Button>
               </>
             ) : (
@@ -207,7 +189,9 @@ export default function NewsDeskPublishBar({
             )}
           </div>
           {publishDisabledReason && workflowV2 && !v2PublishReady ? (
-            <p className="text-xs text-amber-800 max-w-md">{publishDisabledReason}</p>
+            <p className="text-sm text-amber-900 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 max-w-md">
+              {publishDisabledReason}
+            </p>
           ) : null}
           {!workflowV2 && !hasMasterPrint && syndStatus !== 'PREVIEW_READY' ? (
             <p className="text-xs text-slate-500">Run generate in legacy desk first.</p>

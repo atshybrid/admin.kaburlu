@@ -18,9 +18,9 @@ export default function NewsDeskQueueStageBadge({ row, showStep = true }) {
           ))}
         </div>
       ) : null}
-      <span className="text-[10px] text-slate-500 leading-tight">
-        Queue → Review → Publish
-      </span>
+      {showStep ? (
+        <span className="text-[10px] text-slate-500 leading-tight">Queue → Review → Publish</span>
+      ) : null}
     </div>
   )
 }

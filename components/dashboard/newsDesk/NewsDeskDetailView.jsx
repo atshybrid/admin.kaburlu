@@ -1,19 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/router'
 import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { useFactsPolling } from '../../../lib/newsDesk/useFactsPolling'
 import { shouldPollExtraction } from '../../../lib/newsDesk/extractionPolling'
 import { loadNewsDeskCategories } from '../../../lib/newsDesk/categoryLoader'
-import { formatDeskDate } from '../../../lib/newsDesk/formatDeskList'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskOriginalPanel from './NewsDeskOriginalPanel'
 import NewsDeskFactsPanel from './NewsDeskFactsPanel'
 import NewsDeskPageShell from './NewsDeskPageShell'
 import NewsDeskDetailSkeleton from './NewsDeskDetailSkeleton'
-import { Button, EmptyState, Spinner, StatusBadge, toast } from '../../ui'
-import { extractionStatusColor, formatPipelineLabel, pipelineStatusColor } from '../../../lib/newsDesk/statusBadges'
+import { Button, EmptyState, toast } from '../../ui'
 import NewsDeskTenantsPanel from './NewsDeskTenantsPanel'
 import NewsDeskPublishBar from './NewsDeskPublishBar'
 import NewsDeskPublishPreview from './NewsDeskPublishPreview'
@@ -22,8 +19,7 @@ import { summarizePublishWebResponse } from '../../../lib/newsDesk/publishResult
 import NewsDeskLocationPanel from './NewsDeskLocationPanel'
 import { canManageNewsDeskStaff } from '../../../lib/newsDesk/adminRoles'
 import { normalizeSyndicationRole } from '../../../lib/syndication/platformRoles'
-import { TELUGU_HEADLINE_CLASS } from '../../../lib/newsDesk/teluguTypography'
-import NewsDeskTenantChips from './NewsDeskTenantChips'
+import NewsDeskDetailHeader from './NewsDeskDetailHeader'
 import { DEFAULT_NEWS_ROOM_BASE, newsRoomPaths } from '../../../lib/newsDesk/paths'
 
 export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM_BASE }) {
@@ -166,8 +162,21 @@ export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM
   }
 
   const headline = snapshot?.headline || 'Submission review'
-  const submittedFresh = router.query?.submitted === '1'
   const autoPublishRequested = router.query?.autopublish === '1'
+
+  const stageRow = useMemo(
+    () => ({
+      extractionStatus: facts?.extractionStatus,
+      syndicationStatus: outcomes?.syndicationStatus || pipeline?.status,
+      targetTenants: tenants.map((t) => ({
+        tenantId: t.tenantId,
+        nativeName: t.nativeName,
+        published: t.published,
+        reviewStatus: t.reviewStatus,
+      })),
+    }),
+    [facts?.extractionStatus, outcomes?.syndicationStatus, pipeline?.status, tenants],
+  )
 
   const onQueueRefresh = useCallback(async () => {
     try {
@@ -218,64 +227,18 @@ export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM
   return (
     <NewsDeskAccessGate user={user}>
       <NewsDeskPageShell maxWidth="max-w-[min(100%,90rem)]" className="px-1 sm:px-0">
-        <header className="mb-6 pb-4 border-b border-slate-200/90">
-          <Link href={paths.posts} className="text-xs font-medium text-brand hover:underline">
-            ← News Room
-          </Link>
-          <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0 flex-1 max-w-4xl">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">Submission review</p>
-              {!loading ? (
-                <h1 className={`mt-1 ${TELUGU_HEADLINE_CLASS} text-2xl sm:text-[1.65rem]`}>{headline}</h1>
-              ) : (
-                <h1 className="mt-1 text-xl font-semibold text-slate-400">Loading…</h1>
-              )}
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                <span className="font-mono text-slate-600" title="Job ID">
-                  {jobId}
-                </span>
-                {categoryName ? <span>{categoryName}</span> : null}
-                {snapshot?.acceptedAt ? <span>{formatDeskDate(snapshot.acceptedAt)}</span> : null}
-              </div>
-              {!loading ? (
-                <div className="mt-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
-                    లక్ష్య పత్రికలు · Target publishers
-                  </p>
-                  <NewsDeskTenantChips tenants={tenants} showAll compact />
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
-              {facts?.extractionStatus ? (
-                <StatusBadge
-                  status={formatPipelineLabel(facts.extractionStatus)}
-                  color={extractionStatusColor(facts.extractionStatus)}
-                />
-              ) : null}
-              {pipeline?.status ? (
-                <StatusBadge
-                  status={String(pipeline.status).replace(/_/g, ' ')}
-                  color={pipelineStatusColor(pipeline.status)}
-                />
-              ) : null}
-              {outcomes?.syndicationStatus ? (
-                <StatusBadge status={`Syndication · ${outcomes.syndicationStatus}`} color="slate" />
-              ) : null}
-              {canRetry ? (
-                <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
-                  {retrying ? <Spinner size="sm" className="mr-2" /> : null}
-                  Retry extraction
-                </Button>
-              ) : null}
-              <Link href={paths.post}>
-                <Button type="button" variant="secondary" size="sm">
-                  New intake
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </header>
+        <NewsDeskDetailHeader
+          paths={paths}
+          headline={headline}
+          loading={loading}
+          stageRow={stageRow}
+          categoryName={categoryName}
+          acceptedAt={snapshot?.acceptedAt}
+          tenants={tenants}
+          canRetry={canRetry}
+          onRetry={onRetry}
+          retrying={retrying}
+        />
 
         {loading ? (
           <NewsDeskDetailSkeleton />
@@ -292,18 +255,6 @@ export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM
           />
         ) : (
           <div className="space-y-4 lg:space-y-5">
-            {submittedFresh ? (
-              <p className="text-sm text-emerald-900 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2.5">
-                Intake saved — queue status కింద చూడండి. Facts పూర్తయిన తర్వాత preview refresh + approved tenantsకు auto
-                publish (if enabled).
-              </p>
-            ) : null}
-            <NewsDeskExtractionQueueBanner
-              jobId={jobId}
-              extractionStatus={facts?.extractionStatus}
-              queue={facts?.queue}
-              onRefresh={onQueueRefresh}
-            />
             <NewsDeskPublishBar
               jobId={jobId}
               extractionStatus={facts?.extractionStatus}
@@ -316,6 +267,20 @@ export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM
               onApproveAll={canEditReview ? onApproveAll : undefined}
               approvingAll={approvingAll}
               onPublished={() => setTenantPanelKey((k) => k + 1)}
+            />
+
+            <NewsDeskTenantsPanel
+              key={tenantPanelKey}
+              jobId={jobId}
+              canEditReview={canEditReview}
+              onOutcomesLoaded={setOutcomes}
+            />
+
+            <NewsDeskExtractionQueueBanner
+              jobId={jobId}
+              extractionStatus={facts?.extractionStatus}
+              queue={facts?.queue}
+              onRefresh={onQueueRefresh}
             />
 
             <NewsDeskPublishPreview
@@ -343,13 +308,6 @@ export default function NewsDeskDetailView({ jobId, basePath = DEFAULT_NEWS_ROOM
                 />
               </div>
             </div>
-
-            <NewsDeskTenantsPanel
-              key={tenantPanelKey}
-              jobId={jobId}
-              canEditReview={canEditReview}
-              onOutcomesLoaded={setOutcomes}
-            />
           </div>
         )}
       </NewsDeskPageShell>

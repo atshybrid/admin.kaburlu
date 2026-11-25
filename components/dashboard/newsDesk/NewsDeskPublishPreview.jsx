@@ -8,6 +8,7 @@ export default function NewsDeskPublishPreview({ jobId, tenants = [], extraction
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
   const [selectedTenantId, setSelectedTenantId] = useState(tenants[0]?.tenantId || '')
+  const [expanded, setExpanded] = useState(false)
 
   const liveUrlByTenant = useMemo(() => {
     const map = {}
@@ -56,34 +57,22 @@ export default function NewsDeskPublishPreview({ jobId, tenants = [], extraction
     <section className="rounded-lg border border-slate-200/80 bg-white overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-slate-100 bg-slate-50/50">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">ప్రకాశన ప్రివ్యూ · Publish preview</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Web preview (optional)</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tenant-wise table — ప్రతి సైట్ URL/slug. Row click → full body కింద
+            {previewRows.length
+              ? `${previewRows.length} paper(s) — same story, site-specific URL`
+              : 'Opens after facts are ready'}
           </p>
-          {previewRows.length ? (
-            <p className="text-[11px] text-slate-500 mt-0.5">
-              {previewRows.length} publisher(s) · local DB dry-run (not live until Publish)
-            </p>
-          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {previewRows.length > 1 ? (
-            <select
-              className="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"
-              value={selectedTenantId}
-              onChange={(e) => setSelectedTenantId(e.target.value)}
-              aria-label="Preview tenant"
-            >
-              {previewRows.map((t) => (
-                <option key={t.tenantId} value={t.tenantId}>
-                  {t.nativeName || t.tenantId}
-                </option>
-              ))}
-            </select>
+          {previewRows.length ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setExpanded((v) => !v)}>
+              {expanded ? 'Hide preview' : 'Show preview'}
+            </Button>
           ) : null}
-          <Button type="button" variant="outline" size="sm" disabled={loading} onClick={load}>
-          {loading ? <Spinner size="sm" className="mr-1" /> : null}
-          Refresh
+          <Button type="button" variant="ghost" size="sm" disabled={loading} onClick={load}>
+            {loading ? <Spinner size="sm" className="mr-1" /> : null}
+            Refresh
           </Button>
         </div>
       </header>
@@ -95,21 +84,27 @@ export default function NewsDeskPublishPreview({ jobId, tenants = [], extraction
           </div>
         ) : !previewRows.length ? (
           <p className="text-sm text-slate-500">Preview unavailable — check category and snapshot.</p>
+        ) : !expanded ? (
+          <p className="text-sm text-slate-500">
+            Tap <strong className="font-medium text-slate-700">Show preview</strong> to see headlines per paper before
+            publish.
+          </p>
         ) : (
           <>
-            <div className="rounded-md border border-blue-100 bg-blue-50/80 px-3 py-2.5 text-xs text-blue-950">
-              <p className="font-semibold">ఇది ఎలా పని చేస్తుంది · V2 syndication</p>
-              <p className="mt-1 text-blue-900/90 leading-relaxed">
-                మీరు వ్రాసిన{' '}
-                <strong>ఒక intake</strong> (source URL/టెక్స్ట్) + AI facts →{' '}
-                <strong>అన్ని publishersకు అదే శీర్షిక &amp; బాడీ</strong>. Prati website కి వేరే source నుంచి వేరే
-                వార్త రాయడం <strong>ఇంకా build కాలేదు</strong>. Table లో మారేది: domain, URL, optional tenant hero
-                image, slug collision suffix మాత్రమే.
-              </p>
-              {preview?.copyStrategyNote ? (
-                <p className="mt-1 text-[11px] text-blue-800/80">{preview.copyStrategyNote}</p>
-              ) : null}
-            </div>
+            {previewRows.length > 1 ? (
+              <select
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white max-w-xs"
+                value={selectedTenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                aria-label="Preview paper"
+              >
+                {previewRows.map((t) => (
+                  <option key={t.tenantId} value={t.tenantId}>
+                    {t.nativeName || t.tenantId}
+                  </option>
+                ))}
+              </select>
+            ) : null}
             <NewsDeskPublishPreviewTable
               rows={previewRows}
               liveUrlByTenant={liveUrlByTenant}
@@ -124,10 +119,6 @@ export default function NewsDeskPublishPreview({ jobId, tenants = [], extraction
                 {row.slugWarning}
               </p>
             ) : null}
-            <p className="text-[11px] text-slate-500">
-              Local dev: URLs → <code className="font-mono">localhost:3002/&lt;tenant-slug&gt;/…</code> (kaburlu-Webnews).
-              Production domain links DB నుండి వస్తాయి.
-            </p>
             {!preview?.extractionReady ? (
               <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-md px-3 py-2">
                 AI extraction ఇంకా పూర్తి కాలేదు — కింద snapshot టెక్స్ట్ మాత్రమే

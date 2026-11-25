@@ -8,12 +8,6 @@ function trimTelugu(text, max = 72) {
   return `${s.slice(0, max)}…`
 }
 
-const HERO_LABELS = {
-  tenant_override: 'Tenant hero',
-  shared_job: 'Shared image',
-  intake_gallery: 'Intake gallery',
-}
-
 export default function NewsDeskPublishPreviewTable({
   rows = [],
   liveUrlByTenant = {},
@@ -33,9 +27,7 @@ export default function NewsDeskPublishPreviewTable({
             <th className="px-3 py-2 font-semibold">Publisher</th>
             <th className="px-3 py-2 font-semibold">Website</th>
             <th className="px-3 py-2 font-semibold min-w-[10rem]">Title (web)</th>
-            <th className="px-3 py-2 font-semibold">Hero</th>
-            <th className="px-3 py-2 font-semibold">Category</th>
-            <th className="px-3 py-2 font-semibold min-w-[9rem]">Slug</th>
+            <th className="px-3 py-2 font-semibold hidden lg:table-cell">Category</th>
             <th className="px-3 py-2 font-semibold">Open</th>
           </tr>
         </thead>
@@ -67,25 +59,8 @@ export default function NewsDeskPublishPreviewTable({
                     trimTelugu(row.headline)
                   )}
                 </td>
-                <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
-                  <span className="block">{HERO_LABELS[row.heroSource] || 'Gallery'}</span>
-                  {row.coverImageUrl ? (
-                    <span className="font-mono text-[9px] text-slate-400 truncate max-w-[7rem] inline-block" title={row.coverImageUrl}>
-                      {row.coverImageUrl.replace(/^https?:\/\//, '').slice(0, 28)}…
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                <td className="px-3 py-2 text-slate-600 whitespace-nowrap hidden lg:table-cell">
                   {row.categoryName || '—'}
-                  {row.categorySlug ? (
-                    <span className="block font-mono text-[10px] text-slate-400">{row.categorySlug}</span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-2 font-mono text-[10px] text-slate-600 max-w-[14rem] truncate" title={row.predictedSlug}>
-                  {row.predictedSlug}
-                  {row.slugWarning ? (
-                    <span className="block text-amber-800 font-sans normal-case">⚠ {row.slugWarning}</span>
-                  ) : null}
                 </td>
                 <td className="px-3 py-2">
                   {href ? (

@@ -183,9 +183,9 @@ export default function NewsDeskTenantsPanel({
     <section className="rounded-lg border border-slate-200/80 bg-white overflow-hidden">
       <header className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/40">
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Tenant targets</h2>
+          <h2 className="text-sm font-semibold text-slate-900">Approve papers</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {tenants.length} publishers · {approvedCount} approved · {payload?.syndicationStatus || 'DRAFT'}
+            Step 2 — {approvedCount}/{tenants.length} approved before publish
           </p>
         </div>
         <div className="max-w-[12rem] hidden sm:block">
