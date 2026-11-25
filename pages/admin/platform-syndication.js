@@ -38,7 +38,8 @@ function PlatformSyndicationInner() {
     )
   }
 
-  return <SyndicationView />
+  const jobId = typeof router.query?.jobId === 'string' ? router.query.jobId : ''
+  return <SyndicationView initialJobId={jobId} />
 }
 
 export default function PlatformSyndicationPage() {

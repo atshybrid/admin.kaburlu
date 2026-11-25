@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { loadNewsDeskCategories } from '../../../lib/newsDesk/categoryLoader'
 import { refreshNewsDeskDashboard } from '../../../lib/newsDesk/dashboardRefresh'
+import { mapNewsDeskDashboardStats } from '../../../lib/newsDesk/analyticsMap'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
 import NewsDeskFilters from './NewsDeskFilters'
 import NewsDeskJobTable from './NewsDeskJobTable'
 import NewsDeskApiBanner from './NewsDeskApiBanner'
 import { Button, StatCard, toast } from '../../ui'
 import { canAccessSyndication } from '../../../lib/syndication/platformRoles'
+import { canManageNewsDeskStaff } from '../../../lib/newsDesk/adminRoles'
 import { IconBarChart, IconClock, IconFileText, IconPlus, IconAlertCircle } from '../../ui/icons'
+import { DEFAULT_NEWS_ROOM_BASE, newsRoomPaths } from '../../../lib/newsDesk/paths'
 
 const DEFAULT_FILTERS = {
   q: '',
@@ -36,7 +40,9 @@ function toIsoDateInput(value) {
   }
 }
 
-export default function NewsDeskDashboardView() {
+export default function NewsDeskDashboardView({ basePath = DEFAULT_NEWS_ROOM_BASE }) {
+  const paths = newsRoomPaths(basePath)
+  const router = useRouter()
   const { user } = useLayout()
   const [filters, setFilters] = useState(DEFAULT_FILTERS)
   const [applied, setApplied] = useState(DEFAULT_FILTERS)
@@ -80,6 +86,19 @@ export default function NewsDeskDashboardView() {
     setStats((s) => ({ ...s, loading: true }))
     try {
       const base = { page: 1, pageSize: 1 }
+      const analyticsRes = await newsDeskApi.getAnalytics().catch(() => null)
+      const mapped = mapNewsDeskDashboardStats(analyticsRes)
+      if (mapped && mapped.total != null) {
+        setStats({
+          total: mapped.total,
+          pending: mapped.pending ?? 0,
+          ready: mapped.ready ?? 0,
+          failed: mapped.failed ?? 0,
+          loading: false,
+        })
+        setApiError(null)
+        return
+      }
       const [all, pending, ready, failed] = await Promise.all([
         newsDeskApi.listJobs(base),
         newsDeskApi.listJobs({ ...base, extractionStatus: 'EXTRACTION_PENDING' }),
@@ -126,6 +145,15 @@ export default function NewsDeskDashboardView() {
     loadList()
   }, [loadList])
 
+  useEffect(() => {
+    const highlight = router.query?.highlight
+    if (highlight && typeof highlight === 'string') {
+      toast.success('New submission added — open from the table or view detail.')
+      const { highlight: _h, ...rest } = router.query
+      router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true })
+    }
+  }, [router.query?.highlight])
+
   const applyFilters = () => {
     setApplied({ ...filters })
     setPage(1)
@@ -154,39 +182,67 @@ export default function NewsDeskDashboardView() {
 
   return (
     <NewsDeskAccessGate user={user}>
-      <div className="max-w-7xl mx-auto space-y-6 pb-10">
-        <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className="max-w-7xl mx-auto space-y-5 pb-12">
+        <header className="flex flex-wrap items-start justify-between gap-4 pb-1 border-b border-slate-200/80">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-brand">Kaburlu News Desk</p>
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mt-1">Editorial intake &amp; facts</h1>
-            <p className="text-sm text-slate-500 mt-1 max-w-2xl">
-              Submit original news, track AI fact extraction, and review structured output. Counts use server totals
-              (separate filtered list queries), not page-local rows.
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">News Desk</p>
+            <h1 className="text-2xl font-semibold text-slate-900 mt-1 tracking-tight">
+              Intake &amp; publishing
+            </h1>
+            <p className="text-sm text-slate-500 mt-1.5 max-w-lg">
+              One row = one story. <strong className="font-medium text-slate-700">Targets</strong> shows which tenants
+              received it — expand for full list. Staff tenant scope:{' '}
+              <Link href={paths.settings} className="text-brand hover:underline">
+                Settings
+              </Link>
+              .
             </p>
           </div>
-          <Link href="/admin/news-desk/create">
-            <Button type="button">
-              <IconPlus className="w-4 h-4 mr-2" />
-              Create news
-            </Button>
-          </Link>
+            <div className="flex flex-wrap gap-2">
+              {canManageNewsDeskStaff(user) && (
+                <Link href={paths.settings}>
+                  <Button type="button" variant="secondary">
+                    Staff &amp; analytics
+                  </Button>
+                </Link>
+              )}
+              <Link href={paths.post}>
+                <Button type="button">
+                  <IconPlus className="w-4 h-4 mr-2" />
+                  New intake
+                </Button>
+              </Link>
+            </div>
         </header>
 
         <NewsDeskApiBanner error={apiError} />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <button type="button" className="text-left" onClick={() => applyExtractionFilter('')}>
-            <StatCard title="Total News" value={stats.loading ? '…' : stats.total ?? '—'} icon={<IconFileText className="w-5 h-5" />} className="w-full cursor-pointer" />
-          </button>
-          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_PENDING')}>
-            <StatCard title="Extraction pending" value={stats.loading ? '…' : stats.pending ?? '—'} icon={<IconClock className="w-5 h-5" />} className="w-full cursor-pointer" />
-          </button>
-          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_SUCCEEDED')}>
-            <StatCard title="Facts ready" value={stats.loading ? '…' : stats.ready ?? '—'} icon={<IconBarChart className="w-5 h-5" />} className="w-full cursor-pointer" />
-          </button>
-          <button type="button" className="text-left" onClick={() => applyExtractionFilter('EXTRACTION_FAILED')}>
-            <StatCard title="Extraction failed" value={stats.loading ? '…' : stats.failed ?? '—'} icon={<IconAlertCircle className="w-5 h-5" />} className="w-full cursor-pointer" />
-          </button>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { key: '', title: 'Total', value: stats.total, icon: IconFileText },
+            { key: 'EXTRACTION_PENDING', title: 'Pending', value: stats.pending, icon: IconClock },
+            { key: 'EXTRACTION_SUCCEEDED', title: 'Facts ready', value: stats.ready, icon: IconBarChart },
+            { key: 'EXTRACTION_FAILED', title: 'Failed', value: stats.failed, icon: IconAlertCircle },
+          ].map(({ key, title, value, icon: Icon }) => {
+            const active = (applied.extractionStatus || '') === key
+            return (
+              <button
+                key={key || 'all'}
+                type="button"
+                className={`text-left rounded-xl transition-all ${
+                  active ? 'ring-2 ring-brand/40 ring-offset-2' : 'hover:ring-1 hover:ring-slate-200'
+                }`}
+                onClick={() => applyExtractionFilter(key)}
+              >
+                <StatCard
+                  title={title}
+                  value={stats.loading ? '…' : value ?? '—'}
+                  icon={<Icon className="w-5 h-5" />}
+                  className="w-full cursor-pointer border-slate-200/80"
+                />
+              </button>
+            )
+          })}
         </div>
 
         <NewsDeskFilters
@@ -199,25 +255,15 @@ export default function NewsDeskDashboardView() {
           loading={loading}
         />
 
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-2 px-0.5">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">All submissions</h2>
-              <p className="text-sm text-slate-500">Search, filter, and open any News Desk intake.</p>
-            </div>
-            {!loading && (
-              <p className="text-xs text-slate-500">{total} matching record(s)</p>
-            )}
-          </div>
-          <NewsDeskJobTable
+        <NewsDeskJobTable
           items={items}
           loading={loading}
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
           onPageChange={setPage}
-          />
-        </section>
+          basePath={basePath}
+        />
 
         {canAccessSyndication(user) && (
           <p className="text-xs text-slate-400 text-center pt-4">

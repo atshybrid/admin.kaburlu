@@ -23,13 +23,13 @@ const STATUS_FILTERS = [
   { value: 'PUBLISHED', label: 'Published' },
 ]
 
-export default function SyndicationView() {
+export default function SyndicationView({ initialJobId = '' }) {
   const { user } = useLayout()
-  const [mode, setMode] = useState('library')
+  const [mode, setMode] = useState(initialJobId ? 'compose' : 'library')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState('')
-  const [activeJobId, setActiveJobId] = useState('')
+  const [activeJobId, setActiveJobId] = useState(initialJobId || '')
 
   const load = useCallback(async () => {
     setLoading(true)

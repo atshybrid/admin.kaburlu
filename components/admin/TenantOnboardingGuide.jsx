@@ -33,29 +33,22 @@ const STEPS = [
     hint: 'Allocate content categories',
   },
   {
-    id: 'homepage',
-    label: '5. Homepage Layout',
-    tab: 'homepage',
-    check: () => false,
-    hint: 'Style1/2/3 smart homepage sections',
-  },
-  {
     id: 'ads',
-    label: '6. Advertisement Slots',
+    label: '5. Advertisement Slots',
     tab: 'ads',
     check: () => false,
     hint: 'Banner slots + AdSense client ID',
   },
   {
     id: 'admins',
-    label: '7. Tenant Admin User',
+    label: '6. Tenant Admin User',
     tab: 'admins',
     check: () => false,
     hint: 'Create login for newspaper owner',
   },
   {
     id: 'approve',
-    label: '8. Approve & Go Live',
+    label: '7. Approve & Go Live',
     tab: 'overview',
     check: (ctx) => {
       const d = (ctx?.domains || []).find((x) => x.status === 'ACTIVE' && !x.domain?.startsWith('epaper.'))

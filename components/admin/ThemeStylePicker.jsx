@@ -1,6 +1,8 @@
-import { NEWS_THEME_CATALOG } from '../../lib/newsThemeCatalog'
+import { NEWS_THEME_CATALOG, webnewsLocalPreviewUrl } from '../../lib/newsThemeCatalog'
 
-export function ThemeStylePicker({ value, onChange }) {
+export function ThemeStylePicker({ value, onChange, tenantSlug, showPreviewLinks = false, v2Active = true }) {
+  const previewBase = webnewsLocalPreviewUrl(tenantSlug)
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {NEWS_THEME_CATALOG.map((theme) => {
@@ -47,6 +49,29 @@ export function ThemeStylePicker({ value, onChange }) {
                 <span key={c} className="w-5 h-5 rounded-full border border-white shadow-sm" style={{ background: c }} />
               ))}
             </div>
+            {showPreviewLinks && tenantSlug && (
+              <p className="mt-3 text-[11px] text-slate-500 border-t border-slate-100 pt-2">
+                {v2Active ? (
+                  <>
+                    Live v2:{' '}
+                    <a
+                      href={previewBase}
+                      className="text-brand underline"
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {previewBase}
+                    </a>
+                    {' '}(layout from v2 panel)
+                  </>
+                ) : (
+                  <>
+                    Legacy API theme: <span className="font-mono">{theme.id}</span> — save then hit tenant domain
+                  </>
+                )}
+              </p>
+            )}
           </button>
         )
       })}

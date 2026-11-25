@@ -2,37 +2,92 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { Button, EmptyState, Spinner, StatusBadge } from '../../ui'
 import Pagination from '../../ui/Pagination.jsx'
-import { extractionStatusColor, formatPipelineLabel, pipelineStatusColor } from '../../../lib/newsDesk/statusBadges'
+import { extractionStatusColor, formatPipelineLabel } from '../../../lib/newsDesk/statusBadges'
+import { displayHeadline, formatDeskDate } from '../../../lib/newsDesk/formatDeskList'
+import NewsDeskTenantTargetsCell from './NewsDeskTenantTargetsCell'
 import { IconEye } from '../../ui/icons'
 
-function formatDate(iso) {
-  if (!iso) return '—'
+function shortUrl(url) {
+  if (!url) return null
   try {
-    return new Date(iso).toLocaleString()
+    const u = new URL(url)
+    return u.hostname.replace(/^www\./, '')
   } catch {
-    return iso
+    return String(url).slice(0, 32)
   }
 }
 
-function shortUrl(url) {
-  if (!url) return '—'
-  const s = String(url)
-  if (s.length <= 48) return s
-  return `${s.slice(0, 45)}…`
+function TableSkeleton() {
+  return (
+    <tbody className="divide-y divide-slate-100">
+      {[1, 2, 3, 4].map((i) => (
+        <tr key={i} className="animate-pulse">
+          <td className="px-4 py-4" colSpan={6}>
+            <div className="h-4 bg-slate-100 rounded w-3/4 mb-2" />
+            <div className="h-3 bg-slate-50 rounded w-1/2" />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  )
 }
 
-export default function NewsDeskJobTable({ items, loading, page, pageSize, total, onPageChange }) {
+function StatusStack({ row }) {
+  const job = String(row.syndicationStatus || 'DRAFT')
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <StatusBadge
+        status={formatPipelineLabel(row.extractionStatus)}
+        color={extractionStatusColor(row.extractionStatus)}
+      />
+      <span
+        className={`text-[10px] font-medium uppercase tracking-wide ${
+          job === 'PUBLISHED' ? 'text-emerald-700' : 'text-slate-500'
+        }`}
+      >
+        Job · {job.replace(/_/g, ' ')}
+      </span>
+    </div>
+  )
+}
+
+export default function NewsDeskJobTable({
+  items,
+  loading,
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  basePath = '/admin/news-room',
+}) {
   const router = useRouter()
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize))
 
   const openJob = (jobId) => {
-    if (jobId) router.push(`/admin/news-desk/${jobId}`)
+    if (jobId) router.push(`${basePath.replace(/\/$/, '')}/${jobId}`)
   }
 
   if (loading && !items.length) {
     return (
-      <div className="flex justify-center py-16">
-        <Spinner size="lg" />
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
+                <th className="px-4 py-3">Story</th>
+                <th className="px-4 py-3">Category</th>
+                <th className="px-4 py-3">Targets</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Created</th>
+                <th className="px-4 py-3 w-12" />
+              </tr>
+            </thead>
+            <TableSkeleton />
+          </table>
+        </div>
+        <div className="flex justify-center py-16 md:hidden">
+          <Spinner size="lg" />
+        </div>
       </div>
     )
   }
@@ -42,102 +97,120 @@ export default function NewsDeskJobTable({ items, loading, page, pageSize, total
       <EmptyState
         title="No News Desk submissions"
         subtitle="Try adjusting filters or create a new intake."
-        className="py-16"
+        className="py-20 rounded-xl border border-slate-200 bg-white"
       />
     )
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-      {/* Mobile card list */}
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between gap-3 px-4 py-2.5 border-b border-slate-100 bg-white">
+        <p className="text-sm font-semibold text-slate-900">Submissions</p>
+        <p className="text-xs text-slate-500 tabular-nums">
+          {loading ? '…' : `${total} total`}
+        </p>
+      </div>
+
       <ul className="md:hidden divide-y divide-slate-100">
         {items.map((row) => (
           <li key={row.jobId}>
             <button
               type="button"
-              className="w-full text-left px-4 py-4 hover:bg-slate-50"
+              className="w-full text-left px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 transition-colors"
               onClick={() => openJob(row.jobId)}
             >
-              <p className="font-semibold text-slate-900 line-clamp-2">{row.headline || 'Untitled'}</p>
-              <p className="text-xs text-slate-500 mt-1">{row.categoryName || '—'}</p>
-              <div className="flex flex-wrap gap-2 mt-2">
-                <StatusBadge
-                  status={formatPipelineLabel(row.extractionStatus)}
-                  color={extractionStatusColor(row.extractionStatus)}
-                />
-                <StatusBadge
-                  status={formatPipelineLabel(row.pipelineStatus)}
-                  color={pipelineStatusColor(row.pipelineStatus)}
-                />
+              <p className="font-semibold text-slate-900 line-clamp-2 text-[15px] leading-snug">
+                {displayHeadline(row)}
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                {row.categoryName || '—'} · {formatDeskDate(row.createdAt)}
+              </p>
+              <div className="mt-2">
+                <NewsDeskTenantTargetsCell tenants={row.targetTenants} stopPropagation={false} />
               </div>
-              <p className="text-xs text-slate-400 mt-2">{formatDate(row.createdAt)}</p>
+              <div className="mt-2">
+                <StatusStack row={row} />
+              </div>
             </button>
           </li>
         ))}
       </ul>
 
       <div className="hidden md:block overflow-x-auto">
-        <table className="min-w-full text-sm">
+        <table className="min-w-full text-sm table-fixed w-full">
+          <colgroup>
+            <col className="w-[min(36%,420px)]" />
+            <col className="w-[12%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[10%]" />
+            <col className="w-[48px]" />
+          </colgroup>
           <thead>
-            <tr className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-              <th className="px-4 py-3">Headline</th>
-              <th className="px-4 py-3">Category</th>
-              <th className="px-4 py-3 hidden lg:table-cell">Source</th>
-              <th className="px-4 py-3">Extraction</th>
-              <th className="px-4 py-3 hidden md:table-cell">Pipeline</th>
-              <th className="px-4 py-3 hidden xl:table-cell">Created</th>
-              <th className="px-4 py-3 hidden xl:table-cell">Updated</th>
-              <th className="px-4 py-3 text-right">Action</th>
+            <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-slate-100">
+              <th className="px-4 py-2.5">Story</th>
+              <th className="px-4 py-2.5">Category</th>
+              <th className="px-4 py-2.5">Targets</th>
+              <th className="px-4 py-2.5">Status</th>
+              <th className="px-4 py-2.5">Created</th>
+              <th className="px-2 py-2.5" aria-label="Actions" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {items.map((row) => (
-              <tr
-                key={row.jobId}
-                className="hover:bg-slate-50/80 cursor-pointer"
-                onClick={() => openJob(row.jobId)}
-              >
-                <td className="px-4 py-3 font-medium text-slate-900 max-w-xs">
-                  <span className="line-clamp-2">{row.headline || 'Untitled'}</span>
-                </td>
-                <td className="px-4 py-3 text-slate-600">{row.categoryName || '—'}</td>
-                <td className="px-4 py-3 text-slate-500 hidden lg:table-cell max-w-[10rem] truncate" title={row.sourceUrl || ''}>
-                  {shortUrl(row.sourceUrl)}
-                </td>
-                <td className="px-4 py-3">
-                  <StatusBadge
-                    status={formatPipelineLabel(row.extractionStatus)}
-                    color={extractionStatusColor(row.extractionStatus)}
-                  />
-                </td>
-                <td className="px-4 py-3 hidden md:table-cell">
-                  <StatusBadge
-                    status={formatPipelineLabel(row.pipelineStatus)}
-                    color={pipelineStatusColor(row.pipelineStatus)}
-                  />
-                </td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap hidden xl:table-cell">
-                  {formatDate(row.createdAt)}
-                </td>
-                <td className="px-4 py-3 text-slate-500 whitespace-nowrap hidden xl:table-cell">
-                  {formatDate(row.updatedAt)}
-                </td>
-                <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  <Link href={`/admin/news-desk/${row.jobId}`}>
-                    <Button type="button" variant="outline" className="!py-1.5 !px-3 text-xs">
-                      <IconEye className="w-4 h-4 mr-1" />
-                      View
-                    </Button>
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {items.map((row) => {
+              const source = shortUrl(row.sourceUrl)
+              return (
+                <tr
+                  key={row.jobId}
+                  className="group hover:bg-slate-50/80 cursor-pointer transition-colors"
+                  onClick={() => openJob(row.jobId)}
+                >
+                  <td className="px-4 py-3 align-middle">
+                    <p className="font-medium text-slate-900 line-clamp-2 leading-snug text-[13px] group-hover:text-brand">
+                      {displayHeadline(row)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-slate-500">
+                      {source ? <span className="truncate max-w-[8rem]">{source}</span> : null}
+                      <span className="text-slate-300">·</span>
+                      <span className="font-mono text-slate-400 truncate" title={row.jobId}>
+                        {row.jobId.slice(0, 8)}…
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 align-middle text-xs whitespace-nowrap">
+                    {row.categoryName || '—'}
+                  </td>
+                  <td className="px-4 py-3 align-middle" onClick={(e) => e.stopPropagation()}>
+                    <NewsDeskTenantTargetsCell tenants={row.targetTenants} />
+                  </td>
+                  <td className="px-4 py-3 align-middle">
+                    <StatusStack row={row} />
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 align-middle text-xs whitespace-nowrap tabular-nums">
+                    {formatDeskDate(row.createdAt)}
+                  </td>
+                  <td className="px-2 py-3 text-right align-middle" onClick={(e) => e.stopPropagation()}>
+                    <Link href={`${basePath.replace(/\/$/, '')}/${row.jobId}`}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="!p-2 min-w-[36px] min-h-[36px]"
+                        aria-label="View submission"
+                      >
+                        <IconEye className="w-4 h-4" />
+                      </Button>
+                    </Link>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100">
-        <p className="text-xs text-slate-500">
-          {total} total · page {page} of {totalPages}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-t border-slate-100 bg-slate-50/40">
+        <p className="text-xs text-slate-500 tabular-nums">
+          Page {page} of {totalPages}
         </p>
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={onPageChange} />
       </div>

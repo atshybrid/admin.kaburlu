@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { logout } from '../../../utils/auth'
+import { epaperAdminApi } from '../../../lib/api/services/epaperAdminApi'
+import { friendlyApiError } from '../../../lib/api/friendlyApiError'
 
 function generateSlug(name) {
   return String(name || '')
@@ -46,30 +48,19 @@ export default function TenantEditionsTab({ tenantContext }) {
   const [subEditionSeoKeywords, setSubEditionSeoKeywords] = useState('')
   const [subEditionSlugTouched, setSubEditionSlugTouched] = useState(false)
 
-  async function fetchWithAuth(url, options = {}) {
-    const res = await fetch(url, options)
-    if (res.status === 401) {
-      logout()
-      router.push('/')
-      throw new Error('Unauthorized. Redirecting to login...')
-    }
-    if (!res.ok) {
-      const txt = await res.text()
-      throw new Error(txt || `Error ${res.status}`)
-    }
-    return res
-  }
-
   async function loadEditions() {
     if (!tenantId) return
     setBusy(true)
     setError('')
     try {
-      const res = await fetchWithAuth(`/api/admin/proxy/api/v1/epaper/publication-editions?includeSubEditions=true&includeDeleted=false&tenantId=${tenantId}`)
-      const data = await res.json()
-      setEditions(data.items || [])
+      const data = await epaperAdminApi.listPublicationEditions(tenantId, true)
+      setEditions(data?.items || [])
     } catch (e) {
-      setError(e?.message || String(e))
+      if (String(e?.message || '').includes('401')) {
+        logout()
+        router.push('/')
+      }
+      setError(friendlyApiError(e))
     } finally {
       setBusy(false)
     }
@@ -92,20 +83,10 @@ export default function TenantEditionsTab({ tenantContext }) {
       }
 
       if (editingEdition) {
-        // Update
-        await fetchWithAuth(`/api/admin/proxy/api/v1/epaper/publication-editions/${editingEdition.id}?tenantId=${tenantId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        await epaperAdminApi.updatePublicationEdition(tenantId, editingEdition.id, payload)
         setSuccess('Edition updated successfully')
       } else {
-        // Create
-        await fetchWithAuth(`/api/admin/proxy/api/v1/epaper/publication-editions?tenantId=${tenantId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        await epaperAdminApi.createPublicationEdition(tenantId, payload)
         setSuccess('Edition created successfully')
       }
 
@@ -114,7 +95,7 @@ export default function TenantEditionsTab({ tenantContext }) {
       await loadEditions()
       setTimeout(() => setSuccess(''), 3000)
     } catch (e) {
-      setError(e?.message || String(e))
+      setError(friendlyApiError(e))
     } finally {
       setBusy(false)
     }
@@ -138,20 +119,10 @@ export default function TenantEditionsTab({ tenantContext }) {
       }
 
       if (editingSubEdition) {
-        // Update
-        await fetchWithAuth(`/api/admin/proxy/api/v1/epaper/publication-editions/${parentEditionId}/sub-editions/${editingSubEdition.id}?tenantId=${tenantId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        await epaperAdminApi.updateSubEdition(tenantId, parentEditionId, editingSubEdition.id, payload)
         setSuccess('Sub-edition updated successfully')
       } else {
-        // Create
-        await fetchWithAuth(`/api/admin/proxy/api/v1/epaper/publication-editions/${parentEditionId}/sub-editions?tenantId=${tenantId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
+        await epaperAdminApi.createSubEdition(tenantId, parentEditionId, payload)
         setSuccess('Sub-edition created successfully')
       }
 
@@ -160,7 +131,7 @@ export default function TenantEditionsTab({ tenantContext }) {
       await loadEditions()
       setTimeout(() => setSuccess(''), 3000)
     } catch (e) {
-      setError(e?.message || String(e))
+      setError(friendlyApiError(e))
     } finally {
       setBusy(false)
     }

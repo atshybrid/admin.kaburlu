@@ -15,6 +15,7 @@ const MOBILE_SECTIONS = [
   { title: 'Tenant Management', navKey: 'tenants' },
   { title: 'Journalist Union', navKey: 'journalist' },
   { title: 'Political Parties', navKey: 'political' },
+  { title: 'News Room', navKey: 'newsRoom' },
   { title: 'Short News (Platform)', navKey: 'platform' },
   { title: 'Settings', navKey: 'settings' },
 ]

@@ -5,6 +5,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { adsApi } from '../../../lib/api/tenantApi'
+import WebnewsAdsStudio from '../WebnewsAdsStudio'
 
 // Ad slot definitions for Style1 and Style2 layouts
 const STYLE1_SLOTS = [
@@ -57,7 +58,8 @@ function normalizeSlotsMap(slots) {
 }
 
 export default function TenantAdsTab({ tenantContext }) {
-  const { tenant } = tenantContext
+  const { tenant, domains = [] } = tenantContext || {}
+  const [surface, setSurface] = useState('webnews')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -176,6 +178,21 @@ export default function TenantAdsTab({ tenantContext }) {
 
   const currentSlots = activeStyle === 'style1' ? STYLE1_SLOTS : STYLE2_SLOTS
 
+  if (surface === 'webnews') {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Advertisement Settings</h2>
+            <p className="text-sm text-slate-500">Live site preview · upload · start/end dates · AdSense</p>
+          </div>
+          <motionSurfaceTabs surface={surface} onChange={setSurface} />
+        </div>
+        <WebnewsAdsStudio tenant={tenant} domains={domains} />
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -187,11 +204,12 @@ export default function TenantAdsTab({ tenantContext }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Advertisement Settings</h2>
-          <p className="text-sm text-slate-500">Configure ad slots for homepage layouts</p>
+          <p className="text-sm text-slate-500">Legacy homepage Style 1 / 2 slot map (old stack)</p>
         </div>
+        <motionSurfaceTabs surface={surface} onChange={setSurface} />
       </div>
 
       {error && (
@@ -464,12 +482,37 @@ export default function TenantAdsTab({ tenantContext }) {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
         <h4 className="font-medium text-blue-900 text-sm mb-2">💡 Tips</h4>
         <ul className="text-sm text-blue-800 space-y-1">
+          <li>• <strong>Webnews v2</strong> tab lo live site placements + schedule + preview ఉన్నాయి — కొత్త tenants కోసం అదే use చేయండి</li>
           <li>• <strong>Style 1</strong> is the classic layout with sidebar - best for traditional news sites</li>
           <li>• <strong>Style 2</strong> is the modern grid layout - best for magazine-style sites</li>
-          <li>• Configure ad slots for the homepage style you&apos;re using in Homepage Settings</li>
           <li>• AdSense ads auto-adjust to slot dimensions, custom images should match recommended sizes</li>
         </ul>
       </div>
+    </div>
+  )
+}
+
+function motionSurfaceTabs({ surface, onChange }) {
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => onChange('webnews')}
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          surface === 'webnews' ? 'bg-brand text-white' : 'bg-slate-100 text-slate-700'
+        }`}
+      >
+        Webnews v2
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('legacy')}
+        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
+          surface === 'legacy' ? 'bg-brand text-white' : 'bg-slate-100 text-slate-700'
+        }`}
+      >
+        Legacy Style 1/2
+      </button>
     </div>
   )
 }

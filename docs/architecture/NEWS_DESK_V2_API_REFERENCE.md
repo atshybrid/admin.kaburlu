@@ -3,6 +3,12 @@
 **Canonical sample JSON (flows A–D, errors):**  
 Backend repo: `kaburlu_media_backend/docs/architecture/NEWS_DESK_V2_API_SAMPLES.json`
 
+**Postman (this repo):** [NEWS_DESK_W2_POSTMAN_EXAMPLES.json](./NEWS_DESK_W2_POSTMAN_EXAMPLES.json) — includes analytics + `staff/me`.
+
+**Team handoff (WhatsApp + Cursor medium prompt):** [docs/frontend/NEWS_DESK_TEAM_HANDOFF.md](../frontend/NEWS_DESK_TEAM_HANDOFF.md)
+
+**Cursor / AI prompt (full checklists + JSON):** [docs/frontend/NEWS_DESK_ADMIN_FRONTEND_PROMPT.md](../frontend/NEWS_DESK_ADMIN_FRONTEND_PROMPT.md)
+
 **Admin implementation map**
 
 | Flow step | API | Frontend |
@@ -13,6 +19,8 @@ Backend repo: `kaburlu_media_backend/docs/architecture/NEWS_DESK_V2_API_SAMPLES.
 | A.4 Poll facts | `GET …/jobs/:id/facts` | `useFactsPolling` on detail |
 | A.5 Snapshot | `GET /platform/newsdesk/jobs/:id/snapshot` | `NewsDeskOriginalPanel` (not `job.rawText`) |
 | B List | `GET /platform/newsdesk/jobs` | Dashboard table + filters |
+| B KPI | `GET /platform/newsdesk/analytics` | Dashboard stat cards |
+| B scope | `GET /platform/newsdesk/staff/me` | Create — tenant lock / defaults |
 | C Retry | `POST …/pipeline/retry-extraction` | Detail **Retry extraction** |
 | D Parallel | snapshot + pipeline + facts | `NewsDeskDetailView` `loadAll` |
 

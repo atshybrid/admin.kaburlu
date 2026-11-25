@@ -88,7 +88,7 @@ export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFil
 
   if (view === 'collapsed') {
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-emerald-900">✓ Desk brief applied</p>
           <p className="text-xs text-emerald-800/90 truncate mt-0.5" title={lastApplied}>
@@ -108,7 +108,7 @@ export default function NewsDeskStructuredPaste({ disabled, onParse, onUploadFil
   }
 
   return (
-    <div className="rounded-2xl border border-brand/25 bg-brand/[0.04] p-5 space-y-3">
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4 md:p-5 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-bold text-slate-900">Quick paste (one box)</h2>

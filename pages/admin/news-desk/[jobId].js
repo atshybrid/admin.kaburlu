@@ -9,7 +9,7 @@ export default function NewsDeskDetailPage() {
   return (
     <DashboardLayout title="News Desk review">
       {router.isReady && jobId ? (
-        <NewsDeskDetailView jobId={jobId} />
+        <NewsDeskDetailView jobId={jobId} basePath="/admin/news-desk" />
       ) : null}
     </DashboardLayout>
   )

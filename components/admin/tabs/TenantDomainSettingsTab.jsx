@@ -4,16 +4,16 @@
  */
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { getToken } from '../../../utils/auth'
-import { ThemeStylePicker } from '../ThemeStylePicker'
-import { normalizeThemeStyleId } from '../../../lib/newsThemeCatalog'
+import WhitelabelThemeStudio from '../WhitelabelThemeStudio'
+import ThemeDualPreview from '../ThemeDualPreview'
+import { normalizeThemeStyleId, webnewsLocalPreviewUrl } from '../../../lib/newsThemeCatalog'
+import { resolveTeluguFontsFromConfig } from '../../../lib/webnewsTeluguFonts'
+import WebnewsTypographyPicker from '../WebnewsTypographyPicker'
+import WebnewsBrandingShellSection from '../WebnewsBrandingShellSection'
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
-const GOOGLE_FONTS = [
-  'Inter', 'Roboto', 'Open Sans', 'Lato', 'Poppins', 'Montserrat',
-  'Nunito', 'Raleway', 'Merriweather', 'Playfair Display', 'Noto Sans', 'Noto Serif',
-]
 
 const HEADER_STYLES = [
   { value: 'classic', label: 'Classic' },
@@ -240,7 +240,7 @@ function ImageUpload({ label, value, onChange, onUpload, uploading, previewVersi
 // MAIN COMPONENT
 // ============================================================================
 export default function TenantDomainSettingsTab({ tenantContext }) {
-  const { tenantId, domains = [] } = tenantContext || {}
+  const { tenantId, tenant, domains = [] } = tenantContext || {}
   
   // Domain selection
   const primaryDomain = useMemo(() => domains.find(d => d.isPrimary) || domains[0], [domains])
@@ -262,18 +262,43 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   const [allCategories, setAllCategories] = useState([])
   
   // =========== APPEARANCE ===========
-  const [themeStyle, setThemeStyle] = useState('style1')
+  /** Legacy 04-news API only — loaded from DB, not edited on this screen (prod-safe). */
+  const [legacyThemeStyle, setLegacyThemeStyle] = useState('style1')
   const [logoUrl, setLogoUrl] = useState('')
   const [faviconUrl, setFaviconUrl] = useState('')
   const [primaryColor, setPrimaryColor] = useState('#3b82f6')
   const [secondaryColor, setSecondaryColor] = useState('#64748b')
   const [accentColor, setAccentColor] = useState('#10b981')
-  const [fontFamily, setFontFamily] = useState('Inter')
+  const [headingFont, setHeadingFont] = useState('Ramabhadra')
+  const [bodyFont, setBodyFont] = useState('Noto Sans Telugu')
   const [headerStyle, setHeaderStyle] = useState('classic')
   const [footerStyle, setFooterStyle] = useState('minimal')
-  const [showTopBar, setShowTopBar] = useState(false)
+  const [showTopBar, setShowTopBar] = useState(true)
   const [showTicker, setShowTicker] = useState(false)
-  
+  const [webnewsThemeVersion, setWebnewsThemeVersion] = useState('v2')
+  const [webnewsLayout, setWebnewsLayout] = useState('classic')
+  const [webnewsClassicPreset, setWebnewsClassicPreset] = useState('auto')
+  const [webnewsFestivalThemes, setWebnewsFestivalThemes] = useState(true)
+  const [webnewsMode, setWebnewsMode] = useState('normal')
+  const [logoDisplay, setLogoDisplay] = useState('te-name')
+  const [logoHeight, setLogoHeight] = useState(56)
+  const [logoAlign, setLogoAlign] = useState('center')
+  const [headerRightImageUrl, setHeaderRightImageUrl] = useState('')
+  const [headerRightImageHref, setHeaderRightImageHref] = useState('')
+  const [festivalLogoUrl, setFestivalLogoUrl] = useState('')
+  const [mastStyle, setMastStyle] = useState('centered')
+  const [navStyle, setNavStyle] = useState('plain')
+  const [bgColor, setBgColor] = useState('#FAF7F2')
+  const [surfaceColor, setSurfaceColor] = useState('#FFFFFF')
+  const [textColor, setTextColor] = useState('#1A1A1A')
+  const [borderColor, setBorderColor] = useState('#E3DCD0')
+  const [themeRadius, setThemeRadius] = useState('0px')
+  const [contactEmail, setContactEmail] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [contactWhatsapp, setContactWhatsapp] = useState('')
+  const [contactAddress, setContactAddress] = useState('')
+  const [contactHours, setContactHours] = useState('')
+
   // =========== NAVIGATION ===========
   const [menuItems, setMenuItems] = useState([])
   
@@ -397,9 +422,11 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
         })
       }
       
+      let effective = {}
       if (res.ok) {
         const data = await res.json()
         cfg = data?.settings || data || {}
+        effective = data?.effective || {}
       } else if (res.status !== 404) {
         throw new Error(`Failed to load: ${res.status}`)
       }
@@ -418,17 +445,44 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
       }
       
       // Populate state with safe defaults
-      setThemeStyle(normalizeThemeStyleId(cfg?.themeStyle || 'style1'))
-      setLogoUrl(cfg?.branding?.logoUrl || '')
-      setFaviconUrl(cfg?.branding?.faviconUrl || '')
+      setLegacyThemeStyle(normalizeThemeStyleId(cfg?.themeStyle || 'style1'))
+      setLogoUrl(cfg?.branding?.logoUrl || effective?.branding?.logoUrl || '')
+      setFaviconUrl(cfg?.branding?.faviconUrl || effective?.branding?.faviconUrl || '')
       setPrimaryColor(cfg?.theme?.colors?.primary || '#3b82f6')
       setSecondaryColor(cfg?.theme?.colors?.secondary || '#64748b')
       setAccentColor(cfg?.theme?.colors?.accent || '#10b981')
-      setFontFamily(cfg?.theme?.typography?.fontFamily?.split(',')[0]?.trim() || 'Inter')
+      const lang = cfg?.content?.defaultLanguage || 'en'
+      const langs = cfg?.content?.supportedLanguages || ['en']
+      const fonts = resolveTeluguFontsFromConfig(cfg, { defaultLanguage: lang, supportedLanguages: langs })
+      setHeadingFont(fonts.headingFont)
+      setBodyFont(fonts.bodyFont)
       setHeaderStyle(cfg?.theme?.layout?.header || 'classic')
-      setFooterStyle(cfg?.theme?.layout?.footer || 'minimal')
-      setShowTopBar(cfg?.theme?.layout?.showTopBar || false)
+      setFooterStyle(cfg?.footerStyle || cfg?.theme?.layout?.footer || 'minimal')
+      setShowTopBar(cfg?.chrome?.showTopBar ?? cfg?.theme?.layout?.showTopBar ?? true)
       setShowTicker(cfg?.theme?.layout?.showTicker || false)
+      setWebnewsThemeVersion(cfg?.themeVersion || cfg?.style2?.themeVersion || 'v2')
+      setWebnewsLayout(cfg?.layout || cfg?.style2?.layout || 'classic')
+      setWebnewsClassicPreset(cfg?.classic?.preset || cfg?.style2?.classic?.preset || 'auto')
+      setWebnewsFestivalThemes(cfg?.festivalThemes ?? cfg?.style2?.festivalThemes ?? true)
+      setWebnewsMode(cfg?.mode || cfg?.style2?.mode || 'normal')
+      setLogoDisplay(cfg?.branding?.header?.display || 'te-name')
+      setLogoHeight(cfg?.branding?.header?.logoHeightPx || 56)
+      setLogoAlign(cfg?.branding?.header?.align || 'center')
+      setHeaderRightImageUrl(cfg?.branding?.header?.rightImageUrl || '')
+      setHeaderRightImageHref(cfg?.branding?.header?.rightImageHref || '')
+      setFestivalLogoUrl(cfg?.branding?.header?.festivalLogoUrl || '')
+      setMastStyle(cfg?.branding?.header?.mast || cfg?.classic?.mast || 'centered')
+      setNavStyle(cfg?.navigation?.style || cfg?.classic?.nav || 'plain')
+      setBgColor(cfg?.theme?.colors?.bg || '#FAF7F2')
+      setSurfaceColor(cfg?.theme?.colors?.surface || '#FFFFFF')
+      setTextColor(cfg?.theme?.colors?.text || '#1A1A1A')
+      setBorderColor(cfg?.theme?.colors?.border || '#E3DCD0')
+      setThemeRadius(cfg?.theme?.radius || '0px')
+      setContactEmail(cfg?.contact?.email || '')
+      setContactPhone(cfg?.contact?.phone || '')
+      setContactWhatsapp(cfg?.contact?.whatsapp || '')
+      setContactAddress(cfg?.contact?.address || '')
+      setContactHours(cfg?.contact?.hours || '')
       setMenuItems(cfg?.navigation?.menu || [])
       setDefaultLanguage(cfg?.content?.defaultLanguage || 'en')
       setSupportedLanguages(cfg?.content?.supportedLanguages || ['en'])
@@ -487,7 +541,13 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     },
     theme: {
       colors: { primary: primaryColor, secondary: secondaryColor, accent: accentColor },
-      typography: { fontFamily: `${fontFamily}, Arial, sans-serif` },
+      typography: {
+        headingFont,
+        bodyFont,
+        fontFamily: `${bodyFont}, system-ui, sans-serif`,
+      },
+      headingFont,
+      bodyFont,
     },
     layout: {
       header: headerStyle,
@@ -553,7 +613,7 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     },
   }), [
     epaperType, multiEditionEnabled, logoUrl, faviconUrl, siteName,
-    primaryColor, secondaryColor, accentColor, fontFamily, headerStyle, footerStyle,
+    primaryColor, secondaryColor, accentColor, headingFont, bodyFont, headerStyle, footerStyle,
     showTicker, showTopBar, notificationsEnabled, webPushVapidPublicKey,
     canonicalUrl, metaTitle, metaDescription, keywords, ogImageUrl, ogTitle,
     ogDescription, homepageH1, tagline, robots, sitemapEnabled, organizationName,
@@ -564,14 +624,57 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   ])
   
   const buildCurrentConfig = useCallback(() => ({
-    themeStyle,
-    branding: { logoUrl: logoUrl || null, faviconUrl: faviconUrl || null },
-    theme: {
-      colors: { primary: primaryColor, secondary: secondaryColor, accent: accentColor },
-      typography: { fontFamily: `${fontFamily}, Arial, sans-serif` },
-      layout: { header: headerStyle, footer: footerStyle, showTopBar, showTicker, style: themeStyle },
+    // Preserve legacy homepage API style until old stack is retired (no UI here).
+    themeStyle: legacyThemeStyle,
+    themeVersion: webnewsThemeVersion,
+    layout: webnewsLayout,
+    classic: { preset: webnewsClassicPreset, mast: mastStyle, nav: navStyle },
+    festivalThemes: webnewsFestivalThemes,
+    mode: webnewsMode,
+    footerStyle,
+    chrome: { showTicker, showTopBar },
+    branding: {
+      logoUrl: logoUrl || null,
+      faviconUrl: faviconUrl || null,
+      header: {
+        display: logoDisplay,
+        logoHeightPx: logoHeight,
+        mast: mastStyle,
+        align: logoAlign,
+        rightImageUrl: headerRightImageUrl || null,
+        rightImageHref: headerRightImageHref || null,
+        festivalLogoUrl: festivalLogoUrl || null,
+      },
     },
-    navigation: { menu: menuItems },
+    contact: {
+      email: contactEmail || null,
+      phone: contactPhone || null,
+      whatsapp: contactWhatsapp || null,
+      address: contactAddress || null,
+      hours: contactHours || null,
+    },
+    theme: {
+      colors: {
+        primary: primaryColor,
+        secondary: secondaryColor,
+        accent: accentColor,
+        bg: bgColor,
+        surface: surfaceColor,
+        text: textColor,
+        muted: secondaryColor,
+        border: borderColor,
+      },
+      radius: themeRadius,
+      typography: {
+        headingFont,
+        bodyFont,
+        fontFamily: `${bodyFont}, system-ui, sans-serif`,
+      },
+      headingFont,
+      bodyFont,
+      layout: { header: headerStyle, footer: footerStyle, showTopBar, showTicker, style: legacyThemeStyle },
+    },
+    navigation: { menu: menuItems, style: navStyle },
     content: { defaultLanguage, supportedLanguages },
     seo: {
       defaultMetaTitle: metaTitle || null,
@@ -627,8 +730,12 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
     flags: { enableComments, enableBookmarks },
     customCss: customCss || null,
   }), [
-    themeStyle, logoUrl, faviconUrl, primaryColor, secondaryColor, accentColor,
-    fontFamily, headerStyle, footerStyle, showTopBar, showTicker, menuItems,
+    legacyThemeStyle, webnewsThemeVersion, webnewsLayout, webnewsClassicPreset, webnewsFestivalThemes, webnewsMode,
+    logoUrl, faviconUrl, primaryColor, secondaryColor, accentColor, bgColor, surfaceColor, textColor,
+    logoDisplay, logoHeight, logoAlign, headerRightImageUrl, headerRightImageHref, festivalLogoUrl,
+    mastStyle, navStyle, borderColor, themeRadius, footerStyle,
+    contactEmail, contactPhone, contactWhatsapp, contactAddress, contactHours,
+    headingFont, bodyFont, headerStyle, footerStyle, showTopBar, showTicker, menuItems,
     defaultLanguage, supportedLanguages, metaTitle, metaDescription, ogImageUrl,
     canonicalUrl, ogTitle, ogDescription, keywords, tagline, homepageH1,
     robots, robotsTxt, socialLinks, sitemapEnabled, analyticsId, googleTagManagerId,
@@ -842,17 +949,126 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
   
   // =========== TAB CONTENT ===========
   const renderAppearanceTab = () => (
-    <div className="space-y-6">
-      <Section title="Homepage Theme" description="Publisher-inspired layout — Sakshi, TOI, TV9, Samayam styles. Each tenant domain can use a different theme.">
-        <ThemeStylePicker value={themeStyle} onChange={setThemeStyle} />
-        <p className="text-xs text-slate-500 mt-3">
-          Stored as <code className="font-mono bg-slate-100 px-1 rounded">themeStyle</code> in domain settings.
-          Preview: <code className="font-mono bg-slate-100 px-1 rounded">/news?tenant=yourdomain.com</code>
+    <div className="space-y-4 max-w-4xl">
+      <div className="rounded-xl border border-brand/20 bg-gradient-to-br from-brand/5 to-white p-4">
+        <h3 className="text-sm font-bold text-slate-900">Webnews theme</h3>
+        <p className="text-xs text-slate-600 mt-1">
+          Preview (live) → steps <span className="font-mono">1–7</span> → <strong>Save domain settings</strong>. Homepage sections Webnews v2 లో automatic — separate Homepage tab లేదు.
         </p>
-      </Section>
-      
-      <Section title="Branding" description="Logo and favicon for the website">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="flex flex-wrap gap-2 mt-3">
+          {['1 v2', '2 layout', '3 header', '4 colors', '5 fonts', '6 contact', '7 logo'].map((chip) => (
+            <span key={chip} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600">
+              {chip}
+            </span>
+          ))}
+        </div>
+      </div>
+      <ThemeDualPreview
+        tenantSlug={tenant?.slug}
+        webnewsMode={webnewsMode}
+        liveUrl={tenant?.slug ? webnewsLocalPreviewUrl(tenant.slug) : 'http://localhost:3002'}
+        layout={webnewsLayout}
+        layoutLabel={webnewsLayout}
+        v2Enabled={webnewsThemeVersion === 'v2'}
+        nameTe={tenant?.nativeName || tenant?.name}
+        tagline={tagline}
+        logoUrl={logoUrl}
+        logoDisplay={logoDisplay}
+        logoHeight={logoHeight}
+        logoAlign={logoAlign}
+        festivalLogoUrl={festivalLogoUrl}
+        headerRightImageUrl={headerRightImageUrl}
+        mastStyle={mastStyle}
+        navStyle={navStyle}
+        primary={primaryColor}
+        accent={accentColor}
+        bg={bgColor}
+        surface={surfaceColor}
+        text={textColor}
+        headingFont={headingFont}
+        bodyFont={bodyFont}
+        defaultLanguage={defaultLanguage}
+        supportedLanguages={supportedLanguages}
+        showTicker={showTicker}
+        showTopBar={showTopBar}
+        footerStyle={footerStyle}
+        radius={themeRadius}
+        border={borderColor}
+        festivalOn={webnewsFestivalThemes && webnewsMode === 'normal'}
+        navItems={menuItems}
+      />
+
+      <WhitelabelThemeStudio
+        webnewsLayout={webnewsLayout}
+        onLayoutChange={setWebnewsLayout}
+        webnewsThemeVersion={webnewsThemeVersion}
+        onEnableV2={() => setWebnewsThemeVersion('v2')}
+        classicPreset={webnewsClassicPreset}
+        onClassicPresetChange={setWebnewsClassicPreset}
+        tenantSlug={tenant?.slug}
+        tenantNameTe={tenant?.nativeName || tenant?.name}
+        tagline={tagline}
+        previewUrl={tenant?.slug ? webnewsLocalPreviewUrl(tenant.slug) : undefined}
+        logoUrl={logoUrl}
+        logoDisplay={logoDisplay}
+        onLogoDisplayChange={setLogoDisplay}
+        logoHeight={logoHeight}
+        onLogoHeightChange={setLogoHeight}
+        mastStyle={mastStyle}
+        onMastStyleChange={setMastStyle}
+        logoAlign={logoAlign}
+        onLogoAlignChange={setLogoAlign}
+        headerRightImageUrl={headerRightImageUrl}
+        onHeaderRightImageUrlChange={setHeaderRightImageUrl}
+        headerRightImageHref={headerRightImageHref}
+        onHeaderRightImageHrefChange={setHeaderRightImageHref}
+        festivalLogoUrl={festivalLogoUrl}
+        onFestivalLogoUrlChange={setFestivalLogoUrl}
+        onUploadHeaderRightImage={(f) => uploadImage(f, 'header-promo', setHeaderRightImageUrl)}
+        onUploadFestivalLogo={(f) => uploadImage(f, 'festival-logo', setFestivalLogoUrl)}
+        uploadingHeaderRight={uploadingAsset === 'header-promo'}
+        uploadingFestivalLogo={uploadingAsset === 'festival-logo'}
+        navStyle={navStyle}
+        onNavStyleChange={setNavStyle}
+        primaryColor={primaryColor}
+        onPrimaryColorChange={setPrimaryColor}
+        secondaryColor={secondaryColor}
+        onSecondaryColorChange={setSecondaryColor}
+        accentColor={accentColor}
+        onAccentColorChange={setAccentColor}
+        bgColor={bgColor}
+        onBgColorChange={setBgColor}
+        surfaceColor={surfaceColor}
+        onSurfaceColorChange={setSurfaceColor}
+        textColor={textColor}
+        onTextColorChange={setTextColor}
+        headingFont={headingFont}
+        bodyFont={bodyFont}
+        onHeadingFontChange={setHeadingFont}
+        onBodyFontChange={setBodyFont}
+        defaultLanguage={defaultLanguage}
+        supportedLanguages={supportedLanguages}
+        showTicker={showTicker}
+        onShowTickerChange={setShowTicker}
+        festivalThemes={webnewsFestivalThemes}
+        onFestivalThemesChange={setWebnewsFestivalThemes}
+        webnewsMode={webnewsMode}
+        onModeChange={setWebnewsMode}
+        menuItems={menuItems}
+        contactEmail={contactEmail}
+        onContactEmailChange={setContactEmail}
+        contactPhone={contactPhone}
+        onContactPhoneChange={setContactPhone}
+        contactWhatsapp={contactWhatsapp}
+        onContactWhatsappChange={setContactWhatsapp}
+        contactAddress={contactAddress}
+        onContactAddressChange={setContactAddress}
+        contactHours={contactHours}
+        onContactHoursChange={setContactHours}
+      />
+
+      <WebnewsBrandingShellSection
+        logoSlot={(
           <ImageUpload
             label="Logo"
             value={logoUrl}
@@ -861,6 +1077,8 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             uploading={uploadingAsset === 'logo'}
             previewVersion={previewVersions.logo}
           />
+        )}
+        faviconSlot={(
           <ImageUpload
             label="Favicon"
             value={faviconUrl}
@@ -869,45 +1087,19 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
             uploading={uploadingAsset === 'favicon'}
             previewVersion={previewVersions.favicon}
           />
-        </div>
-      </Section>
-      
-      <Section title="Colors" description="Brand colors for the website">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ColorPicker label="Primary Color" value={primaryColor} onChange={setPrimaryColor} />
-          <ColorPicker label="Secondary Color" value={secondaryColor} onChange={setSecondaryColor} />
-          <ColorPicker label="Accent Color" value={accentColor} onChange={setAccentColor} />
-        </div>
-      </Section>
-      
-      <Section title="Typography" description="Font settings">
-        <FormField label="Font Family">
-          <Select
-            value={fontFamily}
-            onChange={setFontFamily}
-            options={GOOGLE_FONTS.map(f => ({ value: f, label: f }))}
-          />
-        </FormField>
-        <div className="mt-3 p-4 bg-slate-50 rounded-lg" style={{ fontFamily }}>
-          <p className="font-semibold">Preview: The quick brown fox</p>
-          <p className="text-slate-600">jumps over the lazy dog. 1234567890</p>
-        </div>
-      </Section>
-      
-      <Section title="Layout" description="Header and footer configuration">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField label="Header Style">
-            <Select value={headerStyle} onChange={setHeaderStyle} options={HEADER_STYLES} />
-          </FormField>
-          <FormField label="Footer Style">
-            <Select value={footerStyle} onChange={setFooterStyle} options={FOOTER_STYLES} />
-          </FormField>
-        </div>
-        <div className="flex flex-wrap gap-6 mt-4">
-          <Toggle label="Show Top Bar" checked={showTopBar} onChange={setShowTopBar} />
-          <Toggle label="Show News Ticker" checked={showTicker} onChange={setShowTicker} />
-        </div>
-      </Section>
+        )}
+        footerStyle={footerStyle}
+        onFooterStyleChange={setFooterStyle}
+        showTopBar={showTopBar}
+        onShowTopBarChange={setShowTopBar}
+        borderColor={borderColor}
+        onBorderColorChange={setBorderColor}
+        radius={themeRadius}
+        onRadiusChange={setThemeRadius}
+        showCustomCss
+        customCss={customCss}
+        onCustomCssChange={setCustomCss}
+      />
     </div>
   )
   
@@ -1315,14 +1507,16 @@ export default function TenantDomainSettingsTab({ tenantContext }) {
         </div>
       </Section>
       
-      <Section title="Typography" description="Font settings">
-        <FormField label="Font Family">
-          <Select
-            value={fontFamily}
-            onChange={setFontFamily}
-            options={GOOGLE_FONTS.map(f => ({ value: f, label: f }))}
-          />
-        </FormField>
+      <Section title="Typography" description="ePaper — Mandali / Noto Sans Telugu recommended">
+        <WebnewsTypographyPicker
+          headingFont={headingFont}
+          bodyFont={bodyFont}
+          onHeadingFontChange={setHeadingFont}
+          onBodyFontChange={setBodyFont}
+          defaultLanguage={defaultLanguage}
+          supportedLanguages={supportedLanguages}
+          compact
+        />
       </Section>
     </div>
   )

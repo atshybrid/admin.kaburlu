@@ -17,13 +17,17 @@
     "block08:test": "cd services/block08-engine && npm run test:render",
     "header-html:dev": "cd services/epaper-header-html && npm run dev",
     "header-html:start": "cd services/epaper-header-html && npm start",
-    "deploy:droplet": "bash scripts/deploy_droplet.sh"
+    "deploy": "bash scripts/deploy_disabled.sh",
+    "deploy:droplet": "bash scripts/deploy_disabled.sh",
+    "preflight:deploy": "bash scripts/preflight_deploy.sh",
+    "rollback:droplet": "bash scripts/deploy_disabled.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.7.1",
     "@mediapipe/tasks-vision": "^0.10.14",
     "@tanstack/react-query": "^5.101.4",
     "axios": "1.4.0",
+    "d3-geo": "^3.1.2",
     "docx": "^9.7.1",
     "fabric": "^6.6.1",
     "html-to-image": "^1.11.11",
@@ -42,6 +46,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@types/d3-geo": "^3.1.1",
+    "@types/geojson": "^7946.0.16",
     "@types/node": "25.2.0",
     "@types/react": "19.2.11",
     "autoprefixer": "^10.4.14",

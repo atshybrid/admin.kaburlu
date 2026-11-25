@@ -5,6 +5,7 @@
 import { useState } from 'react'
 import { getToken } from '../../../utils/auth'
 import TenantOnboardingGuide from '../TenantOnboardingGuide'
+import PrgiNumberEditor from '../PrgiNumberEditor'
 
 // Use local proxy to avoid CORS
 function getApiBase() {
@@ -85,14 +86,6 @@ export default function TenantOverviewTab({ tenantContext }) {
 
   const tenantApproved = isApprovedLike(tenant)
   const entityApproved = isApprovedLike(entity)
-  
-  // Debug: Log tenant status
-  console.log('🔍 Tenant Overview Debug:', {
-    tenantId,
-    prgiStatus: tenant?.prgiStatus,
-    isApproved: tenant?.isApproved,
-    tenantApproved,
-  })
   
   // Check if domain is verified/active
   const isDomainVerified = (domain) => {
@@ -268,15 +261,24 @@ export default function TenantOverviewTab({ tenantContext }) {
 
       {/* Basic Info */}
       <InfoCard title="Basic Information">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 mb-4">
           <Field label="Name" value={tenant?.name} />
           <Field label="Slug" value={tenant?.slug} />
-          <Field label="PRGI Number" value={tenant?.prgiNumber} />
           <div>
             <div className="text-xs text-slate-500 mb-1">Status</div>
             <StatusBadge status={tenant?.prgiStatus} />
           </div>
         </div>
+        {tenantId && (
+          <PrgiNumberEditor
+            tenantId={tenantId}
+            value={tenant?.prgiNumber || entity?.prgiNumber}
+            onSaved={() => {
+              refreshTenant?.()
+              refreshEntity?.()
+            }}
+          />
+        )}
       </InfoCard>
 
       {/* Entity Summary */}

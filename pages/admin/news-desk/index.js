@@ -4,7 +4,7 @@ import NewsDeskDashboardView from '../../../components/dashboard/newsDesk/NewsDe
 export default function NewsDeskPage() {
   return (
     <DashboardLayout title="News Desk">
-      <NewsDeskDashboardView />
+      <NewsDeskDashboardView basePath="/admin/news-desk" />
     </DashboardLayout>
   )
 }

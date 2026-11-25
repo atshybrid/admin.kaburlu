@@ -48,6 +48,13 @@ export const adminNavigation = {
       icon: IconUsers,
       roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
     },
+    {
+      key: 'reporters-map',
+      href: '/admin/reporters-map',
+      label: 'Reporter Coverage Map',
+      icon: IconMapPin,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN'],
+    },
     { key: 'ipr-empanelment', href: '/admin/ipr-empanelment', label: 'I&PR Empanelment', icon: IconFileText, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'categories', href: '/admin/categories', label: 'Categories', icon: IconFolder, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
     { key: 'languages', href: '/admin/languages', label: 'Languages', icon: IconGlobe, roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] },
@@ -70,11 +77,11 @@ export const adminNavigation = {
       roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN', 'DESK_EDITOR', 'DESKEDITOR', 'NEWSDESK', ...SYNDICATION_ROLES],
     },
     {
-      key: 'news-desk',
-      href: '/admin/news-desk',
-      label: 'News Desk',
-      icon: IconFileText,
-      roles: BACKEND_SYNDICATION_DESK_ROLES,
+      key: 'reporters-map',
+      href: '/admin/reporters-map',
+      label: 'Reporter Coverage Map',
+      icon: IconMapPin,
+      roles: ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'TENANT_ADMIN', 'TENANTADMIN'],
     },
     {
       key: 'news-cartoons',
@@ -153,6 +160,29 @@ export const adminNavigation = {
   settings: [
     { key: 'global-razorpay', href: '/admin/settings/razorpay', label: 'Global Razorpay', icon: IconCreditCard, roles: ['SUPER_ADMIN', 'SUPERADMIN'] },
   ],
+  newsRoom: [
+    {
+      key: 'news-room-posts',
+      href: '/admin/news-room',
+      label: 'Posts',
+      icon: IconFileText,
+      roles: BACKEND_SYNDICATION_DESK_ROLES,
+    },
+    {
+      key: 'news-room-post',
+      href: '/admin/news-room/post',
+      label: 'New post',
+      icon: IconNewspaper,
+      roles: BACKEND_SYNDICATION_DESK_ROLES,
+    },
+    {
+      key: 'news-room-settings',
+      href: '/admin/news-room/settings',
+      label: 'Settings',
+      icon: IconLayers,
+      roles: BACKEND_SYNDICATION_DESK_ROLES,
+    },
+  ],
 }
 
 export function normalizeRole(user) {
@@ -178,6 +208,7 @@ export function getFilteredAdminNavigation(user) {
     political: adminNavigation.political.filter(item => hasAccess(item, userRole)),
     platform: adminNavigation.platform.filter(item => hasAccess(item, userRole)),
     settings: adminNavigation.settings.filter(item => hasAccess(item, userRole)),
+    newsRoom: adminNavigation.newsRoom.filter(item => hasAccess(item, userRole)),
   }
 
   if (isPlatformDeskUser(user)) {
@@ -189,6 +220,7 @@ export function getFilteredAdminNavigation(user) {
       journalist: [],
       political: [],
       platform: navigation.platform,
+      newsRoom: navigation.newsRoom,
       settings: [],
     }
   }

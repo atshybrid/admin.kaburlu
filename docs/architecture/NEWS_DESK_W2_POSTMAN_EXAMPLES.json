@@ -1,0 +1,133 @@
+{
+  "info": {
+    "name": "News Desk W0–W2 + V1 (Platform Syndication V2)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Import into Postman. Variables: baseUrl, token, jobId, categoryId. Full JSON samples: NEWS_DESK_V2_API_SAMPLES.json (backend repo)"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.kaburlumedia.com/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "jobId", "value": "" },
+    { "key": "categoryId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "0 — Source preview",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceUrl\": \"https://www.eenadu.net/telugu-news/sample\"\n}"
+        },
+        "url": "{{baseUrl}}/platform/syndication/source-preview"
+      }
+    },
+    {
+      "name": "1 — V2 Create job (full sample)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rawText\": \"హైదరాబాద్: పరీక్ష వార్తా టెక్స్ట్ — 5W డేటా ఉంది.\",\n  \"headline\": \"పరీక్ష హెడ్‌లైన్\",\n  \"category\": { \"categoryId\": \"{{categoryId}}\" },\n  \"images\": [\"https://cdn.kaburlumedia.com/images/sample.webp\"],\n  \"sourceUrl\": \"https://www.eenadu.net/telugu-news/sample\",\n  \"sourceAttribution\": { \"type\": \"DESK\" },\n  \"locationHint\": { \"district\": \"Hyderabad\", \"area\": \"Test\" },\n  \"tenants\": [],\n  \"options\": { \"newsDeskPipelineV2\": true, \"languageCode\": \"te\" }\n}"
+        },
+        "url": "{{baseUrl}}/platform/syndication/jobs"
+      }
+    },
+    {
+      "name": "2 — Newsdesk list (V1 filters)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "{{baseUrl}}/platform/newsdesk/jobs?page=1&pageSize=20&extractionStatus=EXTRACTION_PENDING&sort=createdAt&order=desc",
+          "host": ["{{baseUrl}}"],
+          "path": ["platform", "newsdesk", "jobs"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "pageSize", "value": "20" },
+            { "key": "extractionStatus", "value": "EXTRACTION_PENDING" },
+            { "key": "pipelineStatus", "value": "EXTRACTION_PENDING", "disabled": true },
+            { "key": "q", "value": "", "disabled": true },
+            { "key": "categoryId", "value": "{{categoryId}}", "disabled": true },
+            { "key": "fromDate", "value": "2026-11-01", "disabled": true },
+            { "key": "toDate", "value": "2026-11-30", "disabled": true },
+            { "key": "sort", "value": "createdAt" },
+            { "key": "order", "value": "desc" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "2b — Analytics (KPI cards)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/newsdesk/analytics"
+      }
+    },
+    {
+      "name": "2c — Staff scope (create form)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/newsdesk/staff/me"
+      }
+    },
+    {
+      "name": "3 — Legacy list jobs",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/syndication/jobs?page=1&pageSize=20&status=DRAFT"
+      }
+    },
+    {
+      "name": "4 — Get job",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/syndication/jobs/{{jobId}}"
+      }
+    },
+    {
+      "name": "5 — Get snapshot (immutable)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/newsdesk/jobs/{{jobId}}/snapshot"
+      }
+    },
+    {
+      "name": "6 — Get pipeline",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/syndication/jobs/{{jobId}}/pipeline"
+      }
+    },
+    {
+      "name": "7 — Get facts",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/syndication/jobs/{{jobId}}/facts"
+      }
+    },
+    {
+      "name": "8 — Retry extraction",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/platform/syndication/jobs/{{jobId}}/pipeline/retry-extraction"
+      }
+    }
+  ]
+}

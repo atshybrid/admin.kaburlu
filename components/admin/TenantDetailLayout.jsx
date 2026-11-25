@@ -24,11 +24,8 @@ const TENANT_TABS = [
   { id: 'overview', label: 'Overview', icon: 'home', description: 'Status & quick info' },
   { id: 'entity', label: 'Entity', icon: 'building', description: 'Business registration' },
   { id: 'domains', label: 'Domains', icon: 'globe', description: 'Domain management' },
-  { id: 'domain-settings', label: 'Domain Settings', icon: 'settings', description: 'Theme, branding, navigation per domain' },
-  { id: 'branding', label: 'Branding', icon: 'palette', description: 'Logo, colors, fonts' },
-  { id: 'seo', label: 'SEO', icon: 'search', description: 'Meta tags, OG, analytics' },
+  { id: 'domain-settings', label: 'Domain Settings', icon: 'palette', description: 'Webnews v2 theme, logo, SEO (per domain)' },
   { id: 'categories', label: 'Categories', icon: 'folder', description: 'Content categories' },
-  { id: 'homepage', label: 'Homepage', icon: 'layout', description: 'Homepage config' },
   { id: 'ads', label: 'Ads', icon: 'megaphone', description: 'Advertisement slots' },
   { id: 'editions', label: 'ePaper Editions', icon: 'layers', description: 'Editions & sub-editions' },
   { id: 'epaper', label: 'ePaper Settings', icon: 'layers', description: 'Smart design, newspaper-config, print window' },
@@ -73,13 +70,29 @@ function Icon({ name, className = 'w-5 h-5' }) {
   )
 }
 
+function isNewsDomain(d) {
+  return d?.kind !== 'EPAPER' && !String(d?.domain || '').startsWith('epaper.')
+}
+
+/** Saved per-domain theme (logo or site name) on at least one news domain */
+function tenantHasWebThemeBasics(domains, domainSettingsRows) {
+  const rows = domainSettingsRows || []
+  if (!rows.length) return false
+  const byId = new Map(rows.map((r) => [r.domainId, r.data || {}]))
+  return (domains || []).some((d) => {
+    if (!isNewsDomain(d)) return false
+    const cfg = byId.get(d.id)
+    return !!(cfg?.branding?.logoUrl || cfg?.branding?.siteName)
+  })
+}
+
 // Setup progress indicator
-function SetupProgress({ tenant, entity, domains, categories, razorpay, idCard }) {
+function SetupProgress({ tenant, entity, domains, categories, razorpay, idCard, domainSettingsRows }) {
   const steps = [
     { label: 'Entity', done: !!entity },
-    { label: 'Domain', done: (domains || []).length > 0 },
+    { label: 'Domain', done: (domains || []).some(isNewsDomain) },
     { label: 'Categories', done: (categories || []).length > 0 },
-    { label: 'Branding', done: !!tenant?.logo },
+    { label: 'Web theme', done: tenantHasWebThemeBasics(domains, domainSettingsRows) },
     { label: 'Payments', done: !!razorpay?.keyId },
   ]
   
@@ -171,6 +184,7 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const [categories, setCategories] = useState([])
   const [razorpay, setRazorpay] = useState(null)
   const [idCard, setIdCard] = useState(null)
+  const [domainSettingsRows, setDomainSettingsRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -193,14 +207,16 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
         }
         
         // Fetch all tenant data in parallel (proxy adds /api/v1 prefix)
-        const [tenantRes, entityRes, domainsRes, categoriesRes, razorpayRes, idCardRes] = await Promise.allSettled([
-          fetch(`${base}/tenants/${tenantId}`, { headers }),
-          fetch(`${base}/tenants/${tenantId}/entity`, { headers }),
-          fetch(`${base}/domains`, { headers }), // Use global domains endpoint
-          fetch(`${base}/tenants/${tenantId}/categories`, { headers }),
-          fetch(`${base}/tenants/${tenantId}/razorpay-config`, { headers }),
-          fetch(`${base}/tenants/${tenantId}/id-card-settings`, { headers }),
-        ])
+        const [tenantRes, entityRes, domainsRes, categoriesRes, razorpayRes, idCardRes, domainSettingsRes] =
+          await Promise.allSettled([
+            fetch(`${base}/tenants/${tenantId}`, { headers }),
+            fetch(`${base}/tenants/${tenantId}/entity`, { headers }),
+            fetch(`${base}/domains`, { headers }), // Use global domains endpoint
+            fetch(`${base}/tenants/${tenantId}/categories`, { headers }),
+            fetch(`${base}/tenants/${tenantId}/razorpay-config`, { headers }),
+            fetch(`${base}/tenants/${tenantId}/id-card-settings`, { headers }),
+            fetch(`${base}/tenants/${tenantId}/domains/settings?pageSize=50`, { headers }),
+          ])
         
         if (cancelled) return
         
@@ -226,7 +242,6 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
           const allDomains = Array.isArray(data) ? data : (data?.data || [])
           // Filter domains for this tenant
           const tenantDomains = allDomains.filter(d => d.tenantId === tenantId)
-          console.log('🌐 Domains loaded:', { total: allDomains.length, forTenant: tenantDomains.length, tenantId })
           if (tenantDomains.length > 0) {
             setDomains(tenantDomains)
           } else if (tenantData?.domains?.length > 0) {
@@ -239,6 +254,13 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
           setDomains(tenantData.domains)
         }
         
+        if (domainSettingsRes.status === 'fulfilled' && domainSettingsRes.value.ok) {
+          const data = await domainSettingsRes.value.json()
+          setDomainSettingsRows(Array.isArray(data?.data) ? data.data : [])
+        } else {
+          setDomainSettingsRows([])
+        }
+
         // Parse categories
         if (categoriesRes.status === 'fulfilled' && categoriesRes.value.ok) {
           const data = await categoriesRes.value.json()
@@ -272,7 +294,9 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
   const completedTabs = []
   if (entity) completedTabs.push('entity')
   if (domains.length > 0) completedTabs.push('domains')
-  if (categories.length > 0) completedTabs.push('categories')
+  if (tenantHasWebThemeBasics(domains, domainSettingsRows)) {
+    completedTabs.push('domain-settings')
+  }
   if (razorpay?.keyId) completedTabs.push('payments')
   if (idCard) completedTabs.push('id-cards')
 
@@ -443,13 +467,14 @@ export default function TenantDetailLayout({ tenantId, activeTab = 'overview', c
         </div>
 
         {/* Setup Progress */}
-        <SetupProgress 
+        <SetupProgress
           tenant={tenant}
           entity={entity}
           domains={domains}
           categories={categories}
           razorpay={razorpay}
           idCard={idCard}
+          domainSettingsRows={domainSettingsRows}
         />
 
         {/* Main Layout */}

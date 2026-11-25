@@ -2,6 +2,7 @@
  * Tenant Detail Page with Tabs
  * /admin/tenants/[id]/[[...tab]]
  */
+import { useEffect } from 'react'
 import { useRouter } from 'next/router'
 import DashboardLayout from '../../../../components/dashboard/DashboardLayout'
 import TenantDetailLayout from '../../../../components/admin/TenantDetailLayout'
@@ -10,8 +11,6 @@ import {
   TenantEntityTab, 
   ModernDomainsTab,
   TenantCategoriesTab,
-  TenantBrandingTab,
-  TenantHomepageTab,
   TenantPaymentsTab,
   TenantSettingsTab,
   TenantIdCardsTab,
@@ -24,8 +23,14 @@ import {
   TenantEditionsTab,
   TenantWalletTab,
   TenantReporterBillingTab,
-  TenantSeoTab,
 } from '../../../../components/admin/tabs'
+
+/** Old tenant-theme tabs — single Webnews config in Domain Settings */
+const LEGACY_TAB_REDIRECT = {
+  branding: 'domain-settings',
+  seo: 'domain-settings',
+  homepage: 'domain-settings',
+}
 
 function TenantDetailContent() {
   const router = useRouter()
@@ -33,9 +38,23 @@ function TenantDetailContent() {
   
   // Get active tab from URL or default to overview
   const activeTab = Array.isArray(tab) ? tab[0] : (tab || 'overview')
-  
+
+  useEffect(() => {
+    if (!id) return
+    const target = LEGACY_TAB_REDIRECT[activeTab]
+    if (target) {
+      router.replace(`/admin/tenants/${id}/${target}`)
+    }
+  }, [id, activeTab, router])
+
   // Render the appropriate tab content based on context
   const renderTabContent = (tenantContext) => {
+    if (LEGACY_TAB_REDIRECT[activeTab]) {
+      return (
+        <div className="p-6 text-sm text-slate-500">Redirecting to Domain Settings…</div>
+      )
+    }
+
     switch (activeTab) {
       case 'overview':
         return <TenantOverviewTab tenantContext={tenantContext} />
@@ -45,26 +64,6 @@ function TenantDetailContent() {
         return <ModernDomainsTab tenantId={id} />
       case 'categories':
         return <TenantCategoriesTab tenantContext={tenantContext} />
-      case 'branding':
-        return <TenantBrandingTab tenantContext={tenantContext} />
-      case 'seo':
-        return <TenantSeoTab tenantContext={tenantContext} />
-      case 'homepage':
-        return <TenantHomepageTab tenantContext={tenantContext} />
-      case 'ads':
-        return <TenantAdsTab tenantContext={tenantContext} />
-      case 'payments':
-        return <TenantPaymentsTab tenantContext={tenantContext} />
-      case 'tenant-wallet':
-        return <TenantWalletTab tenantContext={tenantContext} />
-      case 'reporter-billing':
-        return <TenantReporterBillingTab tenantContext={tenantContext} />
-      case 'settings':
-        return <TenantSettingsTab tenantContext={tenantContext} />
-      case 'id-cards':
-        return <TenantIdCardsTab tenantContext={tenantContext} />
-      case 'pages':
-        return <TenantPagesTab tenantContext={tenantContext} />
       case 'admins':
         return <TenantAdminsTab tenantContext={tenantContext} />
       case 'reporters':

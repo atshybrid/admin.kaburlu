@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getToken } from '../../../utils/auth'
+import PrgiNumberEditor from '../PrgiNumberEditor'
 
 // Use local proxy to avoid CORS
 function getApiBase() {
@@ -687,7 +688,6 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
     contactPerson: entity?.contactPerson || '',
   })
   
-  // PRGI number is immutable - shown read-only
   const prgiNumber = entity?.prgiNumber || ''
 
   useEffect(() => {
@@ -769,21 +769,8 @@ function EntityEditForm({ entity, tenantId, onSuccess, onCancel }) {
       </div>
       
       <form onSubmit={handleSubmit} className="p-5 space-y-5">
-        {/* PRGI Number - Read Only (immutable) */}
-        {prgiNumber && (
-          <div className="p-3 bg-slate-50 border rounded-lg flex items-center gap-3">
-            <div className="w-8 h-8 bg-brand/10 rounded-lg flex items-center justify-center">
-              <svg className="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </div>
-            <div>
-              <div className="text-xs text-slate-500">PRGI Number (immutable)</div>
-              <div className="font-medium text-slate-900">{prgiNumber}</div>
-            </div>
-          </div>
-        )}
-        
+        <PrgiNumberEditor tenantId={tenantId} value={prgiNumber} onSaved={onSuccess} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">

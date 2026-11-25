@@ -45,10 +45,17 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
 
   useEffect(() => {
     let cancelled = false
-    checkBackendHealth().then((status) => {
-      if (!cancelled) setBackendStatus(status)
-    })
-    return () => { cancelled = true }
+    const tick = () => {
+      checkBackendHealth().then((status) => {
+        if (!cancelled) setBackendStatus(status)
+      })
+    }
+    tick()
+    const id = setInterval(tick, 45000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
   }, [])
 
   const filteredSearch = searchQuery.trim()
@@ -139,7 +146,14 @@ export default function ModernHeader({ user, onOpenNav, onLogout, title = 'Dashb
           </button>
 
           {/* Status indicator */}
-          <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border ${status.bg}`}>
+          <div
+            className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border ${status.bg}`}
+            title={
+              backendStatus === 'offline'
+                ? 'Start backend: API_DEV_PORT=3011 npm run start:dev:env — .env.local NEXT_PUBLIC_BACKEND_URL=http://localhost:3011/api/v1'
+                : '/api/health → backend /health/ai'
+            }
+          >
             <span className={`w-2 h-2 rounded-full ${status.dot} ${backendStatus === 'online' ? 'animate-pulse' : ''}`} />
             <span className={`text-xs font-medium ${status.text}`}>{status.label}</span>
           </div>

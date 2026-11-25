@@ -4,7 +4,7 @@ import NewsDeskCreateView from '../../../components/dashboard/newsDesk/NewsDeskC
 export default function NewsDeskCreatePage() {
   return (
     <DashboardLayout title="Create News Desk intake">
-      <NewsDeskCreateView />
+      <NewsDeskCreateView basePath="/admin/news-desk" />
     </DashboardLayout>
   )
 }

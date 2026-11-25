@@ -4,7 +4,11 @@ import { useRouter } from 'next/router'
 import { useLayout } from '../DashboardLayout'
 import newsDeskApi, { formatNewsDeskError } from '../../../lib/api/services/newsDeskApi'
 import { buildNewsDeskIntakePayload, assertV2CreateResponse } from '../../../lib/newsDesk/buildIntakePayload'
-import { buildLocationHintFromFields } from '../../../lib/newsDesk/locationHint'
+import {
+  buildLocationHintFromFields,
+  canonicalStateFromText,
+  formatLocationHintDisplay,
+} from '../../../lib/newsDesk/locationHint'
 import {
   buildNewsDeskCategoryPayload,
   categoryPayloadNameOnly,
@@ -13,9 +17,9 @@ import {
 } from '../../../lib/newsDesk/categoryLoader'
 import {
   buildTenantsIntakePayload,
-  defaultTenantSelection,
   loadNewsDeskTenants,
 } from '../../../lib/newsDesk/tenantList'
+import { filterTenantsForOperator, resolveIntakeTenantSelection } from '../../../lib/newsDesk/operatorTenants'
 import NewsDeskTenantPicker from './NewsDeskTenantPicker'
 import { languagesService } from '../../../lib/api/services'
 import NewsDeskAccessGate from './NewsDeskAccessGate'
@@ -24,6 +28,12 @@ import NewsDeskStructuredPaste from './NewsDeskStructuredPaste'
 import { applyStructuredPasteToForm } from '../../../lib/newsDesk/applyStructuredPaste'
 import { uploadDeskImages } from '../../../lib/newsDesk/uploadDeskImages'
 import { Button, FormField, Input, Select, Spinner, Textarea, toast } from '../../ui'
+import NewsDeskPageShell from './NewsDeskPageShell'
+import NewsDeskPageHeader from './NewsDeskPageHeader'
+import NewsDeskSection from './NewsDeskSection'
+import NewsDeskLocationSearch from './NewsDeskLocationSearch'
+import NewsDeskTenantImageOverrides from './NewsDeskTenantImageOverrides'
+import { DEFAULT_NEWS_ROOM_BASE, newsRoomPaths } from '../../../lib/newsDesk/paths'
 
 const ATTRIBUTION_TYPES = [
   { value: 'DESK', label: 'Desk' },
@@ -33,7 +43,8 @@ const ATTRIBUTION_TYPES = [
   { value: 'SOCIAL', label: 'Social' },
 ]
 
-export default function NewsDeskCreateView() {
+export default function NewsDeskCreateView({ basePath = DEFAULT_NEWS_ROOM_BASE }) {
+  const paths = newsRoomPaths(basePath)
   const router = useRouter()
   const { user } = useLayout()
   const [categories, setCategories] = useState([])
@@ -48,32 +59,49 @@ export default function NewsDeskCreateView() {
   const [attributionType, setAttributionType] = useState('DESK')
   const [attributionPlatform, setAttributionPlatform] = useState('')
   const [attributionCustom, setAttributionCustom] = useState('')
+  const [locationState, setLocationState] = useState('')
   const [locationDistrict, setLocationDistrict] = useState('')
   const [locationMandal, setLocationMandal] = useState('')
   const [locationArea, setLocationArea] = useState('')
   const [locationNote, setLocationNote] = useState('')
+  const [locationMaster, setLocationMaster] = useState(null)
   const [deskTenants, setDeskTenants] = useState([])
   const [selectedTenantIds, setSelectedTenantIds] = useState([])
+  const [tenantScope, setTenantScope] = useState({ lockSelection: false, hidePicker: false })
   const [sourcePreview, setSourcePreview] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [languageCode, setLanguageCode] = useState('te')
   const [images, setImages] = useState([])
+  const [tenantImageOverrides, setTenantImageOverrides] = useState({})
   const [intakeHighlight, setIntakeHighlight] = useState(false)
   const articleFieldRef = useRef(null)
+  const locationPreview = formatLocationHintDisplay(
+    buildLocationHintFromFields({
+      state: locationState,
+      district: locationDistrict,
+      mandal: locationMandal,
+      area: locationArea,
+      note: locationNote,
+    }),
+  )
 
   useEffect(() => {
     ;(async () => {
       setMetaLoading(true)
       try {
-        const [cats, langs, tenants] = await Promise.all([
+        const [cats, langs, tenants, scope] = await Promise.all([
           loadNewsDeskCategories(),
           languagesService.getAll(),
           loadNewsDeskTenants().catch(() => []),
+          newsDeskApi.getOperatorScope().catch(() => null),
         ])
+        const scopedTenants = filterTenantsForOperator(tenants, scope)
+        const intake = resolveIntakeTenantSelection(scope, scopedTenants)
         setCategories(cats)
         setLanguages(langs || [])
-        setDeskTenants(tenants)
-        setSelectedTenantIds(defaultTenantSelection(tenants))
+        setDeskTenants(scopedTenants)
+        setSelectedTenantIds(intake.selectedIds)
+        setTenantScope({ lockSelection: intake.lockSelection, hidePicker: intake.hidePicker })
         setCategoryId(pickNewsDeskDefaultCategoryId(cats))
         const te = (langs || []).find((l) => (l.code || l.languageCode || '').toLowerCase() === 'te')
         if (te?.code) setLanguageCode(te.code)
@@ -107,14 +135,18 @@ export default function NewsDeskCreateView() {
     if (attributionPlatform.trim()) sourceAttribution.platform = attributionPlatform.trim().toUpperCase()
     if (attributionCustom.trim()) sourceAttribution.customText = attributionCustom.trim()
 
-    const locationHint = buildLocationHintFromFields({
-      district: locationDistrict,
-      mandal: locationMandal,
-      area: locationArea,
-      note: locationNote,
-    })
+    const baseHint =
+      buildLocationHintFromFields({
+        state: locationState,
+        district: locationDistrict,
+        mandal: locationMandal,
+        area: locationArea,
+        note: locationNote,
+      }) || {}
+    const locationHint = { ...baseHint, ...(locationMaster ? { master: locationMaster } : {}) }
+    const cleanLocationHint = Object.keys(locationHint).length ? locationHint : null
 
-    const tenantPayload = buildTenantsIntakePayload(selectedTenantIds, deskTenants)
+    const tenantPayload = buildTenantsIntakePayload(selectedTenantIds, deskTenants, tenantImageOverrides)
     if (!tenantPayload.length) {
       toast.error('Could not resolve tenant names — reload the page')
       return
@@ -127,9 +159,10 @@ export default function NewsDeskCreateView() {
         category,
         sourceUrl,
         sourceAttribution,
-        locationHint,
+        locationHint: cleanLocationHint,
         languageCode,
         imageUrls: images,
+        tenantImages: tenantImageOverrides,
         tenants: tenantPayload,
       })
 
@@ -155,11 +188,11 @@ export default function NewsDeskCreateView() {
       const check = assertV2CreateResponse(response)
       if (!check.ok) {
         toast.error(check.message)
-        if (check.jobId) router.push(`/admin/news-desk/${check.jobId}`)
+        if (check.jobId) router.push(paths.review(check.jobId))
         return
       }
-      toast.success('News submitted to News Desk pipeline')
-      router.push(`/admin/news-desk/${check.jobId}`)
+      toast.success('News submitted — opening review (extraction runs in queue)')
+      router.push(`${paths.review(check.jobId)}?submitted=1&autopublish=1`)
     } catch (error) {
       toast.error(formatNewsDeskError(error))
     } finally {
@@ -193,24 +226,32 @@ export default function NewsDeskCreateView() {
 
   if (metaLoading) {
     return (
-      <div className="flex justify-center py-24">
-        <Spinner size="lg" />
-      </div>
+      <NewsDeskAccessGate user={user}>
+        <NewsDeskPageShell maxWidth="max-w-3xl">
+          <div className="flex justify-center py-24">
+            <Spinner size="lg" />
+          </div>
+        </NewsDeskPageShell>
+      </NewsDeskAccessGate>
     )
   }
 
   return (
     <NewsDeskAccessGate user={user}>
-      <div className="max-w-3xl mx-auto space-y-6 pb-12">
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Create News Desk intake</h1>
-            <p className="text-sm text-slate-500 mt-1">Original copy is saved as an immutable snapshot; facts extract asynchronously.</p>
-          </div>
-          <Link href="/admin/news-desk">
-            <Button type="button" variant="outline">← All submissions</Button>
-          </Link>
-        </header>
+      <NewsDeskPageShell maxWidth="max-w-3xl">
+        <NewsDeskPageHeader
+          backHref={paths.posts}
+          backLabel="All submissions"
+          title="New intake"
+          description="Snapshot is saved immediately; facts extraction runs in the background."
+          actions={
+            <Link href={paths.settings}>
+              <Button type="button" variant="ghost" size="sm">
+                Settings
+              </Button>
+            </Link>
+          }
+        />
 
         <NewsDeskStructuredPaste
           disabled={submitting}
@@ -256,127 +297,239 @@ export default function NewsDeskCreateView() {
         <form
           id="news-desk-intake-form"
           onSubmit={onSubmit}
-          className={`space-y-6 rounded-2xl border bg-white p-6 shadow-sm transition-shadow ${
-            intakeHighlight ? 'border-brand ring-2 ring-brand/30' : 'border-slate-200'
-          }`}
+          className={`space-y-5 transition-shadow ${intakeHighlight ? 'ring-2 ring-brand/25 rounded-xl' : ''}`}
         >
-          <FormField label="Headline" hint="Optional — shown in lists when provided">
-            <Input value={headline} onChange={(e) => setHeadline(e.target.value)} disabled={submitting} />
-          </FormField>
+          <NewsDeskSection title="Story" subtitle="Headline and full article text">
+            <div className="space-y-4">
+              <FormField label="Headline" hint="Optional — shown in lists when provided">
+                <Input value={headline} onChange={(e) => setHeadline(e.target.value)} disabled={submitting} />
+              </FormField>
+              <FormField label="Article content" required>
+                <Textarea
+                  ref={articleFieldRef}
+                  id="news-desk-article"
+                  rows={12}
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  disabled={submitting}
+                  placeholder="Paste the full original article text"
+                />
+              </FormField>
+              <FormField label="Category" required>
+                <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={submitting}>
+                  <option value="">Select category</option>
+                  {categories.map((c) => (
+                    <option key={c.categoryId} value={c.categoryId}>
+                      {c.categoryName}
+                    </option>
+                  ))}
+                </Select>
+              </FormField>
+              <FormField label="Language">
+                <Select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} disabled={submitting}>
+                  {(languages || []).map((lang) => {
+                    const code = lang.code || lang.languageCode
+                    const name = lang.name || lang.languageName || code
+                    return (
+                      <option key={lang.id || code} value={code}>
+                        {name}
+                      </option>
+                    )
+                  })}
+                </Select>
+              </FormField>
+            </div>
+          </NewsDeskSection>
 
-          <FormField label="Article content" required>
-            <Textarea
-              ref={articleFieldRef}
-              id="news-desk-article"
-              rows={12}
-              value={rawText}
-              onChange={(e) => setRawText(e.target.value)}
-              disabled={submitting}
-              placeholder="Paste the full original article text"
-            />
-          </FormField>
+          <NewsDeskSection title="Routing" subtitle="Which publisher(s) receive this intake">
+            {tenantScope.hidePicker ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Assigned tenant</p>
+                <p className="text-sm font-medium text-slate-900 mt-0.5">
+                  {deskTenants.find((t) => t.id === selectedTenantIds[0])?.name || 'Your assigned tenant'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">Set in Settings — no pick needed each post.</p>
+              </div>
+            ) : (
+              <>
+                {tenantScope.lockSelection ? (
+                  <p className="text-xs text-slate-500 mb-3">
+                    Pre-selected from your assigned tenants ({selectedTenantIds.length}).
+                  </p>
+                ) : null}
+                <NewsDeskTenantPicker
+                  tenants={deskTenants}
+                  selectedIds={selectedTenantIds}
+                  onChange={setSelectedTenantIds}
+                  disabled={submitting || tenantScope.lockSelection}
+                />
+                {selectedTenantIds.length > 0 && images.length > 0 ? (
+                  <NewsDeskSection
+                    title="Publisher images"
+                    subtitle="Optional hero per site — publish uses intake images only (max 8)"
+                  >
+                    <NewsDeskTenantImageOverrides
+                      tenants={deskTenants.filter((t) => selectedTenantIds.includes(t.id))}
+                      intakeImages={images}
+                      overrides={tenantImageOverrides}
+                      onChange={setTenantImageOverrides}
+                      disabled={submitting}
+                    />
+                  </NewsDeskSection>
+                ) : null}
+              </>
+            )}
+          </NewsDeskSection>
 
-          <FormField label="Category" required>
-            <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={submitting}>
-              <option value="">Select category</option>
-              {categories.map((c) => (
-                <option key={c.categoryId} value={c.categoryId}>{c.categoryName}</option>
-              ))}
-            </Select>
-          </FormField>
+          <NewsDeskSection title="Source" subtitle="URL, attribution, and optional preview">
+            <div className="space-y-4">
+              <FormField label="Source URL">
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    type="url"
+                    className="flex-1 min-w-[12rem]"
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    disabled={submitting}
+                    placeholder="https://…"
+                  />
+                  <Button type="button" variant="outline" size="sm" disabled={submitting || previewLoading} onClick={onPreviewSource}>
+                    {previewLoading ? <Spinner size="sm" className="mr-2" /> : null}
+                    Preview
+                  </Button>
+                </div>
+              </FormField>
+              {sourcePreview?.preview ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                  <p className="font-medium text-slate-800">{sourcePreview.preview.title || 'No title in preview'}</p>
+                  {sourcePreview.preview.description ? (
+                    <p className="text-slate-600 text-xs line-clamp-3">{sourcePreview.preview.description}</p>
+                  ) : null}
+                  <p className="text-xs text-slate-500">
+                    Platform: {sourcePreview.platform || '—'} · Status: {sourcePreview.previewStatus || '—'}
+                  </p>
+                </div>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label="Source attribution">
+                  <Select value={attributionType} onChange={(e) => setAttributionType(e.target.value)} disabled={submitting}>
+                    {ATTRIBUTION_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
+                <FormField label="Platform (optional)" hint="For social sources">
+                  <Input
+                    value={attributionPlatform}
+                    onChange={(e) => setAttributionPlatform(e.target.value)}
+                    disabled={submitting}
+                    placeholder="YOUTUBE, X, …"
+                  />
+                </FormField>
+              </div>
+              <FormField label="Attribution note">
+                <Input value={attributionCustom} onChange={(e) => setAttributionCustom(e.target.value)} disabled={submitting} />
+              </FormField>
+            </div>
+          </NewsDeskSection>
 
-          <NewsDeskTenantPicker
-            tenants={deskTenants}
-            selectedIds={selectedTenantIds}
-            onChange={setSelectedTenantIds}
-            disabled={submitting}
-          />
-
-          <FormField label="Source URL">
-            <div className="flex flex-wrap gap-2">
-              <Input
-                type="url"
-                className="flex-1 min-w-[12rem]"
-                value={sourceUrl}
-                onChange={(e) => setSourceUrl(e.target.value)}
+          <NewsDeskSection
+            title="Location hint"
+            subtitle={
+              locationPreview
+                ? `Saved on snapshot: ${locationPreview}`
+                : 'Optional — district / mandal help routing & AI checks'
+            }
+          >
+            <div className="space-y-3">
+              <NewsDeskLocationSearch
                 disabled={submitting}
-                placeholder="https://…"
+                selectedLabel={locationMaster?.displayName || locationPreview}
+                state={locationState}
+                district={locationDistrict}
+                mandal={locationMandal}
+                area={locationArea}
+                onPick={({ state, district, mandal, area: pickedArea, master }) => {
+                  const districtAsState = canonicalStateFromText(district)
+                  const isStatePick =
+                    master?.level === 'state' || Boolean(state && !district) || Boolean(districtAsState && !state)
+                  if (isStatePick) {
+                    setLocationState(state || districtAsState || master?.displayName || district || '')
+                    setLocationDistrict('')
+                    setLocationMandal(mandal || '')
+                  } else {
+                    setLocationDistrict(district || '')
+                    setLocationMandal(mandal || '')
+                    if (state) setLocationState(state)
+                  }
+                  if (pickedArea) setLocationArea(pickedArea)
+                  setLocationMaster(master || null)
+                }}
               />
-              <Button type="button" variant="outline" disabled={submitting || previewLoading} onClick={onPreviewSource}>
-                {previewLoading ? <Spinner size="sm" className="mr-2" /> : null}
-                Preview source
-              </Button>
-            </div>
-          </FormField>
-          {sourcePreview?.preview && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
-              <p className="font-medium text-slate-800">{sourcePreview.preview.title || 'No title in preview'}</p>
-              {sourcePreview.preview.description && (
-                <p className="text-slate-600 text-xs line-clamp-3">{sourcePreview.preview.description}</p>
-              )}
-              <p className="text-xs text-slate-500">
-                Platform: {sourcePreview.platform || '—'} · Status: {sourcePreview.previewStatus || '—'}
-              </p>
-            </div>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Source attribution">
-              <Select value={attributionType} onChange={(e) => setAttributionType(e.target.value)} disabled={submitting}>
-                {ATTRIBUTION_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </Select>
-            </FormField>
-            <FormField label="Platform (optional)" hint="For social sources">
-              <Input value={attributionPlatform} onChange={(e) => setAttributionPlatform(e.target.value)} disabled={submitting} placeholder="YOUTUBE, X, …" />
-            </FormField>
-          </div>
-
-          <FormField label="Attribution note">
-            <Input value={attributionCustom} onChange={(e) => setAttributionCustom(e.target.value)} disabled={submitting} />
-          </FormField>
-
-          <fieldset className="space-y-3 rounded-xl border border-slate-100 p-4">
-            <legend className="text-sm font-semibold text-slate-800 px-1">Location hint</legend>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <FormField label="District">
-                <Input value={locationDistrict} onChange={(e) => setLocationDistrict(e.target.value)} disabled={submitting} placeholder="Hyderabad" />
-              </FormField>
-              <FormField label="Mandal">
-                <Input value={locationMandal} onChange={(e) => setLocationMandal(e.target.value)} disabled={submitting} placeholder="Charminar" />
-              </FormField>
-              <FormField label="Area">
-                <Input value={locationArea} onChange={(e) => setLocationArea(e.target.value)} disabled={submitting} placeholder="Bangaru Peta" />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <FormField label="State (రాష్ట్రం)">
+                  <Input
+                    value={locationState}
+                    onChange={(e) => setLocationState(e.target.value)}
+                    disabled={submitting}
+                    placeholder="Telangana / తెలంగాణ"
+                  />
+                </FormField>
+                <FormField label="District">
+                  <Input
+                    value={locationDistrict}
+                    onChange={(e) => setLocationDistrict(e.target.value)}
+                    disabled={submitting}
+                    placeholder="Hyderabad"
+                  />
+                </FormField>
+                <FormField label="Mandal">
+                  <Input
+                    value={locationMandal}
+                    onChange={(e) => setLocationMandal(e.target.value)}
+                    disabled={submitting}
+                    placeholder="Charminar"
+                  />
+                </FormField>
+                <FormField label="Area">
+                  <Input
+                    value={locationArea}
+                    onChange={(e) => setLocationArea(e.target.value)}
+                    disabled={submitting}
+                    placeholder="Bangaru Peta"
+                  />
+                </FormField>
+              </div>
+              <FormField label="Region note" hint="State / broader area (optional)">
+                <Input
+                  value={locationNote}
+                  onChange={(e) => setLocationNote(e.target.value)}
+                  disabled={submitting}
+                  placeholder="Optional — not the state field above"
+                />
               </FormField>
             </div>
-            <FormField label="Region note" hint="State / broader area (optional)">
-              <Input value={locationNote} onChange={(e) => setLocationNote(e.target.value)} disabled={submitting} placeholder="ఆంధ్రప్రదేశ్" />
-            </FormField>
-          </fieldset>
+          </NewsDeskSection>
 
-          <FormField label="Language">
-            <Select value={languageCode} onChange={(e) => setLanguageCode(e.target.value)} disabled={submitting}>
-              {(languages || []).map((lang) => {
-                const code = lang.code || lang.languageCode
-                const name = lang.name || lang.languageName || code
-                return (
-                  <option key={lang.id || code} value={code}>{name}</option>
-                )
-              })}
-            </Select>
-          </FormField>
+          <NewsDeskSection title="Media" subtitle="Up to 8 images at intake — used at publish (order matters for default hero)">
+            <NewsDeskImageUploader images={images} onChange={setImages} disabled={submitting} />
+          </NewsDeskSection>
 
-          <NewsDeskImageUploader images={images} onChange={setImages} disabled={submitting} />
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="flex flex-wrap items-center gap-3 sticky bottom-0 py-3 bg-slate-50/90 border-t border-slate-200 -mx-1 px-1 backdrop-blur-sm rounded-lg">
             <Button type="submit" disabled={submitting}>
               {submitting ? <Spinner size="sm" className="mr-2" /> : null}
-              Submit to News Desk
+              Submit intake
             </Button>
+            <Link href={paths.posts}>
+              <Button type="button" variant="ghost" disabled={submitting}>
+                Cancel
+              </Button>
+            </Link>
           </div>
         </form>
-      </div>
+      </NewsDeskPageShell>
     </NewsDeskAccessGate>
   )
 }

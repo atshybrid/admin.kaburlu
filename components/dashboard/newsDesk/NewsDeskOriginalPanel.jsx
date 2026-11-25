@@ -1,6 +1,19 @@
 import { StatusBadge } from '../../ui'
 import { pipelineStatusColor, formatPipelineLabel } from '../../../lib/newsDesk/statusBadges'
 import { formatLocationHintDisplay } from '../../../lib/newsDesk/locationHint'
+import { TELUGU_HEADLINE_CLASS, TELUGU_READER_CLASS } from '../../../lib/newsDesk/teluguTypography'
+import NewsDeskTenantChips from './NewsDeskTenantChips'
+
+function MetaRow({ label, children }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-3 py-2 border-b border-slate-100 last:border-0">
+      <dt className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:w-36 shrink-0">
+        {label}
+      </dt>
+      <dd className="text-sm text-slate-900 min-w-0">{children}</dd>
+    </div>
+  )
+}
 
 function attributionLabel(attr) {
   if (!attr || typeof attr !== 'object') return '—'
@@ -11,10 +24,10 @@ function attributionLabel(attr) {
   return parts.length ? parts.join(' · ') : '—'
 }
 
-export default function NewsDeskOriginalPanel({ snapshot, categoryName, pipeline }) {
+export default function NewsDeskOriginalPanel({ snapshot, categoryName, pipeline, targetTenants = [] }) {
   if (!snapshot) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-6">
+      <section className="rounded-lg border border-slate-200/80 bg-white p-5">
         <p className="text-sm text-slate-500">Original snapshot could not be loaded.</p>
       </section>
     )
@@ -23,70 +36,73 @@ export default function NewsDeskOriginalPanel({ snapshot, categoryName, pipeline
   const urls = snapshot.imageRefs?.urls || []
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <section className="rounded-lg border border-slate-200/80 bg-white flex flex-col">
+      <header className="flex items-start justify-between gap-3 px-4 py-3 border-b border-slate-100 bg-slate-50/40">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Original submission</p>
-          <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-            {snapshot.headline || 'Untitled intake'}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Immutable snapshot · accepted {snapshot.acceptedAt ? new Date(snapshot.acceptedAt).toLocaleString() : '—'}
-          </p>
+          <h2 className="text-sm font-semibold text-slate-900">Original submission</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Immutable intake snapshot</p>
         </div>
-        {pipeline?.status && (
+        {pipeline?.status ? (
           <StatusBadge status={formatPipelineLabel(pipeline.status)} color={pipelineStatusColor(pipeline.status)} />
-        )}
+        ) : null}
       </header>
 
-      <dl className="grid gap-3 sm:grid-cols-2 text-sm">
-        <div>
-          <dt className="text-slate-500">Category</dt>
-          <dd className="font-medium text-slate-900 mt-0.5">{categoryName || snapshot.categoryId || '—'}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Source URL</dt>
-          <dd className="mt-0.5 break-all">
+      <div className="px-4 py-4 space-y-4">
+        {snapshot.headline ? <p className={TELUGU_HEADLINE_CLASS}>{snapshot.headline}</p> : null}
+
+        <dl className="rounded-md border border-slate-100 bg-slate-50/50 px-3">
+          <MetaRow label="Target publishers">
+            <div>
+              <NewsDeskTenantChips tenants={targetTenants} showAll compact />
+              <p className="text-[11px] text-slate-500 mt-1">
+                ఈ కథనం కింది పత్రిక(ల)లో ప్రచురించడానికి రూట్ చేయబడింది
+              </p>
+            </div>
+          </MetaRow>
+          <MetaRow label="Category">{categoryName || snapshot.categoryId || '—'}</MetaRow>
+          <MetaRow label="Submitted">
+            {snapshot.acceptedAt ? new Date(snapshot.acceptedAt).toLocaleString() : '—'}
+          </MetaRow>
+          <MetaRow label="Attribution">{attributionLabel(snapshot.sourceAttribution)}</MetaRow>
+          <MetaRow label="Location">{formatLocationHintDisplay(snapshot.locationHint) || '—'}</MetaRow>
+          <MetaRow label="Source URL">
             {snapshot.sourceUrl ? (
-              <a href={snapshot.sourceUrl} target="_blank" rel="noreferrer" className="text-brand hover:underline">
+              <a
+                href={snapshot.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-brand font-normal hover:underline break-all text-sm"
+              >
                 {snapshot.sourceUrl}
               </a>
             ) : (
               '—'
             )}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Source attribution</dt>
-          <dd className="font-medium text-slate-900 mt-0.5">{attributionLabel(snapshot.sourceAttribution)}</dd>
-        </div>
-        <div>
-          <dt className="text-slate-500">Location hint</dt>
-          <dd className="font-medium text-slate-900 mt-0.5">{formatLocationHintDisplay(snapshot.locationHint) || '—'}</dd>
-        </div>
-      </dl>
+          </MetaRow>
+        </dl>
 
-      <article>
-        <h3 className="text-sm font-semibold text-slate-800">Article body</h3>
-        <div className="mt-2 rounded-xl bg-slate-50 border border-slate-100 p-4 text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
-          {snapshot.articleText}
-        </div>
-      </article>
-
-      {urls.length > 0 && (
         <div>
-          <h3 className="text-sm font-semibold text-slate-800">Images ({urls.length})</h3>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {urls.map((url, i) => (
-              <figure key={`${url}-${i}`} className="rounded-xl border border-slate-200 overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-40 object-cover bg-slate-100" />
-                <figcaption className="px-2 py-1 text-xs text-slate-500">Order {i + 1}</figcaption>
-              </figure>
-            ))}
+          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Article body</h3>
+          <div className={`mt-2 ${TELUGU_READER_CLASS} whitespace-pre-wrap`}>{snapshot.articleText || '—'}</div>
+        </div>
+
+        {urls.length > 0 ? (
+          <div>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              Images ({urls.length})
+            </h3>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {urls.map((url, i) => (
+                <figure key={`${url}-${i}`} className="rounded-md border border-slate-200 overflow-hidden bg-slate-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt="" className="w-full h-36 object-cover" />
+                  <figcaption className="px-2 py-1 text-[10px] text-slate-500">#{i + 1}</figcaption>
+                </figure>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </div>
     </section>
   )
 }

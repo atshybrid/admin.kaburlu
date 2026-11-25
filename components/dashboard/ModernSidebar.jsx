@@ -61,6 +61,7 @@ export default function ModernSidebar({ user, onLogout }) {
     journalist: false,
     political: false,
     platform: false,
+    newsRoom: false,
     settings: false,
   })
 
@@ -131,6 +132,14 @@ export default function ModernSidebar({ user, onLogout }) {
             items={filteredNavigation.political}
             collapsed={collapsed.political}
             onToggle={() => toggleSection('political')}
+          />
+        )}
+        {filteredNavigation.newsRoom?.length > 0 && (
+          <NavGroup
+            title="News Room"
+            items={filteredNavigation.newsRoom}
+            collapsed={collapsed.newsRoom}
+            onToggle={() => toggleSection('newsRoom')}
           />
         )}
         {filteredNavigation.platform.length > 0 && (

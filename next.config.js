@@ -48,6 +48,21 @@ const nextConfig = {
         destination: '/admin/:path*',
         permanent: true,
       },
+      {
+        source: '/admin/tenants/:id/branding',
+        destination: '/admin/tenants/:id/domain-settings',
+        permanent: false,
+      },
+      {
+        source: '/admin/tenants/:id/seo',
+        destination: '/admin/tenants/:id/domain-settings',
+        permanent: false,
+      },
+      {
+        source: '/admin/tenants/:id/homepage',
+        destination: '/admin/tenants/:id/domain-settings',
+        permanent: false,
+      },
     ]
   },
   async headers() {
